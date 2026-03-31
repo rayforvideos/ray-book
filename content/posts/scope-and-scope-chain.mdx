@@ -1,0 +1,141 @@
+---
+title: "스코프와 스코프 체인"
+description: "변수를 찾아 올라가는 여정 — 렉시컬 스코프, 스코프 체인 탐색, 그리고 var와 let의 차이를 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "scope", "lexical-scope", "scope-chain"]
+series: "execution-context-and-scope"
+seriesOrder: 2
+draft: false
+---
+
+## 변수는 어디에 있는가
+
+이전 글에서 실행 컨텍스트가 변수를 저장하는 환경이라는 것을 배웠습니다. 하지만 한 가지 질문이 남아 있습니다 — 함수 안에서 바깥 변수를 참조할 때, 엔진은 그 변수를 **어떻게 찾을까요?**
+
+```javascript
+var a = "global";
+function outer() {
+  var b = "outer";
+  function inner() {
+    console.log(a); // ← a는 inner에 없는데?
+  }
+  inner();
+}
+```
+
+`inner()` 안에서 `a`를 참조합니다. `a`는 `inner`에도, `outer`에도 없고, 전역에 있습니다. 엔진은 이것을 어떻게 알까요?
+
+답은 **스코프 체인** 입니다.
+
+## 스코프란
+
+**스코프** (Scope) 는 변수가 유효한 범위입니다. JavaScript에는 세 종류의 스코프가 있습니다:
+
+- **전역 스코프** — 어디서든 접근 가능
+- **함수 스코프** — 함수 안에서만 유효 (`var`, 함수 선언)
+- **블록 스코프** — `{ }` 블록 안에서만 유효 (`let`, `const`)
+
+## 렉시컬 스코프
+
+JavaScript의 스코프는 **렉시컬** (lexical, 정적) 입니다. 함수가 **어디서 호출되는지** 가 아니라 **어디서 정의되는지** 에 따라 스코프 체인이 결정됩니다.
+
+```javascript
+var x = "global";
+
+function foo() {
+  console.log(x); // "global"
+}
+
+function bar() {
+  var x = "bar";
+  foo(); // foo는 bar 안에서 호출되지만,
+         // foo의 스코프 체인은 정의 시점에 결정됨
+}
+
+bar(); // "global" 출력, "bar"가 아님!
+```
+
+`foo`는 전역에서 정의되었으므로, `foo`의 외부 스코프는 항상 전역입니다. `bar` 안에서 호출하더라도 이것은 변하지 않습니다.
+
+## 스코프 체인 탐색
+
+중첩 함수에서 변수를 찾을 때 스코프 체인을 어떻게 따라 올라가는지 시각화로 확인하세요.
+
+<ScopeChain preset="lexical-scope" />
+
+탐색 규칙:
+
+1. **현재 스코프** 에서 먼저 찾습니다
+2. 없으면 **외부 스코프** 로 올라갑니다
+3. **전역 스코프** 까지 올라가도 없으면 `ReferenceError`
+
+이 과정은 실행 컨텍스트의 **외부 환경 참조** (Outer Environment Reference) 를 따라가는 것입니다. 각 실행 컨텍스트는 자신을 만든 스코프의 외부 환경을 가리키는 링크를 가지고 있습니다.
+
+## 변수 섀도잉
+
+안쪽 스코프에 바깥과 같은 이름의 변수가 있으면, 안쪽 변수가 바깥을 **가립니다** (shadow):
+
+```javascript
+var x = "global";
+
+function outer() {
+  var x = "outer"; // 전역의 x를 가림
+  function inner() {
+    var x = "inner"; // outer의 x를 가림
+    console.log(x); // "inner"
+  }
+  inner();
+  console.log(x); // "outer"
+}
+
+outer();
+console.log(x); // "global"
+```
+
+스코프 체인 탐색은 변수를 찾으면 **즉시 멈추므로**, 바깥의 같은 이름 변수에는 도달하지 않습니다.
+
+## var vs let/const — 함수 스코프 vs 블록 스코프
+
+`var`와 `let`/`const`의 가장 큰 차이는 스코프 범위입니다.
+
+<ScopeChain preset="block-scope" />
+
+핵심 차이:
+
+| | `var` | `let` / `const` |
+|---|-------|-----------------|
+| 스코프 | 함수 스코프 | 블록 스코프 |
+| 호이스팅 | `undefined`로 초기화 | TDZ (초기화 전 접근 불가) |
+| 재선언 | 가능 | 불가 |
+| `if`/`for` 블록 | 블록 무시, 함수에 등록 | 블록 안에만 존재 |
+
+### for 루프에서의 차이
+
+이 차이가 가장 극적으로 나타나는 곳이 `for` 루프입니다:
+
+```javascript
+// var — 하나의 i를 공유
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100);
+}
+// 출력: 3, 3, 3 (루프가 끝난 후의 i 값)
+
+// let — 반복마다 새 블록 스코프
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => console.log(i), 100);
+}
+// 출력: 0, 1, 2 (각 반복의 i가 별도 스코프에 캡처)
+```
+
+`var i`는 함수 스코프에 하나만 존재하므로 3번의 `setTimeout` 콜백이 같은 `i`를 참조합니다. `let i`는 반복마다 새 블록 스코프를 만들어 각 콜백이 자기만의 `i`를 가집니다.
+
+## 스코프와 성능
+
+이전 시리즈에서 다룬 V8의 관점에서 보면:
+
+- 스코프 체인 탐색은 **컴파일 타임에 최적화** 됩니다. V8은 변수가 어떤 스코프에 있는지 파싱 시점에 이미 알고 있으므로, 런타임에 실제로 체인을 따라가지 않습니다
+- `let`/`const`의 블록 스코프는 V8이 변수의 생명주기를 더 정확하게 파악할 수 있게 합니다 — <Term id="garbage-collection">가비지 컬렉터</Term>가 블록을 벗어난 변수를 더 빨리 회수할 수 있습니다
+
+## 다음 단계
+
+스코프 체인은 함수가 반환된 후에도 유지될 수 있습니다. 이것이 JavaScript에서 가장 강력하면서도 혼란스러운 개념 중 하나인 **클로저** 입니다. 다음 글에서 클로저가 어떻게 동작하고, 실무에서 어떻게 활용되는지 살펴보겠습니다.
