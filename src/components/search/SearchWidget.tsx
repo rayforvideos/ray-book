@@ -9,20 +9,19 @@ export function SearchWidget() {
   useEffect(() => {
     async function loadPagefind() {
       try {
-        // @ts-expect-error — Pagefind is loaded from static assets at runtime
-        const pagefind = await import(/* webpackIgnore: true */ "/pagefind/pagefind.js");
-        await pagefind.init();
+        const pagefindUI = await import(
+          // @ts-expect-error — Pagefind UI loaded from static assets
+          /* webpackIgnore: true */ "/pagefind/pagefind-ui.js"
+        );
 
         if (containerRef.current) {
-          // @ts-expect-error — Pagefind UI loaded dynamically
-          const PagefindUI = await import(/* webpackIgnore: true */ "/pagefind/pagefind-ui.js");
-          new PagefindUI.PagefindUI({
+          new pagefindUI.PagefindUI({
             element: containerRef.current,
             showSubResults: true,
+            showImages: false,
           });
         }
       } catch {
-        // Pagefind not available in dev mode — expected
         setUnavailable(true);
       }
     }
@@ -30,14 +29,18 @@ export function SearchWidget() {
     loadPagefind();
   }, []);
 
+  if (unavailable) {
+    return (
+      <p className="text-muted">
+        검색은 프로덕션 빌드에서만 사용할 수 있습니다.
+      </p>
+    );
+  }
+
   return (
     <>
       <link href="/pagefind/pagefind-ui.css" rel="stylesheet" />
-      {unavailable ? (
-        <p className="text-muted">검색은 프로덕션 빌드에서만 사용할 수 있습니다.</p>
-      ) : (
-        <div ref={containerRef} />
-      )}
+      <div ref={containerRef} />
     </>
   );
 }
