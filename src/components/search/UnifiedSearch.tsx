@@ -70,22 +70,16 @@ export function UnifiedSearch() {
 
   // Load pagefind
   useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "/pagefind/pagefind.js";
-    script.onload = async () => {
+    async function loadPagefind() {
       try {
-        // @ts-expect-error — pagefind loaded globally
-        const pf = window.pagefind;
-        if (pf) {
-          await pf.init();
-          pagefindRef.current = pf;
-          setPagefindReady(true);
-        }
-      } catch { /* not available */ }
-    };
-    script.onerror = () => {};
-    document.head.appendChild(script);
-    return () => script.remove();
+        // @ts-expect-error — dynamic import from static assets
+        const pf = await import(/* webpackIgnore: true */ "/pagefind/pagefind.js");
+        await pf.options({ basePath: "/pagefind/" });
+        pagefindRef.current = pf;
+        setPagefindReady(true);
+      } catch { /* not available in dev */ }
+    }
+    loadPagefind();
   }, []);
 
   // Chosung results
@@ -151,7 +145,7 @@ export function UnifiedSearch() {
           value={query}
           onChange={handleInput}
           placeholder="검색어 또는 초성 입력"
-          className="w-full border border-border bg-bg py-3 pl-11 pr-10 text-[0.9375rem] text-text placeholder:text-muted/40 focus:border-accent focus:outline-none"
+          className="w-full border border-border bg-transparent py-3 pl-11 pr-10 text-[0.9375rem] text-text placeholder:text-muted/40 focus:border-accent focus:outline-none"
         />
         {query && (
           <button
