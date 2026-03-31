@@ -27,15 +27,11 @@
 }
 
 /* Base */
-html {
-  overflow-x: hidden;
-  scrollbar-gutter: stable;
-}
-
 body {
   @apply bg-bg text-text antialiased;
   font-family: var(--font-sans);
   letter-spacing: -0.01em;
+  overflow-x: hidden;
 }
 
 /* Selection */

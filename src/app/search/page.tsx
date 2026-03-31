@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function SearchPage() {
   return (
-    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16 overflow-x-hidden">
+    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16">
       <h1 className="font-serif text-3xl tracking-tight">검색</h1>
       <p className="mt-3 mb-10 text-[0.9375rem] text-muted">
         초성으로 빠르게 찾거나, 본문 전체를 검색할 수 있습니다
