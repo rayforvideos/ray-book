@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack && node scripts/generate-sitemap.mjs && npx pagefind --site out",
+    "build": "next build --turbopack && node scripts/generate-sitemap.mjs && node scripts/generate-chosung-index.mjs && npx pagefind --site out",
     "start": "next start",
     "lint": "eslint"
   },
