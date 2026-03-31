@@ -1,7 +1,11 @@
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { notFound } from "next/navigation";
-import { getAllSlugs, getPostBySlug } from "@/lib/posts";
+import { getAllSlugs, getPostBySlug, getPostsBySeries } from "@/lib/posts";
+import { getSeriesBySlug } from "@/lib/series";
 import { mdxComponents } from "@/lib/mdx-components";
+import { TableOfContents } from "@/components/post/TableOfContents";
+import { SeriesNav } from "@/components/post/SeriesNav";
+import { TagList } from "@/components/post/TagList";
 
 interface PostPageProps {
   params: Promise<{ slug: string }>;
@@ -34,6 +38,13 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound();
   }
 
+  const series = post.frontmatter.series
+    ? getSeriesBySlug(post.frontmatter.series)
+    : null;
+  const seriesPosts = post.frontmatter.series
+    ? getPostsBySeries(post.frontmatter.series)
+    : [];
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-16">
       <header className="mb-10">
@@ -51,10 +62,24 @@ export default async function PostPage({ params }: PostPageProps) {
             day: "numeric",
           })}
         </time>
+        <div className="mt-3">
+          <TagList tags={post.frontmatter.tags} />
+        </div>
       </header>
+
+      <TableOfContents content={post.content} />
+
       <article className="prose">
         <MDXRemote source={post.content} components={mdxComponents} />
       </article>
+
+      {series && (
+        <SeriesNav
+          series={series}
+          posts={seriesPosts}
+          currentSlug={slug}
+        />
+      )}
     </main>
   );
 }
