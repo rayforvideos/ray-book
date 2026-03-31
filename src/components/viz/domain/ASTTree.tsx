@@ -259,12 +259,10 @@ export function ASTTree({ preset = "let-hello" }: ASTTreeProps) {
 
   const step = data.steps[currentStep];
 
-  // Calculate max node count across all steps to fix AST area height
-  const maxNodes = Math.max(
-    ...data.steps.map((s) => countNodes(s.tree))
-  );
-  // Each node ~1.75rem height
-  const astMinHeight = `${maxNodes * 1.75}rem`;
+  // Find the step with the most nodes (largest tree)
+  const largestTree = data.steps.reduce((max, s) =>
+    countNodes(s.tree) > countNodes(max.tree) ? s : max
+  ).tree;
 
   return (
     <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
@@ -284,11 +282,15 @@ export function ASTTree({ preset = "let-hello" }: ASTTreeProps) {
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             AST
           </span>
-          <div
-            className="overflow-x-auto rounded-sm bg-surface p-4"
-            style={{ minHeight: astMinHeight }}
-          >
-            <TreeNode node={step.tree} highlight={step.highlight} depth={0} />
+          <div className="relative overflow-x-auto rounded-sm bg-surface p-4">
+            {/* Hidden largest tree to reserve space */}
+            <div className="invisible" aria-hidden="true">
+              <TreeNode node={largestTree} highlight="" depth={0} />
+            </div>
+            {/* Visible current tree */}
+            <div className="absolute inset-0 p-4">
+              <TreeNode node={step.tree} highlight={step.highlight} depth={0} />
+            </div>
           </div>
         </div>
 

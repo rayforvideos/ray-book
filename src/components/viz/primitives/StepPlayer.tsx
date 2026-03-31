@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useLayoutEffect } from "react";
+import { useState, useCallback } from "react";
 
 interface StepPlayerProps {
   totalSteps: number;
@@ -14,10 +14,6 @@ export function StepPlayer({
   children,
 }: StepPlayerProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [fixedHeight, setFixedHeight] = useState<number | undefined>(undefined);
-  const measuredSteps = useRef(new Set<number>());
-  const maxHeight = useRef(0);
 
   const goTo = useCallback(
     (step: number) => {
@@ -28,26 +24,9 @@ export function StepPlayer({
     [totalSteps, onStepChange]
   );
 
-  // Measure after every render, lock once all steps seen
-  useLayoutEffect(() => {
-    if (contentRef.current) {
-      const height = contentRef.current.scrollHeight;
-      if (height > maxHeight.current) {
-        maxHeight.current = height;
-        setFixedHeight(height);
-      }
-      measuredSteps.current.add(currentStep);
-    }
-  }, [currentStep]);
-
   return (
     <div className="my-8 border border-border p-5">
-      <div
-        ref={contentRef}
-        style={{ minHeight: fixedHeight }}
-      >
-        {children}
-      </div>
+      <div>{children}</div>
       <div className="mt-5 flex items-center justify-center gap-1">
         <button
           onClick={() => goTo(0)}
