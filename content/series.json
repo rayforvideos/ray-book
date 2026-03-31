@@ -3,5 +3,10 @@
     "slug": "js-engine-internals",
     "title": "JavaScript 엔진의 내부",
     "description": "코드가 문자열에서 실행 결과가 되기까지 — V8 엔진의 파이프라인을 따라가봅니다"
+  },
+  {
+    "slug": "execution-context-and-scope",
+    "title": "실행 컨텍스트와 스코프",
+    "description": "JavaScript가 코드를 실행할 때 만들어지는 환경 — 실행 컨텍스트, 스코프, 클로저, this를 시각화합니다"
   }
 ]

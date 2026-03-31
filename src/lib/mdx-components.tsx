@@ -8,6 +8,7 @@ import { JITPipeline } from "@/components/viz/domain/JITPipeline";
 import { HiddenClass } from "@/components/viz/domain/HiddenClass";
 import { ICState } from "@/components/viz/domain/ICState";
 import { GCHeap } from "@/components/viz/domain/GCHeap";
+import { ExecutionContext } from "@/components/viz/domain/ExecutionContext";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -19,6 +20,7 @@ export const mdxComponents: MDXComponents = {
   HiddenClass,
   ICState,
   GCHeap,
+  ExecutionContext,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{
