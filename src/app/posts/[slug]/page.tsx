@@ -83,7 +83,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
       <TableOfContents content={post.content} />
 
-      <article className="prose">
+      <article className="prose max-w-none overflow-hidden">
         <MDXRemote
           source={post.content}
           components={mdxComponents}
