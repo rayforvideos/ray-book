@@ -88,8 +88,8 @@ function sumOfSquares(a, b) {
 
 ```javascript
 function getDistance(x1, y1, x2, y2) {
-  const p1 = { x: x1, y: y1 };  // 이 객체는 함수 밖으로 나가지 않음
-  const p2 = { x: x2, y: y2 };
+  const p1 = { x: x1, y: y1 };  // 두 객체 모두 함수 밖으로 나가지 않음
+  const p2 = { x: x2, y: y2 };  // (반환되거나 외부 변수에 저장되지 않음)
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
   return Math.sqrt(dx * dx + dy * dy);
