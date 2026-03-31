@@ -161,7 +161,7 @@ export function ScopeChain({ preset = "lexical-scope" }: ScopeChainProps) {
   const stepNodes = data.steps.map((step, idx) => (
     <div key={idx}>
       <div className="flex gap-4 max-sm:flex-col">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">코드</span>
           <div className="rounded-sm bg-surface font-mono text-[0.75rem] leading-relaxed overflow-x-auto">
             {lines.map((line, i) => {

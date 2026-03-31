@@ -21,13 +21,13 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
   );
 
   return (
-    <div className="my-8 border border-border p-5 overflow-hidden">
+    <div className="my-8 border border-border p-5 overflow-hidden max-w-full">
       {/* All steps rendered in same grid cell — tallest determines height */}
-      <div className="grid overflow-hidden">
+      <div className="grid min-w-0 max-w-full">
         {steps.map((content, i) => (
           <div
             key={i}
-            className={`col-start-1 row-start-1 ${i === currentStep ? "" : "pointer-events-none"}`}
+            className={`col-start-1 row-start-1 min-w-0 overflow-hidden ${i === currentStep ? "" : "pointer-events-none"}`}
             style={{
               opacity: i === currentStep ? 1 : 0,
               transition: "none",
