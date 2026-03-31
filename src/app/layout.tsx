@@ -25,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ray-book.pages.dev"),
+  metadataBase: new URL("https://raybook.astro-ninza.com"),
   title: "Ray Book",
   description: "프론트엔드 개념을 시각화로 이해하는 학습 블로그",
   openGraph: {

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ray-book.pages.dev/sitemap.xml
+Sitemap: https://raybook.astro-ninza.com/sitemap.xml

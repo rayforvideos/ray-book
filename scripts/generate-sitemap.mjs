@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
 
-const BASE_URL = "https://ray-book.pages.dev";
+const BASE_URL = "https://raybook.astro-ninza.com";
 const POSTS_DIR = path.join(process.cwd(), "content/posts");
 const SERIES_FILE = path.join(process.cwd(), "content/series.json");
 const OUT_DIR = path.join(process.cwd(), "out");
