@@ -21,9 +21,9 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
   );
 
   return (
-    <div className="my-8 border border-border p-5">
+    <div className="my-8 border border-border p-5 overflow-hidden">
       {/* All steps rendered in same grid cell — tallest determines height */}
-      <div className="grid">
+      <div className="grid overflow-hidden">
         {steps.map((content, i) => (
           <div
             key={i}

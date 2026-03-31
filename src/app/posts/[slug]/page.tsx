@@ -53,7 +53,7 @@ export default async function PostPage({ params }: PostPageProps) {
     : [];
 
   return (
-    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16">
+    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16 overflow-x-hidden">
       <header className="mb-12">
         <div className="flex items-center gap-3 text-[0.75rem] text-muted">
           <time dateTime={post.frontmatter.date.toISOString()}>
