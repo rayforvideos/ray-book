@@ -12,32 +12,32 @@ interface Token {
 const tokenStyles: Record<string, { badge: string; label: string }> = {
   keyword: {
     badge:
-      "border-violet-400/50 bg-violet-50 text-violet-950 dark:border-violet-500/40 dark:bg-violet-950/40 dark:text-violet-100",
+      "border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-600 dark:bg-violet-950/50 dark:text-violet-100",
     label: "키워드",
   },
   identifier: {
     badge:
-      "border-sky-400/50 bg-sky-50 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-100",
+      "border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-600 dark:bg-sky-950/50 dark:text-sky-100",
     label: "식별자",
   },
   operator: {
     badge:
-      "border-amber-400/50 bg-amber-50 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100",
+      "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100",
     label: "연산자",
   },
   literal: {
     badge:
-      "border-emerald-400/50 bg-emerald-50 text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100",
+      "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-100",
     label: "리터럴",
   },
   punctuation: {
     badge:
-      "border-stone-400/50 bg-stone-100 text-stone-700 dark:border-stone-500/40 dark:bg-stone-800/40 dark:text-stone-200",
+      "border-stone-300 bg-stone-200 text-stone-700 dark:border-stone-600 dark:bg-stone-800/50 dark:text-stone-200",
     label: "구분자",
   },
   string: {
     badge:
-      "border-rose-400/50 bg-rose-50 text-rose-950 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-100",
+      "border-rose-300 bg-rose-100 text-rose-900 dark:border-rose-600 dark:bg-rose-950/50 dark:text-rose-100",
     label: "문자열",
   },
 };
