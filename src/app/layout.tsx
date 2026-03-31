@@ -3,6 +3,7 @@ import { Outfit, Newsreader, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -54,6 +55,7 @@ export default function RootLayout({
           <Header />
           <div className="flex-1">{children}</div>
           <Footer />
+          <ScrollToTop />
         </ThemeProvider>
       </body>
     </html>
