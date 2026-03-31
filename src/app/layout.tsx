@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "next-themes";
+import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,9 +16,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body>
+      <body className="flex min-h-screen flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
+          <Header />
+          <div className="flex-1">{children}</div>
+          <Footer />
         </ThemeProvider>
       </body>
     </html>
