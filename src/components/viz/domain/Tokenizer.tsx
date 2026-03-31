@@ -107,8 +107,8 @@ export function Tokenizer({ preset = "let-hello" }: TokenizerProps) {
                   <span
                     className={`inline-flex items-baseline gap-1 border px-2 py-0.5 font-mono text-[0.6875rem] ${s.badge} ${i === stepIndex ? "ring-1 ring-accent/40" : ""}`}
                   >
-                    <span className="opacity-70">{s.label}</span>
-                    <span>{t.value}</span>
+                    <span className="font-semibold">{s.label}</span>
+                    <span className="font-semibold">{t.value}</span>
                   </span>
                 </AnimatedBox>
               );
