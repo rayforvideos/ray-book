@@ -27,11 +27,10 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
         {steps.map((content, i) => (
           <div
             key={i}
-            className="col-start-1 row-start-1"
+            className={`col-start-1 row-start-1 ${i === currentStep ? "" : "pointer-events-none"}`}
             style={{
-              visibility: i === currentStep ? "visible" : "hidden",
-              // Keep all in DOM for height, but only current is interactive
-              pointerEvents: i === currentStep ? "auto" : "none",
+              opacity: i === currentStep ? 1 : 0,
+              transition: "none",
             }}
             aria-hidden={i !== currentStep}
           >
