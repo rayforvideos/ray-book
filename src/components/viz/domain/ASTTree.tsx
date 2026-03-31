@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface ASTNode {
@@ -251,60 +250,37 @@ interface ASTTreeProps {
 
 export function ASTTree({ preset = "let-hello" }: ASTTreeProps) {
   const data = presets[preset] ?? presets["let-hello"];
-  const [currentStep, setCurrentStep] = useState(0);
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const step = data.steps[currentStep];
-
-  // Find the step with the most nodes (largest tree)
-  const largestTree = data.steps.reduce((max, s) =>
-    countNodes(s.tree) > countNodes(max.tree) ? s : max
-  ).tree;
-
-  return (
-    <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
-        {/* Source code */}
-        <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            소스 코드
-          </span>
-          <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
-            {data.code}
-          </div>
-        </div>
-
-        {/* AST */}
-        <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            AST
-          </span>
-          <div className="relative overflow-x-auto rounded-sm bg-surface p-4">
-            {/* Hidden largest tree to reserve space */}
-            <div className="invisible" aria-hidden="true">
-              <TreeNode node={largestTree} highlight="" depth={0} />
-            </div>
-            {/* Visible current tree */}
-            <div className="absolute inset-0 p-4">
-              <TreeNode node={step.tree} highlight={step.highlight} depth={0} />
-            </div>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
-          {step.description}
+  const steps = data.steps.map((step, i) => (
+    <div key={i} className="space-y-4">
+      {/* Source code */}
+      <div>
+        <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+          소스 코드
+        </span>
+        <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
+          {data.code}
         </div>
       </div>
-    </StepPlayer>
-  );
-}
 
-function countNodes(node: ASTNode): number {
-  return 1 + (node.children?.reduce((sum, child) => sum + countNodes(child), 0) ?? 0);
+      {/* AST */}
+      <div>
+        <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+          AST
+        </span>
+        <div className="overflow-x-auto rounded-sm bg-surface p-4">
+          <TreeNode node={step.tree} highlight={step.highlight} depth={0} />
+        </div>
+      </div>
+
+      {/* Description */}
+      <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+        {step.description}
+      </div>
+    </div>
+  ));
+
+  return <StepPlayer steps={steps} />;
 }
 
 function TreeNode({

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface ScopeBox {
@@ -155,79 +154,44 @@ interface ScopeChainProps {
 export function ScopeChain({ preset = "lexical-scope" }: ScopeChainProps) {
   const data = presets[preset] ?? presets["lexical-scope"];
   const lines = data.code.split("\n");
-  const [currentStep, setCurrentStep] = useState(0);
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const step = data.steps[currentStep];
-  const maxScopes = Math.max(...data.steps.map((s) => s.scopes.length));
-
-  return (
-    <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
+  const stepNodes = data.steps.map((step, idx) => (
+    <div key={idx}>
       <div className="flex gap-4 max-sm:flex-col">
-        {/* Code */}
         <div className="flex-1 min-w-0">
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            코드
-          </span>
+          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">코드</span>
           <div className="rounded-sm bg-surface font-mono text-[0.75rem] leading-relaxed overflow-x-auto">
             {lines.map((line, i) => {
               const isActive = step.activeLine === i;
               return (
-                <div
-                  key={i}
-                  className={`flex transition-colors duration-150 ${isActive ? "bg-accent/10" : ""}`}
-                >
-                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/30"}`}>
-                    {i + 1}
-                  </span>
-                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : step.activeLine === null ? "text-muted/60" : "text-muted/40"}`}>
-                    {line || "\u00A0"}
-                  </span>
-                  {isActive && (
-                    <span className="shrink-0 pr-2 text-accent text-[0.625rem] pt-px">◄</span>
-                  )}
+                <div key={i} className={`flex transition-colors duration-150 ${isActive ? "bg-accent/10" : ""}`}>
+                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/30"}`}>{i + 1}</span>
+                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : step.activeLine === null ? "text-muted/60" : "text-muted/40"}`}>{line || "\u00A0"}</span>
+                  {isActive && <span className="shrink-0 pr-2 text-accent text-[0.625rem] pt-px">◄</span>}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Scope Chain */}
         <div className="w-52 shrink-0 max-sm:w-full">
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            스코프 체인
-          </span>
-          <div
-            className="space-y-1.5"
-            style={{ minHeight: `${maxScopes * 5}rem` }}
-          >
+          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">스코프 체인</span>
+          <div className="space-y-1.5">
             {step.scopes.map((scope, i) => {
-              const style = scopeStyles[scope.type];
+              const s = scopeStyles[scope.type];
               return (
                 <div key={`${scope.name}-${i}`}>
-                  <div
-                    className={`border p-2 transition-all ${style.border} ${style.bg} ${
-                      scope.highlight ? "ring-1 ring-accent/30" : ""
-                    }`}
-                  >
-                    <span className={`block text-[0.625rem] font-bold ${style.label}`}>
-                      {scope.name}
-                    </span>
+                  <div className={`border p-2 transition-all ${s.border} ${s.bg} ${scope.highlight ? "ring-1 ring-accent/30" : ""}`}>
+                    <span className={`block text-[0.625rem] font-bold ${s.label}`}>{scope.name}</span>
                     <div className="mt-1 space-y-px">
                       {scope.variables.map((v) => (
                         <span key={v.name} className="flex items-baseline justify-between font-mono text-[0.625rem]">
                           <span className="text-muted">{v.name}</span>
-                          <span className={v.value === "function" ? "text-violet-700 dark:text-violet-300" : "text-text"}>
-                            {v.value}
-                          </span>
+                          <span className={v.value === "function" ? "text-violet-700 dark:text-violet-300" : "text-text"}>{v.value}</span>
                         </span>
                       ))}
                     </div>
                   </div>
-                  {/* Chain arrow */}
                   {i < step.scopes.length - 1 && (
                     <div className="flex justify-center py-0.5">
                       <span className="text-[0.625rem] text-muted">↑ outer</span>
@@ -236,16 +200,12 @@ export function ScopeChain({ preset = "lexical-scope" }: ScopeChainProps) {
                 </div>
               );
             })}
-
-            {/* Lookup results */}
             {step.lookup && (
               <div className="mt-2 border-t border-border pt-2 space-y-0.5">
                 <span className="block text-[0.5625rem] uppercase tracking-wider text-muted mb-1">탐색 결과</span>
                 {step.lookup.map((l, i) => (
                   <span key={i} className="flex items-baseline gap-1.5 font-mono text-[0.625rem]">
-                    <span className={l.found ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}>
-                      {l.found ? "✓" : "✗"}
-                    </span>
+                    <span className={l.found ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}>{l.found ? "✓" : "✗"}</span>
                     <span className="text-text">{l.variable}</span>
                     <span className="text-muted">← {l.from}</span>
                   </span>
@@ -256,10 +216,11 @@ export function ScopeChain({ preset = "lexical-scope" }: ScopeChainProps) {
         </div>
       </div>
 
-      {/* Description */}
-      <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
+      <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
         {step.description}
       </span>
-    </StepPlayer>
-  );
+    </div>
+  ));
+
+  return <StepPlayer steps={stepNodes} />;
 }

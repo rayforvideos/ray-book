@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 import { AnimatedBox } from "../primitives/AnimatedBox";
 
@@ -51,17 +50,11 @@ const queueLabels = {
 
 export function EventLoop({ preset = "basics", steps }: EventLoopProps) {
   const resolvedSteps = steps ?? presets[preset] ?? [];
-  const [currentStep, setCurrentStep] = useState(0);
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const visibleSteps = resolvedSteps.slice(0, currentStep + 1);
-
-  return (
-    <StepPlayer totalSteps={resolvedSteps.length} onStepChange={handleStepChange}>
-      <div className="space-y-3">
+  const stepNodes = resolvedSteps.map((_, stepIndex) => {
+    const visibleSteps = resolvedSteps.slice(0, stepIndex + 1);
+    return (
+      <div key={stepIndex} className="space-y-3">
         {(["macrotask", "microtask", "render"] as const).map((queue) => {
           const queueSteps = visibleSteps.filter((s) => s.queue === queue);
           return (
@@ -94,10 +87,12 @@ export function EventLoop({ preset = "basics", steps }: EventLoopProps) {
           );
         })}
 
-        <div className="mt-4 border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
-          {resolvedSteps[currentStep]?.description}
+        <div className="mt-4 border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+          {resolvedSteps[stepIndex]?.description}
         </div>
       </div>
-    </StepPlayer>
-  );
+    );
+  });
+
+  return <StepPlayer steps={stepNodes} />;
 }

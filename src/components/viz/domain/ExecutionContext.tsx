@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface Variable {
@@ -303,19 +302,9 @@ export function ExecutionContext({
 }: ExecutionContextProps) {
   const data = presets[preset] ?? presets["basic-callstack"];
   const lines = data.code.split("\n");
-  const [currentStep, setCurrentStep] = useState(0);
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const step = data.steps[currentStep];
-
-  // Fixed height based on max stack depth across all steps
-  const maxStackDepth = Math.max(...data.steps.map((s) => s.stack.length));
-
-  return (
-    <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
+  const steps = data.steps.map((step, i) => (
+    <div key={i}>
       <div className="flex gap-4 max-sm:flex-col">
         {/* Code panel */}
         <div className="flex-1 min-w-0">
@@ -323,11 +312,11 @@ export function ExecutionContext({
             코드
           </span>
           <div className="rounded-sm bg-surface font-mono text-[0.75rem] leading-relaxed overflow-x-auto">
-            {lines.map((line, i) => {
-              const isActive = step.activeLine === i;
+            {lines.map((line, j) => {
+              const isActive = step.activeLine === j;
               return (
                 <div
-                  key={i}
+                  key={j}
                   className={`flex transition-colors duration-150 ${
                     isActive
                       ? "bg-accent/10"
@@ -339,7 +328,7 @@ export function ExecutionContext({
                       isActive ? "text-accent" : "text-muted/30"
                     }`}
                   >
-                    {i + 1}
+                    {j + 1}
                   </span>
                   <span
                     className={`flex-1 pr-3 py-px ${
@@ -368,16 +357,13 @@ export function ExecutionContext({
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             콜 스택
           </span>
-          <div
-            className="flex flex-col-reverse justify-end gap-1"
-            style={{ minHeight: `${maxStackDepth * 5.5}rem` }}
-          >
-            {step.stack.map((ctx, i) => {
+          <div className="flex flex-col-reverse justify-end gap-1">
+            {step.stack.map((ctx, j) => {
               const style = typeStyles[ctx.type];
-              const isTop = i === step.stack.length - 1;
+              const isTop = j === step.stack.length - 1;
               return (
                 <div
-                  key={`${ctx.name}-${i}`}
+                  key={`${ctx.name}-${j}`}
                   className={`border p-2 transition-all ${style.border} ${style.bg} ${
                     isTop ? "ring-1 ring-accent/30" : ""
                   }`}
@@ -431,9 +417,11 @@ export function ExecutionContext({
       </div>
 
       {/* Description */}
-      <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
+      <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
         {step.description}
       </span>
-    </StepPlayer>
-  );
+    </div>
+  ));
+
+  return <StepPlayer steps={steps} />;
 }

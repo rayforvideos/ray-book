@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface HCState {
@@ -90,84 +89,68 @@ interface HiddenClassProps {
 }
 
 export function HiddenClass({ preset = "shape-transition" }: HiddenClassProps) {
-  const steps = presets[preset] ?? presets["shape-transition"];
-  const [currentStep, setCurrentStep] = useState(0);
+  const data = presets[preset] ?? presets["shape-transition"];
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const step = steps[currentStep];
-
-  return (
-    <StepPlayer totalSteps={steps.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
-        {/* Code */}
-        <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            코드
-          </span>
-          <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
-            {step.code}
-          </div>
-        </div>
-
-        {/* Map chain */}
-        <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            Hidden Class 전이
-          </span>
-          <div className="flex items-start gap-2 overflow-x-auto py-1">
-            {step.maps.map((map, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <div
-                  className={`min-w-[7rem] border px-3 py-2 transition-all ${
-                    i === step.activeMap
-                      ? "border-accent/40 bg-amber-50 ring-1 ring-accent/30 dark:bg-amber-950/40 dark:border-accent/30 dark:ring-accent/20"
-                      : "border-border bg-surface"
-                  }`}
-                >
-                  <span className="block font-mono text-[0.6875rem] font-bold text-text">
-                    {map.name}
-                  </span>
-                  {map.properties.length > 0 ? (
-                    <div className="mt-1.5 space-y-0.5">
-                      {map.properties.map((prop) => (
-                        <div
-                          key={prop}
-                          className="flex items-baseline justify-between gap-3 font-mono text-[0.625rem]"
-                        >
-                          <span className="text-sky-950 dark:text-sky-100">{prop}</span>
-                          <span className="text-muted">
-                            @{map.offsets[prop]}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="mt-1 block text-[0.625rem] text-muted/50">
-                      (empty)
-                    </span>
-                  )}
-                </div>
-                {i < step.maps.length - 1 && (
-                  <div className="flex flex-col items-center justify-center pt-3">
-                    <span className="text-[0.5625rem] text-muted">
-                      +{step.transitions[i]}
-                    </span>
-                    <span className="text-muted">→</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
-          {step.description}
+  const stepNodes = data.map((step, idx) => (
+    <div key={idx} className="space-y-4">
+      <div>
+        <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+          코드
+        </span>
+        <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
+          {step.code}
         </div>
       </div>
-    </StepPlayer>
-  );
+
+      <div>
+        <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+          Hidden Class 전이
+        </span>
+        <div className="flex items-start gap-2 overflow-x-auto py-1">
+          {step.maps.map((map, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <div
+                className={`min-w-[7rem] border px-3 py-2 transition-all ${
+                  i === step.activeMap
+                    ? "border-accent/40 bg-amber-50 ring-1 ring-accent/30 dark:bg-amber-950/40 dark:border-accent/30 dark:ring-accent/20"
+                    : "border-border bg-surface"
+                }`}
+              >
+                <span className="block font-mono text-[0.6875rem] font-bold text-text">
+                  {map.name}
+                </span>
+                {map.properties.length > 0 ? (
+                  <div className="mt-1.5 space-y-0.5">
+                    {map.properties.map((prop) => (
+                      <div
+                        key={prop}
+                        className="flex items-baseline justify-between gap-3 font-mono text-[0.625rem]"
+                      >
+                        <span className="text-sky-950 dark:text-sky-100">{prop}</span>
+                        <span className="text-muted">@{map.offsets[prop]}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="mt-1 block text-[0.625rem] text-muted/50">(empty)</span>
+                )}
+              </div>
+              {i < step.maps.length - 1 && (
+                <div className="flex flex-col items-center justify-center pt-3">
+                  <span className="text-[0.5625rem] text-muted">+{step.transitions[i]}</span>
+                  <span className="text-muted">→</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+        {step.description}
+      </div>
+    </div>
+  ));
+
+  return <StepPlayer steps={stepNodes} />;
 }

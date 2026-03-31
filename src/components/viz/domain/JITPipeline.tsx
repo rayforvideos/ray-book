@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface PipelineStep {
@@ -103,27 +102,18 @@ interface JITPipelineProps {
 }
 
 export function JITPipeline({ preset = "hot-function" }: JITPipelineProps) {
-  const steps = presets[preset] ?? presets["hot-function"];
-  const [currentStep, setCurrentStep] = useState(0);
+  const data = presets[preset] ?? presets["hot-function"];
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const current = steps[currentStep];
-  const activeIndex = stages.indexOf(current.stage);
-
-  return (
-    <StepPlayer totalSteps={steps.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
-        {/* Pipeline visualization */}
+  const stepNodes = data.map((current, idx) => {
+    const activeIndex = stages.indexOf(current.stage);
+    return (
+      <div key={idx} className="space-y-4">
         <div className="flex items-center justify-between gap-1">
           {stages.map((stage, i) => {
             const config = stageConfig[stage];
             const isActive = i === activeIndex;
             const isPast = i < activeIndex;
             const isDeopt = current.stage === "deopt" && stage === "deopt";
-
             return (
               <div key={stage} className="flex items-center gap-1">
                 <div
@@ -132,39 +122,23 @@ export function JITPipeline({ preset = "hot-function" }: JITPipelineProps) {
                   } ${!isActive && !isPast && !isDeopt ? "opacity-30" : ""}`}
                   style={{ minWidth: "4rem" }}
                 >
-                  <span className={`font-mono text-[0.75rem] font-bold ${config.text}`}>
-                    {config.icon}
-                  </span>
-                  <span className={`text-[0.5625rem] leading-tight ${config.text}`}>
-                    {config.label}
-                  </span>
+                  <span className={`font-mono text-[0.75rem] font-bold ${config.text}`}>{config.icon}</span>
+                  <span className={`text-[0.5625rem] leading-tight ${config.text}`}>{config.label}</span>
                 </div>
                 {i < stages.length - 1 && (
-                  <span
-                    className={`text-[0.625rem] ${
-                      isPast || isActive ? "text-muted" : "text-muted/20"
-                    }`}
-                  >
-                    →
-                  </span>
+                  <span className={`text-[0.625rem] ${isPast || isActive ? "text-muted" : "text-muted/20"}`}>→</span>
                 )}
               </div>
             );
           })}
         </div>
-
-        {/* Description */}
         <div className="border-t border-border pt-3">
-          <p className="text-[0.8125rem] leading-relaxed text-muted">
-            {current.description}
-          </p>
-          {current.detail && (
-            <p className="mt-1.5 font-mono text-[0.75rem] text-muted/70">
-              {current.detail}
-            </p>
-          )}
+          <p className="text-[0.8125rem] leading-relaxed text-muted">{current.description}</p>
+          {current.detail && <p className="mt-1.5 font-mono text-[0.75rem] text-muted/70">{current.detail}</p>}
         </div>
       </div>
-    </StepPlayer>
-  );
+    );
+  });
+
+  return <StepPlayer steps={stepNodes} />;
 }

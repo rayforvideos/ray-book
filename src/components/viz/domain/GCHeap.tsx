@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface HeapObject {
@@ -98,22 +97,15 @@ interface GCHeapProps {
 }
 
 export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
-  const steps = presets[preset] ?? presets["lifecycle"];
-  const [currentStep, setCurrentStep] = useState(0);
+  const gcSteps = presets[preset] ?? presets["lifecycle"];
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
+  const steps = gcSteps.map((step, i) => {
+    const phaseStyle = phaseStyles[step.phase];
+    const youngObjects = step.objects.filter((o) => o.generation === "young");
+    const oldObjects = step.objects.filter((o) => o.generation === "old");
 
-  const step = steps[currentStep];
-  const phaseStyle = phaseStyles[step.phase];
-
-  const youngObjects = step.objects.filter((o) => o.generation === "young");
-  const oldObjects = step.objects.filter((o) => o.generation === "old");
-
-  return (
-    <StepPlayer totalSteps={steps.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
+    return (
+      <div key={i} className="space-y-4">
         {/* Phase indicator */}
         <span className={`inline-block border border-transparent px-2.5 py-1 font-mono text-[0.6875rem] font-bold ${phaseStyle.bg} ${phaseStyle.text}`}>
           {phaseStyle.label}
@@ -126,7 +118,7 @@ export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
             <span className="mb-2 block text-[0.625rem] font-semibold uppercase tracking-wider text-muted">
               Young Generation
             </span>
-            <div className="flex flex-wrap gap-1.5" style={{ minHeight: "3rem" }}>
+            <div className="flex flex-wrap gap-1.5">
               {youngObjects.map((obj) => (
                 <span
                   key={obj.id}
@@ -150,7 +142,7 @@ export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
             <span className="mb-2 block text-[0.625rem] font-semibold uppercase tracking-wider text-muted">
               Old Generation
             </span>
-            <div className="flex flex-wrap gap-1.5" style={{ minHeight: "3rem" }}>
+            <div className="flex flex-wrap gap-1.5">
               {oldObjects.map((obj) => (
                 <span
                   key={obj.id}
@@ -171,10 +163,12 @@ export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
         </div>
 
         {/* Description */}
-        <span className="block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
+        <span className="block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
           {step.description}
         </span>
       </div>
-    </StepPlayer>
-  );
+    );
+  });
+
+  return <StepPlayer steps={steps} />;
 }

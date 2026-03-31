@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 interface ICStep {
@@ -80,60 +79,33 @@ interface ICStateProps {
 }
 
 export function ICState({ preset = "property-access" }: ICStateProps) {
-  const steps = presets[preset] ?? presets["property-access"];
-  const [currentStep, setCurrentStep] = useState(0);
+  const data = presets[preset] ?? presets["property-access"];
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const step = steps[currentStep];
-  const style = stateStyles[step.state];
-
-  return (
-    <StepPlayer totalSteps={steps.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
-        {/* Code */}
+  const stepNodes = data.map((step, idx) => {
+    const style = stateStyles[step.state];
+    return (
+      <div key={idx} className="space-y-4">
         <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            코드
-          </span>
-          <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
-            {step.code}
-          </div>
+          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">코드</span>
+          <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">{step.code}</div>
         </div>
 
-        {/* IC State */}
         <div className="flex items-start gap-5">
           <div>
-            <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-              IC 상태
-            </span>
-            <span
-              className={`inline-block border border-transparent px-3 py-1.5 font-mono text-[0.75rem] font-bold ${style.bg} ${style.text} ${style.ring}`}
-            >
+            <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">IC 상태</span>
+            <span className={`inline-block border border-transparent px-3 py-1.5 font-mono text-[0.75rem] font-bold ${style.bg} ${style.text} ${style.ring}`}>
               {style.label}
             </span>
           </div>
-
           <div className="flex-1">
-            <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-              캐시
-            </span>
+            <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">캐시</span>
             {step.cache.length > 0 ? (
               <div className="space-y-1">
                 {step.cache.map((entry, i) => (
-                  <div
-                    key={i}
-                    className="flex items-baseline gap-2 font-mono text-[0.6875rem]"
-                  >
-                    <span className="text-violet-950 dark:text-violet-100">
-                      {entry.map}
-                    </span>
+                  <div key={i} className="flex items-baseline gap-2 font-mono text-[0.6875rem]">
+                    <span className="text-violet-950 dark:text-violet-100">{entry.map}</span>
                     <span className="text-muted">→</span>
-                    <span className="text-sky-950 dark:text-sky-100">
-                      x {entry.offset}
-                    </span>
+                    <span className="text-sky-950 dark:text-sky-100">x {entry.offset}</span>
                   </div>
                 ))}
               </div>
@@ -145,33 +117,23 @@ export function ICState({ preset = "property-access" }: ICStateProps) {
           </div>
         </div>
 
-        {/* State indicators */}
         <div className="flex gap-1">
-          {(["uninitialized", "monomorphic", "polymorphic", "megamorphic"] as const).map(
-            (s) => {
-              const sStyle = stateStyles[s];
-              const isActive = s === step.state;
-              return (
-                <div
-                  key={s}
-                  className={`flex-1 py-1 text-center text-[0.5625rem] transition-all ${
-                    isActive
-                      ? `${sStyle.bg} ${sStyle.text} font-semibold`
-                      : "bg-surface text-muted/40"
-                  }`}
-                >
-                  {sStyle.label}
-                </div>
-              );
-            }
-          )}
+          {(["uninitialized", "monomorphic", "polymorphic", "megamorphic"] as const).map((s) => {
+            const sStyle = stateStyles[s];
+            return (
+              <div key={s} className={`flex-1 py-1 text-center text-[0.5625rem] transition-all ${s === step.state ? `${sStyle.bg} ${sStyle.text} font-semibold` : "bg-surface text-muted/40"}`}>
+                {sStyle.label}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Description */}
-        <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
+        <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
           {step.description}
         </div>
       </div>
-    </StepPlayer>
-  );
+    );
+  });
+
+  return <StepPlayer steps={stepNodes} />;
 }

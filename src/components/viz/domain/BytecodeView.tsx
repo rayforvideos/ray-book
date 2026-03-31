@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 import { AnimatedBox } from "../primitives/AnimatedBox";
 
@@ -65,108 +64,101 @@ interface BytecodeViewProps {
 
 export function BytecodeView({ preset = "let-hello" }: BytecodeViewProps) {
   const data = presets[preset] ?? presets["let-hello"];
-  const [currentStep, setCurrentStep] = useState(0);
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const step = data.steps[currentStep];
-
-  return (
-    <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
-        {/* Source */}
-        <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            소스 코드
-          </span>
-          <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
-            {data.code}
-          </div>
+  const steps = data.steps.map((step, i) => (
+    <div key={i} className="space-y-4">
+      {/* Source */}
+      <div>
+        <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+          소스 코드
+        </span>
+        <div className="rounded-sm bg-surface p-3 font-mono text-[0.8125rem]">
+          {data.code}
         </div>
+      </div>
 
-        {/* Instructions */}
-        <div>
-          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-            바이트코드
-          </span>
-          <div className="space-y-0.5">
-            {data.instructions.map((inst, i) => (
-              <div
-                key={i}
-                className={`flex items-baseline gap-3 rounded-sm px-3 py-1.5 font-mono text-[0.75rem] transition-colors ${
-                  i === step.highlighted
-                    ? "bg-amber-50 dark:bg-amber-950/40"
-                    : ""
+      {/* Instructions */}
+      <div>
+        <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+          바이트코드
+        </span>
+        <div className="space-y-0.5">
+          {data.instructions.map((inst, j) => (
+            <div
+              key={j}
+              className={`flex items-baseline gap-3 rounded-sm px-3 py-1.5 font-mono text-[0.75rem] transition-colors ${
+                j === step.highlighted
+                  ? "bg-amber-50 dark:bg-amber-950/40"
+                  : ""
+              }`}
+            >
+              <span className="w-10 shrink-0 text-muted/40">
+                {inst.offset}
+              </span>
+              <span
+                className={`font-semibold ${
+                  j === step.highlighted
+                    ? "text-amber-900 dark:text-amber-100"
+                    : "text-text"
                 }`}
               >
-                <span className="w-10 shrink-0 text-muted/40">
-                  {inst.offset}
-                </span>
-                <span
-                  className={`font-semibold ${
-                    i === step.highlighted
-                      ? "text-amber-900 dark:text-amber-100"
-                      : "text-text"
-                  }`}
-                >
-                  {inst.opcode}
-                </span>
-                {inst.operand && (
-                  <span className="text-muted">
-                    {inst.operand}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Registers & Accumulator */}
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-              레지스터
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(step.registers).length > 0 ? (
-                Object.entries(step.registers).map(([reg, val]) => (
-                  <AnimatedBox key={reg} preset="fadeIn">
-                    <span className="inline-flex items-baseline gap-1 border border-sky-400/50 bg-sky-50 px-2 py-0.5 font-mono text-[0.6875rem] text-sky-900 dark:border-sky-600/40 dark:bg-sky-950/40 dark:text-sky-100">
-                      <span className="opacity-50">{reg}</span>
-                      <span>{val}</span>
-                    </span>
-                  </AnimatedBox>
-                ))
-              ) : (
-                <span className="text-[0.6875rem] text-muted/30">
-                  —
+                {inst.opcode}
+              </span>
+              {inst.operand && (
+                <span className="text-muted">
+                  {inst.operand}
                 </span>
               )}
             </div>
-          </div>
-          <div>
-            <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
-              누산기
-            </span>
-            <span
-              className={`inline-block border px-2 py-0.5 font-mono text-[0.6875rem] ${
-                step.accumulator !== "undefined"
-                  ? "border-amber-400/50 bg-amber-50 text-amber-900 dark:border-amber-600/40 dark:bg-amber-950/40 dark:text-amber-100"
-                  : "border-stone-400/50 bg-stone-100 text-stone-600 dark:border-stone-600/40 dark:bg-stone-900/40 dark:text-stone-300"
-              }`}
-            >
-              {step.accumulator}
-            </span>
-          </div>
-        </div>
-
-        {/* Description */}
-        <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
-          {step.description}
+          ))}
         </div>
       </div>
-    </StepPlayer>
-  );
+
+      {/* Registers & Accumulator */}
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+            레지스터
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(step.registers).length > 0 ? (
+              Object.entries(step.registers).map(([reg, val]) => (
+                <AnimatedBox key={reg} preset="fadeIn">
+                  <span className="inline-flex items-baseline gap-1 border border-sky-400/50 bg-sky-50 px-2 py-0.5 font-mono text-[0.6875rem] text-sky-900 dark:border-sky-600/40 dark:bg-sky-950/40 dark:text-sky-100">
+                    <span className="opacity-50">{reg}</span>
+                    <span>{val}</span>
+                  </span>
+                </AnimatedBox>
+              ))
+            ) : (
+              <span className="text-[0.6875rem] text-muted/30">
+                —
+              </span>
+            )}
+          </div>
+        </div>
+        <div>
+          <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
+            누산기
+          </span>
+          <span
+            className={`inline-block border px-2 py-0.5 font-mono text-[0.6875rem] ${
+              step.accumulator !== "undefined"
+                ? "border-amber-400/50 bg-amber-50 text-amber-900 dark:border-amber-600/40 dark:bg-amber-950/40 dark:text-amber-100"
+                : "border-stone-400/50 bg-stone-100 text-stone-600 dark:border-stone-600/40 dark:bg-stone-900/40 dark:text-stone-300"
+            }`}
+          >
+            {step.accumulator}
+          </span>
+        </div>
+      </div>
+
+      {/* Description */}
+      <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+        {step.description}
+      </div>
+    </div>
+  ));
+
+  return <StepPlayer steps={steps} />;
 }

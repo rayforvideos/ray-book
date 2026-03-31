@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 import { AnimatedBox } from "../primitives/AnimatedBox";
 
@@ -81,43 +80,35 @@ interface TokenizerProps {
 
 export function Tokenizer({ preset = "let-hello" }: TokenizerProps) {
   const data = presets[preset] ?? presets["let-hello"];
-  const [currentStep, setCurrentStep] = useState(0);
 
-  const handleStepChange = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
-
-  const visibleTokens = data.tokens.slice(0, currentStep + 1);
-  const currentToken = data.tokens[currentStep];
-
-  return (
-    <StepPlayer totalSteps={data.tokens.length} onStepChange={handleStepChange}>
-      <div className="space-y-4">
-        {/* Source code with highlight */}
+  const steps = data.tokens.map((token, stepIndex) => {
+    const visibleTokens = data.tokens.slice(0, stepIndex + 1);
+    const style = tokenStyles[token.type] ?? tokenStyles.punctuation;
+    return (
+      <div key={stepIndex} className="space-y-4">
         <div className="font-mono text-[0.8125rem] leading-relaxed">
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             소스 코드
           </span>
           <div className="rounded-sm bg-surface p-3">
-            {renderHighlightedCode(data.code, data.tokens, currentStep)}
+            {renderHighlightedCode(data.code, data.tokens, stepIndex)}
           </div>
         </div>
 
-        {/* Token stream */}
         <div>
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             토큰 스트림
           </span>
-          <div className="flex flex-wrap gap-1.5" style={{ minHeight: "2.5rem" }}>
-            {visibleTokens.map((token, i) => {
-              const style = tokenStyles[token.type] ?? tokenStyles.punctuation;
+          <div className="flex flex-wrap gap-1.5">
+            {visibleTokens.map((t, i) => {
+              const s = tokenStyles[t.type] ?? tokenStyles.punctuation;
               return (
                 <AnimatedBox key={i} preset="scaleIn">
                   <span
-                    className={`inline-flex items-baseline gap-1 border px-2 py-0.5 font-mono text-[0.6875rem] ${style.badge} ${i === currentStep ? "ring-1 ring-accent/40" : ""}`}
+                    className={`inline-flex items-baseline gap-1 border px-2 py-0.5 font-mono text-[0.6875rem] ${s.badge} ${i === stepIndex ? "ring-1 ring-accent/40" : ""}`}
                   >
-                    <span className="opacity-50">{style.label}</span>
-                    <span>{token.value}</span>
+                    <span className="opacity-50">{s.label}</span>
+                    <span>{t.value}</span>
                   </span>
                 </AnimatedBox>
               );
@@ -125,15 +116,14 @@ export function Tokenizer({ preset = "let-hello" }: TokenizerProps) {
           </div>
         </div>
 
-        {/* Description */}
-        {currentToken && (
-          <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
-            {currentToken.description}
-          </div>
-        )}
+        <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+          {token.description}
+        </div>
       </div>
-    </StepPlayer>
-  );
+    );
+  });
+
+  return <StepPlayer steps={steps} />;
 }
 
 function renderHighlightedCode(

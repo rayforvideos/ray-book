@@ -3,30 +3,44 @@
 import { useState, useCallback } from "react";
 
 interface StepPlayerProps {
-  totalSteps: number;
-  onStepChange: (step: number) => void;
-  children: React.ReactNode;
+  steps: React.ReactNode[];
+  onStepChange?: (step: number) => void;
 }
 
-export function StepPlayer({
-  totalSteps,
-  onStepChange,
-  children,
-}: StepPlayerProps) {
+export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const totalSteps = steps.length;
 
   const goTo = useCallback(
     (step: number) => {
       const clamped = Math.max(0, Math.min(step, totalSteps - 1));
       setCurrentStep(clamped);
-      onStepChange(clamped);
+      onStepChange?.(clamped);
     },
     [totalSteps, onStepChange]
   );
 
   return (
     <div className="my-8 border border-border p-5">
-      <div>{children}</div>
+      {/* All steps rendered in same grid cell — tallest determines height */}
+      <div className="grid">
+        {steps.map((content, i) => (
+          <div
+            key={i}
+            className="col-start-1 row-start-1"
+            style={{
+              visibility: i === currentStep ? "visible" : "hidden",
+              // Keep all in DOM for height, but only current is interactive
+              pointerEvents: i === currentStep ? "auto" : "none",
+            }}
+            aria-hidden={i !== currentStep}
+          >
+            {content}
+          </div>
+        ))}
+      </div>
+
+      {/* Controls */}
       <div className="mt-5 flex items-center justify-center gap-1">
         <button
           onClick={() => goTo(0)}
@@ -45,7 +59,6 @@ export function StepPlayer({
           ◀
         </button>
 
-        {/* Step dots */}
         <div className="flex items-center gap-1 px-3">
           {Array.from({ length: totalSteps }, (_, i) => (
             <button
