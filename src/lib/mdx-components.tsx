@@ -11,6 +11,7 @@ import { GCHeap } from "@/components/viz/domain/GCHeap";
 import { ExecutionContext } from "@/components/viz/domain/ExecutionContext";
 import { ScopeChain } from "@/components/viz/domain/ScopeChain";
 import { Closure } from "@/components/viz/domain/Closure";
+import { Hoisting } from "@/components/viz/domain/Hoisting";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -25,6 +26,7 @@ export const mdxComponents: MDXComponents = {
   ExecutionContext,
   ScopeChain,
   Closure,
+  Hoisting,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{
