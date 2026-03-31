@@ -25,37 +25,57 @@ export function StepPlayer({
   );
 
   return (
-    <div className="my-6 rounded-lg border border-border p-4 dark:border-border-dark">
+    <div className="my-8 border border-border p-5">
       <div>{children}</div>
-      <div className="mt-4 flex items-center justify-center gap-3">
+      <div className="mt-5 flex items-center justify-center gap-1">
         <button
           onClick={() => goTo(0)}
           disabled={currentStep === 0}
-          className="rounded px-2 py-1 text-sm text-muted hover:text-text disabled:opacity-30 dark:text-muted-dark dark:hover:text-text-dark"
+          aria-label="처음으로"
+          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
         >
           ⏮
         </button>
         <button
           onClick={() => goTo(currentStep - 1)}
           disabled={currentStep === 0}
-          className="rounded px-2 py-1 text-sm text-muted hover:text-text disabled:opacity-30 dark:text-muted-dark dark:hover:text-text-dark"
+          aria-label="이전"
+          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
         >
           ◀
         </button>
-        <span className="min-w-[60px] text-center text-sm text-muted dark:text-muted-dark">
-          {currentStep + 1} / {totalSteps}
-        </span>
+
+        {/* Step dots */}
+        <div className="flex items-center gap-1 px-3">
+          {Array.from({ length: totalSteps }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              className={`h-1.5 rounded-full transition-all ${
+                i === currentStep
+                  ? "w-4 bg-accent dark:bg-accent-dark"
+                  : i <= currentStep
+                    ? "w-1.5 bg-muted/40 dark:bg-muted-dark/40"
+                    : "w-1.5 bg-border dark:bg-border-dark"
+              }`}
+              aria-label={`Step ${i + 1}`}
+            />
+          ))}
+        </div>
+
         <button
           onClick={() => goTo(currentStep + 1)}
           disabled={currentStep === totalSteps - 1}
-          className="rounded px-2 py-1 text-sm text-muted hover:text-text disabled:opacity-30 dark:text-muted-dark dark:hover:text-text-dark"
+          aria-label="다음"
+          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
         >
           ▶
         </button>
         <button
           onClick={() => goTo(totalSteps - 1)}
           disabled={currentStep === totalSteps - 1}
-          className="rounded px-2 py-1 text-sm text-muted hover:text-text disabled:opacity-30 dark:text-muted-dark dark:hover:text-text-dark"
+          aria-label="마지막으로"
+          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
         >
           ⏭
         </button>

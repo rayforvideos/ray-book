@@ -12,24 +12,26 @@ export function PostCard({ post }: PostCardProps) {
   return (
     <article className="group">
       <Link href={`/posts/${slug}`} className="block">
-        <h2 className="text-lg font-semibold group-hover:text-primary dark:group-hover:text-primary-dark">
-          {frontmatter.title}
-        </h2>
-        <p className="mt-1 text-sm text-muted dark:text-muted-dark">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-serif text-lg tracking-tight group-hover:text-accent">
+            {frontmatter.title}
+          </h2>
+          <time
+            className="shrink-0 text-[0.75rem] tabular-nums text-muted"
+            dateTime={frontmatter.date.toISOString()}
+          >
+            {frontmatter.date.toLocaleDateString("ko-KR", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })}
+          </time>
+        </div>
+        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-muted">
           {frontmatter.description}
         </p>
-        <time
-          className="mt-2 block text-xs text-muted dark:text-muted-dark"
-          dateTime={frontmatter.date.toISOString()}
-        >
-          {frontmatter.date.toLocaleDateString("ko-KR", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </time>
       </Link>
-      <div className="mt-2">
+      <div className="mt-2.5">
         <TagList tags={frontmatter.tags} />
       </div>
     </article>

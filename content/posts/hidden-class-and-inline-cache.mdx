@@ -1,0 +1,149 @@
+---
+title: "Hidden Class와 인라인 캐시"
+description: "V8이 동적 타입 언어의 프로퍼티 접근을 어떻게 빠르게 만드는지 — Hidden Class, 전이 체인, IC의 상태 변화를 시각화합니다"
+date: 2026-03-31
+tags: ["javascript", "v8", "hidden-class", "inline-cache", "optimization"]
+series: "js-engine-internals"
+seriesOrder: 5
+draft: false
+---
+
+## 느린 프로퍼티 접근
+
+JavaScript 객체는 본질적으로 딕셔너리입니다. `obj.x`를 읽으려면 `"x"`라는 키로 <Term id="hashmap">해시맵</Term>을 탐색해야 합니다.
+
+하지만 Java나 C++은 컴파일 시점에 프로퍼티의 **메모리 오프셋** 을 알고 있으므로, 단일 메모리 읽기로 접근이 끝납니다. <Term id="hashmap">해시맵</Term> 탐색 대비 수십 배 빠릅니다.
+
+V8은 JavaScript에서도 이 속도를 달성하기 위해 두 가지 메커니즘을 사용합니다:
+
+- **Hidden Class** — 객체의 "형태"를 추적하여 프로퍼티의 오프셋을 고정
+- **인라인 캐시** (IC) — 한번 찾은 오프셋을 캐싱하여 재탐색 방지
+
+## Hidden Class란
+
+V8 내부에서는 **Map** 이라고 부릅니다. 모든 객체는 자신의 Hidden Class를 가리키는 포인터를 갖고 있으며, Hidden Class는 "이 객체에 어떤 프로퍼티가 있고, 각각 몇 번째 슬롯에 저장되어 있는가"를 기록합니다.
+
+## 전이 체인
+
+객체에 프로퍼티를 추가할 때마다 Hidden Class가 바뀝니다. 아래 시각화에서 빈 객체에 프로퍼티를 하나씩 추가하면 Hidden Class가 어떻게 전이되는지 확인하세요.
+
+<HiddenClass preset="shape-transition" />
+
+핵심 포인트:
+
+- 프로퍼티를 추가할 때마다 **새 Hidden Class** 가 생성됩니다
+- 이전 Hidden Class에는 **전이 기록** 이 남습니다 ("x를 추가하면 Map1로")
+- 같은 순서로 프로퍼티를 추가하면 **기존 전이 체인을 재사용** 합니다
+
+## 순서가 중요하다
+
+같은 프로퍼티를 가진 두 객체라도 **추가 순서** 가 다르면 Hidden Class를 공유하지 못합니다.
+
+<HiddenClass preset="shape-diverge" />
+
+이것이 "같은 형태의 객체를 일관되게 생성하라"는 성능 조언의 근거입니다. 생성자 함수나 클래스를 사용하면 프로퍼티 추가 순서가 자연스럽게 고정됩니다.
+
+## 인라인 캐시 — 프로퍼티 접근의 고속도로
+
+Hidden Class가 프로퍼티의 오프셋을 기록한다면, **인라인 캐시** (Inline Cache, IC) 는 "이 코드에서 마지막으로 본 Hidden Class와 오프셋"을 기억하는 메커니즘입니다.
+
+`obj.x`에 접근할 때:
+
+1. 첫 번째 접근 — Hidden Class에서 `x`의 오프셋을 찾습니다 (느린 경로)
+2. IC에 결과를 캐싱합니다 — "Map2의 x는 오프셋 0"
+3. 다음 접근 — 객체의 Hidden Class가 Map2인지만 확인하고, 캐시된 오프셋으로 바로 접근합니다 (빠른 경로)
+
+## IC의 상태 전이
+
+IC는 들어오는 Hidden Class의 다양성에 따라 상태가 변합니다.
+
+<ICState preset="property-access" />
+
+각 상태의 성능 특성:
+
+| 상태 | 캐시 엔트리 | 속도 | TurboFan 최적화 |
+|------|-----------|------|----------------|
+| Uninitialized | 0 | — | — |
+| **Monomorphic** | 1 | 가장 빠름 | 완전 최적화 가능 |
+| Polymorphic | 2~4 | 빠름 | 부분 최적화 |
+| Megamorphic | 캐싱 포기 | 느림 | 최적화 어려움 |
+
+## 모노모픽이 중요한 이유
+
+**모노모픽** 은 "하나의 형태만 본다"는 뜻입니다. IC가 모노모픽이면:
+
+- 프로퍼티 접근이 **단일 비교 + 메모리 읽기** 로 끝납니다
+- TurboFan이 타입 체크를 **상수로 접어** 기계어를 극도로 단순화할 수 있습니다
+- 이전 글에서 본 **타입 특화** 가 바로 모노모픽 IC를 기반으로 이루어집니다
+
+반대로 메가모픽이 되면, V8은 사실상 <Term id="hashmap">해시맵</Term> 탐색으로 돌아갑니다.
+
+## 4편과의 연결
+
+이전 글에서 다룬 TurboFan의 최적화 과정을 IC 관점에서 다시 보면:
+
+1. Ignition이 바이트코드를 실행하며 **IC에 타입 피드백을 기록** 합니다
+2. TurboFan이 IC의 피드백을 읽고 **타입 가정** 을 세웁니다
+3. 가정을 기반으로 **타입 특화된 기계어** 를 생성합니다
+4. 가정이 깨지면 (새로운 Hidden Class 유입) **역최적화** 가 발생합니다
+
+IC는 Ignition과 TurboFan을 이어주는 **다리** 입니다.
+
+## 최적화 친화적 코드
+
+### 생성자/클래스 사용
+
+```javascript
+// 좋음 — 프로퍼티 순서 일관
+class Point {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+// 나쁨 — 순서가 불확실
+function makePoint(x, y) {
+  const p = {};
+  if (x) p.x = x;  // 조건부 추가 → Hidden Class 분기
+  if (y) p.y = y;
+  return p;
+}
+```
+
+### 하나의 함수에 하나의 형태
+
+```javascript
+// 좋음 — 모노모픽 유지
+function getX(point) { return point.x; }
+// Point 인스턴스만 전달
+
+// 나쁨 — 폴리모픽/메가모픽 유발
+function getX(obj) { return obj.x; }
+getX(point);    // Map A
+getX(event);    // Map B
+getX(config);   // Map C
+getX(response); // Map D → 메가모픽
+```
+
+### delete 사용 피하기
+
+```javascript
+// 나쁨 — Hidden Class 전이 체인을 망가뜨림
+delete obj.x;
+
+// 좋음 — Hidden Class 유지
+obj.x = undefined;
+```
+
+## 실제로 확인하기
+
+Chrome DevTools의 Performance 탭에서 IC 상태 변화를 추적할 수 있습니다. 또한 `--trace-ic` 플래그로 IC 이벤트를 로깅할 수 있습니다:
+
+```bash
+node --trace-ic script.js
+```
+
+## 다음 단계
+
+코드가 실행되면 객체가 메모리에 쌓입니다. 더 이상 참조되지 않는 객체는 어떻게 정리될까요? 다음 글에서는 V8의 **가비지 컬렉터** — 힙의 구조, 세대별 수집, GC 일시정지를 최소화하는 전략을 살펴보겠습니다.

@@ -3,21 +3,24 @@ import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   return (
-    <header className="border-b border-border dark:border-border-dark">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-        <Link href="/" className="text-xl font-bold">
+    <header className="pt-8 pb-6">
+      <div className="mx-auto flex max-w-2xl items-center justify-between px-6">
+        <Link
+          href="/"
+          className="font-serif text-lg tracking-tight text-text"
+        >
           Ray Book
         </Link>
-        <nav className="flex items-center gap-6">
+        <nav aria-label="메인 내비게이션" className="flex items-center gap-5">
           <Link
             href="/series"
-            className="text-sm text-muted hover:text-text dark:text-muted-dark dark:hover:text-text-dark"
+            className="text-[0.8125rem] text-muted hover:text-text"
           >
             시리즈
           </Link>
           <Link
             href="/search"
-            className="text-sm text-muted hover:text-text dark:text-muted-dark dark:hover:text-text-dark"
+            className="text-[0.8125rem] text-muted hover:text-text"
           >
             검색
           </Link>

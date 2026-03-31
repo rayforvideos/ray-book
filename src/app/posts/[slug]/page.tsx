@@ -1,5 +1,7 @@
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { notFound } from "next/navigation";
+import rehypeSlug from "rehype-slug";
+import remarkGfm from "remark-gfm";
 import { getAllSlugs, getPostBySlug, getPostsBySeries } from "@/lib/posts";
 import { getSeriesBySlug } from "@/lib/series";
 import { mdxComponents } from "@/lib/mdx-components";
@@ -22,6 +24,11 @@ export async function generateMetadata({ params }: PostPageProps) {
     return {
       title: `${post.frontmatter.title} | Ray Book`,
       description: post.frontmatter.description,
+      openGraph: {
+        type: "article",
+        publishedTime: post.frontmatter.date.toISOString(),
+        tags: post.frontmatter.tags,
+      },
     };
   } catch {
     return { title: "Not Found | Ray Book" };
@@ -46,23 +53,30 @@ export default async function PostPage({ params }: PostPageProps) {
     : [];
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-16">
-      <header className="mb-10">
-        <h1 className="text-3xl font-bold">{post.frontmatter.title}</h1>
-        <p className="mt-2 text-muted dark:text-muted-dark">
+    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16">
+      <header className="mb-12">
+        <div className="flex items-center gap-3 text-[0.75rem] text-muted">
+          <time dateTime={post.frontmatter.date.toISOString()}>
+            {post.frontmatter.date.toLocaleDateString("ko-KR", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </time>
+          {series && (
+            <>
+              <span className="text-border">/</span>
+              <span className="font-serif italic">{series.title}</span>
+            </>
+          )}
+        </div>
+        <h1 className="mt-4 font-serif text-[2rem] leading-tight tracking-tight">
+          {post.frontmatter.title}
+        </h1>
+        <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
           {post.frontmatter.description}
         </p>
-        <time
-          className="mt-2 block text-sm text-muted dark:text-muted-dark"
-          dateTime={post.frontmatter.date.toISOString()}
-        >
-          {post.frontmatter.date.toLocaleDateString("ko-KR", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </time>
-        <div className="mt-3">
+        <div className="mt-4">
           <TagList tags={post.frontmatter.tags} />
         </div>
       </header>
@@ -70,7 +84,11 @@ export default async function PostPage({ params }: PostPageProps) {
       <TableOfContents content={post.content} />
 
       <article className="prose">
-        <MDXRemote source={post.content} components={mdxComponents} />
+        <MDXRemote
+          source={post.content}
+          components={mdxComponents}
+          options={{ mdxOptions: { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] } }}
+        />
       </article>
 
       {series && (

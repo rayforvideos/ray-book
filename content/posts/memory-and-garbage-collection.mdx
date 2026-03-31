@@ -1,0 +1,170 @@
+---
+title: "메모리와 가비지 컬렉션"
+description: "V8의 힙 구조, 세대별 가비지 컬렉션, 그리고 GC 일시정지를 최소화하는 전략을 시각화합니다"
+date: 2026-03-31
+tags: ["javascript", "v8", "garbage-collection", "memory"]
+series: "js-engine-internals"
+seriesOrder: 6
+draft: false
+---
+
+## 메모리는 누가 관리하는가
+
+C나 C++에서는 개발자가 직접 `malloc`과 `free`로 메모리를 관리합니다. 실수하면 메모리 누수나 해제 후 접근 같은 치명적 버그가 발생합니다.
+
+JavaScript는 다릅니다. 개발자가 `new Object()`로 메모리를 할당하지만, 해제는 엔진이 자동으로 합니다. 이 자동 메모리 관리 시스템이 <Term id="garbage-collection">가비지 컬렉터</Term> (GC) 입니다.
+
+## 힙의 구조
+
+V8의 <Term id="heap">힙</Term>은 크게 두 영역으로 나뉩니다:
+
+- **Young Generation** — 새로 생성된 객체가 들어가는 작은 영역 (보통 1~8MB)
+- **Old Generation** — 오래 살아남은 객체가 들어가는 큰 영역 (수백 MB까지)
+
+이렇게 나누는 이유는 **세대 가설** (Generational Hypothesis) 때문입니다:
+
+> 대부분의 객체는 생성 직후 금방 쓸모없어진다. 오래 살아남은 소수의 객체는 앞으로도 오래 쓰일 가능성이 높다.
+
+이 가설에 기반해, 새 객체가 몰려있는 Young을 자주 + 빠르게, Old는 가끔 + 천천히 정리합니다.
+
+## GC의 생애주기
+
+아래 시각화에서 객체가 할당되고, GC가 수거하고, 살아남은 객체가 승격되는 전체 과정을 확인하세요.
+
+<GCHeap preset="lifecycle" />
+
+## Minor GC — Scavenge
+
+Young Generation에서 실행되는 빠른 GC입니다.
+
+**알고리즘: 복사 수집 (Semi-space)**
+
+Young Generation은 내부적으로 두 개의 반공간 (semi-space) 으로 나뉩니다:
+
+- **From-space** — 현재 객체가 있는 공간
+- **To-space** — 비어있는 공간
+
+GC가 실행되면:
+1. From-space에서 살아있는 객체만 찾습니다 (루트에서 도달 가능한 객체)
+2. 살아있는 객체를 To-space로 **복사** 합니다
+3. From-space와 To-space의 역할을 **교체** 합니다
+4. 이전 From-space (이제 To-space) 는 통째로 비웁니다
+
+죽은 객체를 일일이 찾아 해제하지 않고, 살아있는 것만 복사하므로 매우 빠릅니다. Young Generation이 작기 때문에 보통 **1~2ms** 안에 끝납니다.
+
+### 승격 (Promotion)
+
+여러 번의 Minor GC에서 살아남은 객체는 Old Generation으로 승격됩니다. 승격 기준:
+
+- Minor GC에서 **두 번 이상** 살아남았거나
+- To-space의 사용률이 **25%를 초과** 할 때
+
+## Major GC — Mark-Sweep-Compact
+
+Old Generation에서 실행되는 전체 GC입니다. 세 단계로 이루어집니다:
+
+### 1. Mark — 표시
+
+루트 (전역 객체, <Term id="call-stack">콜 스택</Term>의 변수들) 에서 시작해 도달할 수 있는 모든 객체를 "살아있음"으로 표시합니다. 도달할 수 없는 객체는 표시되지 않습니다.
+
+### 2. Sweep — 쓸기
+
+표시되지 않은 객체의 메모리를 해제합니다. 이 메모리는 프리 리스트 (free list) 에 등록되어 나중에 재사용됩니다.
+
+### 3. Compact — 압축
+
+메모리 단편화가 심하면 살아있는 객체를 한쪽으로 모아 연속된 빈 공간을 만듭니다. 이 단계는 항상 실행되지는 않습니다.
+
+Major GC는 Minor GC보다 느립니다 (10~100ms). 하지만 V8은 이 일시정지를 최소화하기 위해 여러 기법을 사용합니다.
+
+## 일시정지 최소화 전략
+
+### Incremental Marking — 점진적 표시
+
+Mark 단계를 한 번에 하지 않고, **작은 단위로 쪼개** JavaScript 실행 사이사이에 끼워 넣습니다.
+
+```
+JS 실행 → Mark 조금 → JS 실행 → Mark 조금 → ... → Mark 완료
+```
+
+100ms 일시정지 대신, 5ms 일시정지 20번으로 분산합니다. 사용자는 거의 느끼지 못합니다.
+
+### Concurrent Marking — 병렬 표시
+
+Mark 작업의 대부분을 **백그라운드 스레드** 에서 수행합니다. 메인 스레드는 JavaScript를 계속 실행하면서, 동시에 GC가 객체 그래프를 탐색합니다.
+
+### Lazy Sweeping — 지연 쓸기
+
+Sweep 단계도 한 번에 하지 않고, 새 객체를 할당할 때 **필요한 만큼만** 메모리를 회수합니다.
+
+## 메모리 누수 패턴
+
+GC가 자동으로 메모리를 관리하지만, 개발자의 실수로 인한 메모리 누수는 여전히 발생합니다:
+
+### 잊혀진 이벤트 리스너
+
+```javascript
+// 누수 — 컴포넌트가 사라져도 리스너가 남아있음
+element.addEventListener("click", handler);
+
+// 해결 — 정리 함수에서 제거
+element.removeEventListener("click", handler);
+```
+
+### 클로저의 의도치 않은 참조
+
+```javascript
+function createHandler() {
+  const largeData = new Array(1000000);  // 큰 배열
+
+  return function handler() {
+    // largeData를 쓰지 않지만, 클로저가 참조를 유지
+    console.log("clicked");
+  };
+}
+// handler가 살아있는 한 largeData도 GC되지 않음
+```
+
+### 전역 변수 축적
+
+```javascript
+// 누수 — 배열이 계속 커짐
+const cache = [];
+function addToCache(item) {
+  cache.push(item);  // 제거하는 코드가 없음
+}
+```
+
+## 실제로 메모리 확인하기
+
+### Chrome DevTools Memory 탭
+
+- **Heap Snapshot** — 현재 힙의 모든 객체를 캡처
+- **Allocation Timeline** — 시간별 메모리 할당 추이
+- **Allocation Sampling** — 어떤 함수가 메모리를 많이 할당하는지
+
+### Node.js 플래그
+
+```bash
+# GC 로그 출력
+node --trace-gc script.js
+
+# 상세 GC 통계
+node --trace-gc-verbose script.js
+
+# 힙 크기 제한 (테스트용)
+node --max-old-space-size=256 script.js
+```
+
+## 시리즈를 마치며
+
+6편에 걸쳐 JavaScript 코드가 실행되는 전체 과정을 살펴봤습니다:
+
+1. **소스 코드 → 토큰** — 토크나이저가 문자열을 의미 있는 조각으로 분류
+2. **토큰 → AST** — 파서가 평면적 토큰을 트리 구조로 변환
+3. **AST → 바이트코드** — Ignition이 트리를 실행 가능한 명령어로 컴파일
+4. **바이트코드 실행과 최적화** — TurboFan이 뜨거운 코드를 기계어로 최적화
+5. **Hidden Class와 인라인 캐시** — 동적 타입을 정적 타입 수준으로 빠르게 만드는 메커니즘
+6. **메모리와 가비지 컬렉션** — 세대별 GC로 자동 메모리 관리
+
+이 과정을 이해하면 JavaScript가 "느린 인터프리터 언어"가 아니라, 정교한 최적화 파이프라인을 갖춘 현대적 런타임이라는 것을 알 수 있습니다. 다음 시리즈에서는 이 런타임 위에서 **브라우저가 화면을 그리는 과정** 을 다루겠습니다.

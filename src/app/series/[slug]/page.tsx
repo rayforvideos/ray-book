@@ -18,10 +18,16 @@ export async function generateMetadata({ params }: SeriesDetailProps) {
   return {
     title: `${series.title} | Ray Book`,
     description: series.description,
+    openGraph: {
+      title: `${series.title} | Ray Book`,
+      description: series.description,
+    },
   };
 }
 
-export default async function SeriesDetailPage({ params }: SeriesDetailProps) {
+export default async function SeriesDetailPage({
+  params,
+}: SeriesDetailProps) {
   const { slug } = await params;
   const series = getSeriesBySlug(slug);
   if (!series) notFound();
@@ -29,25 +35,27 @@ export default async function SeriesDetailPage({ params }: SeriesDetailProps) {
   const posts = getPostsBySeries(slug);
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-16">
-      <h1 className="text-3xl font-bold">{series.title}</h1>
-      <p className="mt-2 text-muted dark:text-muted-dark">
+    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16">
+      <h1 className="font-serif text-3xl tracking-tight">{series.title}</h1>
+      <p className="mt-3 text-[0.9375rem] text-muted">
         {series.description}
       </p>
 
-      <ol className="mt-10 space-y-4">
+      <ol className="mt-12 space-y-0 divide-y divide-border">
         {posts.map((post, index) => (
           <li key={post.slug}>
             <Link
               href={`/posts/${post.slug}`}
-              className="flex items-baseline gap-4 rounded-lg border border-border p-4 hover:border-primary dark:border-border-dark dark:hover:border-primary-dark"
+              className="group flex items-baseline gap-5 py-5"
             >
-              <span className="text-2xl font-bold text-muted dark:text-muted-dark">
+              <span className="shrink-0 font-mono text-[0.75rem] tabular-nums text-muted/40">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <div>
-                <h2 className="font-semibold">{post.frontmatter.title}</h2>
-                <p className="mt-1 text-sm text-muted dark:text-muted-dark">
+                <h2 className="text-[0.9375rem] font-medium group-hover:text-accent">
+                  {post.frontmatter.title}
+                </h2>
+                <p className="mt-0.5 text-[0.8125rem] text-muted">
                   {post.frontmatter.description}
                 </p>
               </div>
@@ -57,7 +65,7 @@ export default async function SeriesDetailPage({ params }: SeriesDetailProps) {
       </ol>
 
       {posts.length === 0 && (
-        <p className="mt-10 text-muted dark:text-muted-dark">
+        <p className="mt-12 text-[0.875rem] text-muted">
           이 시리즈에 아직 글이 없습니다.
         </p>
       )}

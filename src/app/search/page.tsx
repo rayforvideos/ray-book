@@ -8,9 +8,9 @@ export const metadata: Metadata = {
 
 export default function SearchPage() {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-16">
-      <h1 className="text-3xl font-bold">검색</h1>
-      <p className="mt-2 mb-8 text-muted dark:text-muted-dark">
+    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16">
+      <h1 className="font-serif text-3xl tracking-tight">검색</h1>
+      <p className="mt-3 mb-10 text-[0.9375rem] text-muted">
         글 제목, 내용, 태그로 검색할 수 있습니다
       </p>
       <SearchWidget />

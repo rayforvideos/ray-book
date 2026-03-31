@@ -5,6 +5,8 @@ import { frontmatterSchema, type Post, type PostMeta } from "@/types/post";
 
 const POSTS_DIR = path.join(process.cwd(), "content/posts");
 
+let postMetasCache: PostMeta[] | null = null;
+
 function parseFrontmatter(raw: Record<string, unknown>, slug: string) {
   const result = frontmatterSchema.safeParse(raw);
   if (!result.success) {
@@ -16,11 +18,13 @@ function parseFrontmatter(raw: Record<string, unknown>, slug: string) {
 }
 
 export function getAllPostMetas(): PostMeta[] {
+  if (postMetasCache) return postMetasCache;
+
   if (!fs.existsSync(POSTS_DIR)) return [];
 
   const files = fs.readdirSync(POSTS_DIR).filter((f) => f.endsWith(".mdx"));
 
-  return files
+  postMetasCache = files
     .map((file) => {
       const slug = file.replace(/\.mdx$/, "");
       const raw = fs.readFileSync(path.join(POSTS_DIR, file), "utf-8");
@@ -33,6 +37,8 @@ export function getAllPostMetas(): PostMeta[] {
       (a, b) =>
         b.frontmatter.date.getTime() - a.frontmatter.date.getTime()
     );
+
+  return postMetasCache;
 }
 
 export function getPostBySlug(slug: string): Post {
@@ -43,12 +49,6 @@ export function getPostBySlug(slug: string): Post {
   return { slug, frontmatter, content };
 }
 
-export function getPostsByTag(tag: string): PostMeta[] {
-  return getAllPostMetas().filter((post) =>
-    post.frontmatter.tags.includes(tag)
-  );
-}
-
 export function getPostsBySeries(series: string): PostMeta[] {
   return getAllPostMetas()
     .filter((post) => post.frontmatter.series === series)
@@ -56,16 +56,6 @@ export function getPostsBySeries(series: string): PostMeta[] {
       (a, b) =>
         (a.frontmatter.seriesOrder ?? 0) - (b.frontmatter.seriesOrder ?? 0)
     );
-}
-
-export function getAllTags(): string[] {
-  const tags = new Set<string>();
-  for (const post of getAllPostMetas()) {
-    for (const tag of post.frontmatter.tags) {
-      tags.add(tag);
-    }
-  }
-  return Array.from(tags).sort();
 }
 
 export function getAllSlugs(): string[] {

@@ -1,7 +1,7 @@
 [
   {
-    "slug": "browser-internals",
-    "title": "브라우저 내부 동작",
-    "description": "브라우저가 코드를 어떻게 실행하는지 깊이 파헤치기"
+    "slug": "js-engine-internals",
+    "title": "JavaScript 엔진의 내부",
+    "description": "코드가 문자열에서 실행 결과가 되기까지 — V8 엔진의 파이프라인을 따라가봅니다"
   }
 ]

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function SearchWidget() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     async function loadPagefind() {
@@ -22,10 +23,7 @@ export function SearchWidget() {
         }
       } catch {
         // Pagefind not available in dev mode — expected
-        if (containerRef.current) {
-          containerRef.current.innerHTML =
-            '<p class="text-muted dark:text-muted-dark">검색은 프로덕션 빌드에서만 사용할 수 있습니다.</p>';
-        }
+        setUnavailable(true);
       }
     }
 
@@ -35,7 +33,11 @@ export function SearchWidget() {
   return (
     <>
       <link href="/pagefind/pagefind-ui.css" rel="stylesheet" />
-      <div ref={containerRef} />
+      {unavailable ? (
+        <p className="text-muted">검색은 프로덕션 빌드에서만 사용할 수 있습니다.</p>
+      ) : (
+        <div ref={containerRef} />
+      )}
     </>
   );
 }

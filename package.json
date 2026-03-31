@@ -4,18 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack && npx pagefind --site out",
+    "build": "next build --turbopack && node scripts/generate-sitemap.mjs && npx pagefind --site out",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "framer-motion": "^12.38.0",
+    "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "next": "15.5.14",
     "next-mdx-remote": "^6.0.0",
     "next-themes": "^0.4.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "shiki": "^4.0.2",
     "zod": "^4.3.6"
   },

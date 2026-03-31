@@ -12,11 +12,12 @@ export async function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
       light: "github-light",
       dark: "github-dark",
     },
+    defaultColor: false,
   });
 
   return (
     <div
-      className="my-6 overflow-x-auto rounded-lg text-sm [&_pre]:p-4"
+      className="my-8 overflow-x-auto text-[0.8125rem] [&_pre]:border [&_pre]:border-border [&_pre]:p-5 [&_pre]:leading-relaxed dark:[&_pre]:border-border-dark"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

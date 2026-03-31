@@ -1,0 +1,180 @@
+---
+title: "바이트코드 실행과 최적화"
+description: "Ignition의 바이트코드 해석, TurboFan의 JIT 컴파일, 그리고 역최적화까지 — V8의 실행 파이프라인을 시각화합니다"
+date: 2026-03-31
+tags: ["javascript", "v8", "jit", "turbofan", "optimization"]
+series: "js-engine-internals"
+seriesOrder: 4
+draft: false
+---
+
+## 두 개의 실행 전략
+
+이전 글에서 Ignition이 AST를 바이트코드로 컴파일하는 과정을 살펴봤습니다. 하지만 바이트코드를 한 줄씩 해석하는 것은 기계어를 직접 실행하는 것보다 훨씬 느립니다.
+
+V8은 이 문제를 **두 개의 실행 전략** 으로 해결합니다:
+
+- **Ignition** — 빠르게 컴파일, 느리게 실행 (인터프리터)
+- **TurboFan** — 느리게 컴파일, 빠르게 실행 (<Term id="jit">JIT 컴파일러</Term>)
+
+모든 코드는 먼저 Ignition으로 실행됩니다. 그리고 자주 실행되는 "뜨거운" (hot) 코드만 TurboFan이 기계어로 컴파일합니다.
+
+## 전체 파이프라인
+
+아래 시각화에서 함수가 소스 코드에서 기계어까지 변환되는 전체 과정을 확인하세요.
+
+<JITPipeline preset="hot-function" />
+
+핵심은 **점진적 최적화** 입니다. 처음부터 모든 코드를 최적화하지 않고, 실제로 많이 실행되는 코드만 최적화합니다.
+
+## 타입 피드백 — 최적화의 열쇠
+
+JavaScript는 동적 타입 언어입니다. `a + b`에서 `a`와 `b`가 숫자인지, 문자열인지, 객체인지 실행 전에는 알 수 없습니다.
+
+Ignition은 바이트코드를 실행하면서 **타입 피드백** (Type Feedback) 을 수집합니다:
+
+```javascript
+function add(a, b) {
+  return a + b;
+}
+
+add(1, 2);      // a: Smi, b: Smi → 정수 덧셈
+add(3, 4);      // a: Smi, b: Smi → 정수 덧셈
+add(5, 6);      // a: Smi, b: Smi → 정수 덧셈
+// Ignition 기록: "이 함수는 항상 정수로 호출된다"
+```
+
+이 정보가 TurboFan의 최적화 근거가 됩니다.
+
+## TurboFan의 최적화 기법
+
+TurboFan은 타입 피드백을 기반으로 여러 최적화를 수행합니다:
+
+### 타입 특화 (Type Specialization)
+
+타입 피드백이 "항상 정수"라고 알려주면, TurboFan은 타입 체크를 생략하고 정수 전용 기계어를 생성합니다.
+
+```
+// 최적화 전 (바이트코드)
+타입 체크: a가 숫자인가?
+타입 체크: b가 숫자인가?
+숫자 덧셈 실행
+
+// 최적화 후 (기계어)
+정수 덧셈 (ADD 명령어 하나)
+```
+
+### 인라이닝 (Inlining)
+
+자주 호출되는 작은 함수는 호출부에 직접 삽입합니다.
+
+```javascript
+function square(x) { return x * x; }
+function sumOfSquares(a, b) {
+  return square(a) + square(b);
+}
+
+// 인라이닝 후 TurboFan이 보는 코드:
+function sumOfSquares(a, b) {
+  return (a * a) + (b * b);
+}
+```
+
+함수 호출 오버헤드 (스택 프레임 생성, 인자 전달, 반환) 가 사라집니다.
+
+### 이스케이프 분석 (Escape Analysis)
+
+객체가 함수 밖으로 빠져나가지 않으면, 힙 할당 대신 스택에 놓거나 아예 개별 변수로 분해합니다.
+
+```javascript
+function getDistance(x1, y1, x2, y2) {
+  const p1 = { x: x1, y: y1 };  // 이 객체는 함수 밖으로 나가지 않음
+  const p2 = { x: x2, y: y2 };
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// TurboFan 최적화 후: 객체 할당 자체가 사라짐
+// p1.x → x1, p1.y → y1 등으로 직접 치환
+```
+
+## 역최적화 (Deoptimization)
+
+TurboFan의 최적화는 **가정** 위에 세워집니다. "이 변수는 항상 정수일 것이다"라는 가정이 깨지면, 최적화된 기계어는 더 이상 올바르지 않습니다.
+
+```javascript
+add(1, 2);       // ✓ 정수
+add(3, 4);       // ✓ 정수
+// → TurboFan 최적화: 정수 전용 기계어 생성
+
+add("hello", "world");  // ✗ 문자열!
+// → 역최적화: 기계어 폐기, 바이트코드로 복귀
+```
+
+역최적화가 일어나면:
+
+1. 실행 중인 최적화 코드를 **즉시 중단** 합니다
+2. 기계어의 상태를 바이트코드의 상태로 **재구성** 합니다 (스택 프레임 변환)
+3. Ignition이 **바이트코드부터 다시 실행** 합니다
+4. 새로운 타입 피드백이 쌓이면 다시 최적화를 시도합니다
+
+## 최적화를 돕는 코드 작성법
+
+V8의 최적화 파이프라인을 이해하면, 엔진이 최적화하기 쉬운 코드를 작성할 수 있습니다:
+
+### 일관된 타입 유지
+
+```javascript
+// 좋음 — 항상 같은 타입
+function add(a, b) { return a + b; }
+add(1, 2);
+add(3, 4);
+
+// 나쁨 — 타입이 바뀜 (역최적화 유발)
+add(1, 2);
+add("a", "b");
+```
+
+### 객체 형태 (Shape) 일관성
+
+```javascript
+// 좋음 — 모든 객체가 같은 프로퍼티 순서
+const points = [
+  { x: 1, y: 2 },
+  { x: 3, y: 4 },
+];
+
+// 나쁨 — 프로퍼티 순서가 다름
+const points = [
+  { x: 1, y: 2 },
+  { y: 4, x: 3 },  // Hidden Class가 달라짐
+];
+```
+
+### 작은 함수
+
+인라이닝의 혜택을 받으려면 함수를 작게 유지하세요. TurboFan은 너무 큰 함수는 인라이닝하지 않습니다.
+
+## 실제로 최적화 상태 확인하기
+
+Node.js의 `--trace-opt`와 `--trace-deopt` 플래그로 최적화/역최적화 과정을 볼 수 있습니다:
+
+```bash
+node --trace-opt --trace-deopt script.js
+```
+
+출력에서 이런 로그를 확인할 수 있습니다:
+
+```
+[marking add for optimization]
+[compiling method add using TurboFan]
+[completed optimizing add]
+[deoptimizing: add, reason: wrong type]
+```
+
+## 다음 단계
+
+이 글에서 "타입 피드백"을 여러 번 언급했습니다. V8은 정확히 어떻게 객체의 타입을 추적하고, 프로퍼티 접근을 캐싱할까요?
+
+다음 글에서는 V8의 **Hidden Class** 와 **인라인 캐시** (IC) 를 살펴봅니다 — 동적 타입 언어의 프로퍼티 접근을 정적 타입 언어에 근접한 속도로 만드는 메커니즘입니다.

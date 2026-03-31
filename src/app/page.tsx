@@ -10,40 +10,46 @@ export default function Home() {
   );
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-16">
+    <main className="mx-auto max-w-2xl px-6 pt-20 pb-16">
       <section>
-        <h1 className="text-4xl font-bold">Ray Book</h1>
-        <p className="mt-4 text-muted dark:text-muted-dark">
+        <h1 className="font-serif text-4xl tracking-tight">Ray Book</h1>
+        <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
           프론트엔드 개념을 시각화로 이해하는 학습 블로그
         </p>
       </section>
 
       {seriesWithPosts.length > 0 && (
-        <section className="mt-16">
-          <h2 className="text-2xl font-bold">시리즈</h2>
-          <div className="mt-6 space-y-4">
+        <section className="mt-20">
+          <h2 className="text-[0.6875rem] font-medium uppercase tracking-[0.15em] text-muted">
+            시리즈
+          </h2>
+          <div className="mt-5 space-y-5">
             {seriesWithPosts.map((series) => (
               <Link
                 key={series.slug}
                 href={`/series/${series.slug}`}
-                className="block rounded-lg border border-border p-4 hover:border-primary dark:border-border-dark dark:hover:border-primary-dark"
+                className="group block"
               >
-                <h3 className="font-semibold">{series.title}</h3>
-                <p className="mt-1 text-sm text-muted dark:text-muted-dark">
+                <h3 className="font-serif text-lg tracking-tight group-hover:text-accent">
+                  {series.title}
+                </h3>
+                <p className="mt-1 text-[0.8125rem] text-muted">
                   {series.description}
                 </p>
-                <p className="mt-2 text-xs text-muted dark:text-muted-dark">
-                  {series.posts.length}개의 글
-                </p>
+                <span className="mt-1.5 block text-[0.75rem] text-muted/60">
+                  {series.posts.length}편
+                </span>
               </Link>
             ))}
           </div>
         </section>
       )}
 
-      <section className="mt-16">
-        <h2 className="text-2xl font-bold">최신 글</h2>
-        <div className="mt-6">
+      <section className="mt-20">
+        <h2 className="text-[0.6875rem] font-medium uppercase tracking-[0.15em] text-muted">
+          최신 글
+        </h2>
+        <div className="mt-5">
           <PostList posts={posts} />
         </div>
       </section>
