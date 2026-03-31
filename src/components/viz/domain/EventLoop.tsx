@@ -74,7 +74,7 @@ export function EventLoop({ preset = "basics", steps }: EventLoopProps) {
                   {queueLabels[queue]}
                 </span>
               </span>
-              <div className="flex flex-1 flex-wrap gap-1.5">
+              <div className="flex flex-1 flex-wrap gap-1.5" style={{ minHeight: "1.75rem" }}>
                 {queueSteps.map((step, i) => (
                   <AnimatedBox key={i} preset="scaleIn">
                     <span

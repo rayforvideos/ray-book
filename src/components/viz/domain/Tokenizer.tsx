@@ -108,7 +108,7 @@ export function Tokenizer({ preset = "let-hello" }: TokenizerProps) {
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             토큰 스트림
           </span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5" style={{ minHeight: "2.5rem" }}>
             {visibleTokens.map((token, i) => {
               const style = tokenStyles[token.type] ?? tokenStyles.punctuation;
               return (

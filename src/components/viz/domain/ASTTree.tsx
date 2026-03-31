@@ -259,6 +259,13 @@ export function ASTTree({ preset = "let-hello" }: ASTTreeProps) {
 
   const step = data.steps[currentStep];
 
+  // Calculate max node count across all steps to fix AST area height
+  const maxNodes = Math.max(
+    ...data.steps.map((s) => countNodes(s.tree))
+  );
+  // Each node ~1.75rem height
+  const astMinHeight = `${maxNodes * 1.75}rem`;
+
   return (
     <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
       <div className="space-y-4">
@@ -277,7 +284,10 @@ export function ASTTree({ preset = "let-hello" }: ASTTreeProps) {
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             AST
           </span>
-          <div className="overflow-x-auto rounded-sm bg-surface p-4">
+          <div
+            className="overflow-x-auto rounded-sm bg-surface p-4"
+            style={{ minHeight: astMinHeight }}
+          >
             <TreeNode node={step.tree} highlight={step.highlight} depth={0} />
           </div>
         </div>
@@ -289,6 +299,10 @@ export function ASTTree({ preset = "let-hello" }: ASTTreeProps) {
       </div>
     </StepPlayer>
   );
+}
+
+function countNodes(node: ASTNode): number {
+  return 1 + (node.children?.reduce((sum, child) => sum + countNodes(child), 0) ?? 0);
 }
 
 function TreeNode({
