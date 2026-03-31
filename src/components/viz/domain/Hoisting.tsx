@@ -152,7 +152,7 @@ export function Hoisting({ preset = "all-types" }: HoistingProps) {
     <div key={idx}>
       <div className="flex gap-4 max-sm:flex-col">
         {/* Code */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
             <span className="text-[0.6875rem] uppercase tracking-wider text-muted">코드</span>
             <span className={`font-mono text-[0.5625rem] px-1.5 py-px ${step.phase === "creation" ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200" : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"}`}>

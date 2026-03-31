@@ -52,7 +52,7 @@ export default function RootLayout({
       <body className="flex min-h-screen flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <Header />
-          <div className="flex-1 overflow-x-hidden">{children}</div>
+          <div className="flex-1">{children}</div>
           <Footer />
         </ThemeProvider>
       </body>

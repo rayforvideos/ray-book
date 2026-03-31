@@ -307,7 +307,7 @@ export function ExecutionContext({
     <div key={i}>
       <div className="flex gap-4 max-sm:flex-col">
         {/* Code panel */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0">
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             코드
           </span>
