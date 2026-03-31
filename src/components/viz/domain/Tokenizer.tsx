@@ -12,32 +12,32 @@ interface Token {
 const tokenStyles: Record<string, { badge: string; label: string }> = {
   keyword: {
     badge:
-      "border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-600 dark:bg-violet-950/50 dark:text-violet-100",
+      "border-violet-400 bg-violet-200 text-violet-900 dark:border-violet-500 dark:bg-violet-900/50 dark:text-violet-100",
     label: "키워드",
   },
   identifier: {
     badge:
-      "border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-600 dark:bg-sky-950/50 dark:text-sky-100",
+      "border-sky-400 bg-sky-200 text-sky-900 dark:border-sky-500 dark:bg-sky-900/50 dark:text-sky-100",
     label: "식별자",
   },
   operator: {
     badge:
-      "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100",
+      "border-amber-400 bg-amber-300 text-amber-950 dark:border-amber-500 dark:bg-amber-900/50 dark:text-amber-100",
     label: "연산자",
   },
   literal: {
     badge:
-      "border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-100",
+      "border-emerald-400 bg-emerald-200 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-900/50 dark:text-emerald-100",
     label: "리터럴",
   },
   punctuation: {
     badge:
-      "border-stone-300 bg-stone-200 text-stone-700 dark:border-stone-600 dark:bg-stone-800/50 dark:text-stone-200",
+      "border-stone-400 bg-stone-300 text-stone-900 dark:border-stone-500 dark:bg-stone-700/50 dark:text-stone-200",
     label: "구분자",
   },
   string: {
     badge:
-      "border-rose-300 bg-rose-100 text-rose-900 dark:border-rose-600 dark:bg-rose-950/50 dark:text-rose-100",
+      "border-rose-400 bg-rose-200 text-rose-900 dark:border-rose-500 dark:bg-rose-900/50 dark:text-rose-100",
     label: "문자열",
   },
 };
@@ -107,7 +107,7 @@ export function Tokenizer({ preset = "let-hello" }: TokenizerProps) {
                   <span
                     className={`inline-flex items-baseline gap-1 border px-2 py-0.5 font-mono text-[0.6875rem] ${s.badge} ${i === stepIndex ? "ring-1 ring-accent/40" : ""}`}
                   >
-                    <span className="opacity-50">{s.label}</span>
+                    <span className="opacity-70">{s.label}</span>
                     <span>{t.value}</span>
                   </span>
                 </AnimatedBox>
