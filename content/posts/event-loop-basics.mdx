@@ -1,0 +1,37 @@
+---
+title: "이벤트 루프 기초"
+description: "브라우저 이벤트 루프가 JavaScript를 실행하는 방식을 시각화로 이해합니다"
+date: 2026-03-31
+tags: ["javascript", "browser", "event-loop"]
+series: "browser-internals"
+seriesOrder: 1
+draft: false
+---
+
+## 이벤트 루프란?
+
+브라우저에서 JavaScript는 **싱글 스레드**로 실행됩니다. 하지만 비동기 작업(타이머, 네트워크 요청, DOM 이벤트)은 어떻게 처리될까요?
+
+바로 **이벤트 루프(Event Loop)**가 이를 관리합니다.
+
+## 동작 과정
+
+아래 시각화에서 단계별로 이벤트 루프가 어떻게 작업을 처리하는지 확인해보세요.
+
+<EventLoop
+  steps={[
+    { queue: "macrotask", item: "script", description: "전체 스크립트가 macrotask로 실행됩니다." },
+    { queue: "microtask", item: "Promise.then", description: "Promise.then 콜백이 microtask 큐에 추가됩니다." },
+    { queue: "microtask", item: "queueMicrotask", description: "queueMicrotask 콜백도 microtask 큐에 추가됩니다." },
+    { queue: "render", item: "rAF callback", description: "requestAnimationFrame 콜백이 렌더 단계에 예약됩니다." },
+    { queue: "macrotask", item: "setTimeout", description: "setTimeout 콜백이 다음 macrotask로 큐에 들어갑니다." }
+  ]}
+/>
+
+## 핵심 규칙
+
+1. **Microtask는 항상 먼저** — 현재 macrotask가 끝나면 microtask 큐를 전부 비웁니다
+2. **렌더링은 그 다음** — microtask가 끝나면 필요 시 렌더링 단계를 실행합니다
+3. **다음 macrotask** — 렌더링 후 다음 macrotask를 꺼내 실행합니다
+
+이 순서를 기억하면 `setTimeout`, `Promise`, `requestAnimationFrame`의 실행 순서를 예측할 수 있습니다.

@@ -1,7 +1,9 @@
 import type { MDXComponents } from "mdx/types";
 import { CodeBlock } from "@/components/viz/primitives/CodeBlock";
+import { EventLoop } from "@/components/viz/domain/EventLoop";
 
 export const mdxComponents: MDXComponents = {
+  EventLoop,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{
       children: string;
