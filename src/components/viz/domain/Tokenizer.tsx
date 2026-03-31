@@ -127,7 +127,7 @@ export function Tokenizer({ preset = "let-hello" }: TokenizerProps) {
 
         {/* Description */}
         {currentToken && (
-          <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+          <div className="border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
             {currentToken.description}
           </div>
         )}

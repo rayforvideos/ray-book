@@ -171,7 +171,7 @@ export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
         </div>
 
         {/* Description */}
-        <span className="block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+        <span className="block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
           {step.description}
         </span>
       </div>

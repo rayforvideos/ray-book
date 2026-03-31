@@ -431,7 +431,7 @@ export function ExecutionContext({
       </div>
 
       {/* Description */}
-      <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+      <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
         {step.description}
       </span>
     </StepPlayer>

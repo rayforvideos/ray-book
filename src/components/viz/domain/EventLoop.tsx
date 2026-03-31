@@ -94,7 +94,7 @@ export function EventLoop({ preset = "basics", steps }: EventLoopProps) {
           );
         })}
 
-        <div className="mt-4 border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
+        <div className="mt-4 border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted min-h-[3.5rem]">
           {resolvedSteps[currentStep]?.description}
         </div>
       </div>
