@@ -8,5 +8,10 @@
     "slug": "execution-context-and-scope",
     "title": "실행 컨텍스트와 스코프",
     "description": "JavaScript가 코드를 실행할 때 만들어지는 환경 — 실행 컨텍스트, 스코프, 클로저, this를 시각화합니다"
+  },
+  {
+    "slug": "async-javascript",
+    "title": "비동기 JavaScript",
+    "description": "싱글 스레드에서 동시성을 구현하는 방법 — 이벤트 루프, Promise, async/await를 시각화합니다"
   }
 ]

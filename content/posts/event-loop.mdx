@@ -1,0 +1,163 @@
+---
+title: "이벤트 루프"
+description: "싱글 스레드 JavaScript가 비동기를 처리하는 방법 — 콜스택, 태스크 큐, 마이크로태스크 큐의 동작을 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "event-loop", "async", "microtask", "macrotask"]
+series: "async-javascript"
+seriesOrder: 1
+draft: false
+---
+
+## 싱글 스레드의 딜레마
+
+JavaScript는 **싱글 스레드** 언어입니다. <Term id="call-stack">콜스택</Term>이 하나뿐이므로 한 번에 하나의 작업만 실행할 수 있습니다.
+
+그런데 브라우저에서는 네트워크 요청, 타이머, 사용자 입력을 동시에 처리해야 합니다. 만약 네트워크 요청이 완료될 때까지 콜스택이 멈춰 있다면 페이지가 얼어버릴 것입니다.
+
+이 문제를 해결하는 메커니즘이 **이벤트 루프** (Event Loop) 입니다.
+
+## 이벤트 루프의 구성 요소
+
+### 콜스택 (Call Stack)
+
+현재 실행 중인 함수가 쌓이는 곳입니다. 함수가 호출되면 push, 반환되면 pop. 이전 시리즈에서 다뤘던 실행 컨텍스트가 여기에 쌓입니다.
+
+### Web API
+
+브라우저가 제공하는 비동기 API입니다. `setTimeout`, `fetch`, `addEventListener` 등. 이것들은 JavaScript 엔진 바깥에서 동작합니다 — 브라우저의 C++ 코드가 처리합니다.
+
+### 태스크 큐 (Task Queue / Macrotask Queue)
+
+`setTimeout`, `setInterval`, I/O, UI 이벤트의 콜백이 대기하는 큐입니다. 이벤트 루프가 한 번 돌 때 **하나의 태스크** 만 꺼내서 실행합니다.
+
+### 마이크로태스크 큐 (Microtask Queue)
+
+`Promise.then`, `queueMicrotask`, `MutationObserver`의 콜백이 대기하는 큐입니다. 태스크보다 **우선순위가 높습니다** — 현재 태스크가 끝나면 마이크로태스크 큐를 **전부 비울 때까지** 실행합니다.
+
+## 이벤트 루프 알고리즘
+
+```
+1. 콜스택이 비어있나?
+   ├─ NO → 계속 실행
+   └─ YES → 2로
+2. 마이크로태스크 큐에 작업이 있나?
+   ├─ YES → 하나 꺼내서 실행 → 2로 (전부 빌 때까지 반복)
+   └─ NO → 3으로
+3. 렌더링이 필요한가? (보통 16.6ms마다)
+   ├─ YES → requestAnimationFrame → 렌더링
+   └─ NO → 4로
+4. 태스크 큐에 작업이 있나?
+   ├─ YES → 하나 꺼내서 실행 → 1로
+   └─ NO → 1로 (대기)
+```
+
+핵심: **마이크로태스크 > 렌더링 > 매크로태스크**
+
+## 실제 실행 순서
+
+가장 흔한 면접 질문입니다. 아래 코드의 출력 순서를 예측해보세요, 그리고 시각화로 확인하세요.
+
+<EventLoopFull preset="setTimeout-promise" />
+
+**출력 순서: 1, 5, 3, 4, 2**
+
+왜 이 순서인가:
+
+1. `"1"` — 동기 코드, 즉시 실행
+2. `setTimeout` — 콜백을 태스크 큐에 등록 (나중에)
+3. `Promise.then` — 콜백을 마이크로태스크 큐에 등록 (나중에, 하지만 태스크보다 먼저)
+4. `"5"` — 동기 코드, 즉시 실행
+5. 콜스택이 비었으므로 마이크로태스크 실행 → `"3"`, `"4"`
+6. 마이크로태스크가 모두 끝난 후 태스크 실행 → `"2"`
+
+## setTimeout(fn, 0) 은 즉시 실행이 아니다
+
+```javascript
+console.log("start");
+setTimeout(() => console.log("timeout"), 0);
+console.log("end");
+
+// start, end, timeout
+```
+
+0ms 타이머라도 콜백은 태스크 큐를 거칩니다. 현재 동기 코드가 모두 끝난 후, 마이크로태스크도 모두 끝난 후에야 실행됩니다. `setTimeout(fn, 0)`은 "가능한 빨리, 하지만 현재 작업이 끝난 후"라는 의미입니다.
+
+## 마이크로태스크는 끝까지 실행된다
+
+```javascript
+function flood() {
+  Promise.resolve().then(flood);
+}
+flood();
+```
+
+이 코드는 **브라우저를 멈춥니다**. 마이크로태스크가 새 마이크로태스크를 계속 등록하면, 이벤트 루프가 마이크로태스크 큐를 비울 수 없습니다. 렌더링과 매크로태스크에 영원히 도달하지 못합니다.
+
+반면 `setTimeout`으로 재귀하면:
+
+```javascript
+function loop() {
+  setTimeout(loop, 0);
+}
+loop();
+```
+
+이것은 괜찮습니다. 각 반복이 매크로태스크이므로 반복 사이에 렌더링과 다른 작업이 실행될 기회가 있습니다.
+
+## requestAnimationFrame
+
+```javascript
+requestAnimationFrame(() => {
+  console.log("rAF");
+});
+```
+
+`requestAnimationFrame` (rAF) 콜백은 마이크로태스크와 매크로태스크 어디에도 속하지 않습니다. 브라우저의 **렌더링 사이클** 에 맞춰 실행됩니다 — 보통 16.6ms (60fps) 마다.
+
+실행 순서: 매크로태스크 → 마이크로태스크 → **rAF → 렌더링** → 매크로태스크 → ...
+
+## Node.js의 이벤트 루프
+
+Node.js의 이벤트 루프는 브라우저와 유사하지만 더 세분화되어 있습니다:
+
+| 단계 | 처리 대상 |
+|------|----------|
+| timers | `setTimeout`, `setInterval` 콜백 |
+| pending callbacks | 시스템 레벨 콜백 (TCP 에러 등) |
+| poll | I/O 콜백 |
+| check | `setImmediate` 콜백 |
+| close | `socket.on('close')` 등 |
+
+각 단계 사이에 마이크로태스크 큐가 비워집니다. `process.nextTick`은 마이크로태스크보다도 먼저 실행됩니다.
+
+## 실무에서의 이벤트 루프
+
+### 무거운 작업 쪼개기
+
+```javascript
+// 나쁨 — 10만 개를 한 번에 처리 (UI 멈춤)
+items.forEach(processItem);
+
+// 좋음 — 청크로 나눠서 렌더링 기회 제공
+function processChunk(items, index) {
+  const chunk = items.slice(index, index + 100);
+  chunk.forEach(processItem);
+  if (index + 100 < items.length) {
+    setTimeout(() => processChunk(items, index + 100), 0);
+  }
+}
+```
+
+### queueMicrotask 사용처
+
+```javascript
+// 동기적으로 보이지만 다음 마이크로태스크에서 실행
+queueMicrotask(() => {
+  // 현재 함수의 나머지 코드가 먼저 실행된 후 실행됨
+  // setTimeout보다 빠르지만, 현재 동기 코드보다는 나중
+});
+```
+
+## 다음 단계
+
+이벤트 루프를 이해했으니, 비동기 프로그래밍의 역사를 따라가봅시다. 다음 글에서는 **콜백** 에서 시작하여, 콜백 지옥이 왜 문제인지, 그리고 이를 해결하기 위해 어떤 패턴이 등장했는지 살펴보겠습니다.
