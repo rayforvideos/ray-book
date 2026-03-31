@@ -1,0 +1,211 @@
+---
+title: "this 바인딩"
+description: "this가 결정되는 4가지 규칙과 화살표 함수의 렉시컬 this를 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "this", "bind", "call", "apply", "arrow-function"]
+series: "execution-context-and-scope"
+seriesOrder: 5
+draft: false
+---
+
+## this는 호출 방식이 결정한다
+
+JavaScript에서 `this`는 다른 언어와 다릅니다. Java나 C++에서 `this`는 항상 현재 인스턴스를 가리키지만, JavaScript의 `this`는 **함수가 어떻게 호출되는가** 에 따라 달라집니다.
+
+1편에서 실행 컨텍스트가 `this` 바인딩을 포함한다고 했습니다. 이제 그 바인딩이 어떤 규칙으로 결정되는지 살펴봅시다.
+
+## 4가지 바인딩 규칙 + 화살표 함수
+
+아래 시각화에서 각 호출 방식에 따라 `this`가 어떻게 결정되는지 확인하세요.
+
+<ThisBinding preset="four-rules" />
+
+## 규칙 1: 기본 바인딩
+
+```javascript
+function show() {
+  console.log(this);
+}
+show(); // window (비엄격) 또는 undefined (strict)
+```
+
+함수를 **아무 컨텍스트 없이** 호출하면 기본 바인딩이 적용됩니다. `"use strict"` 모드에서는 `undefined`, 비엄격 모드에서는 전역 객체 (`window` 또는 `global`) 입니다.
+
+## 규칙 2: 암시적 바인딩
+
+```javascript
+const obj = {
+  name: "Ray",
+  greet() {
+    return this.name;
+  }
+};
+
+obj.greet(); // "Ray" — this === obj
+```
+
+**점 (.) 앞의 객체** 가 this가 됩니다. 하지만 주의:
+
+```javascript
+const fn = obj.greet; // 메서드를 변수에 할당
+fn(); // undefined — this가 obj가 아니라 window!
+```
+
+메서드를 변수에 할당하면 호출 시 점 앞에 객체가 없으므로, 기본 바인딩으로 돌아갑니다. 이것이 **암시적 바인딩 손실** 입니다.
+
+## 규칙 3: 명시적 바인딩
+
+`call`, `apply`, `bind`로 this를 직접 지정합니다.
+
+```javascript
+function greet(greeting) {
+  return `${greeting}, ${this.name}`;
+}
+
+const user = { name: "Ray" };
+
+// call — 인자를 하나씩 전달
+greet.call(user, "Hello"); // "Hello, Ray"
+
+// apply — 인자를 배열로 전달
+greet.apply(user, ["Hello"]); // "Hello, Ray"
+
+// bind — 새 함수를 반환 (즉시 실행 안 함)
+const boundGreet = greet.bind(user);
+boundGreet("Hello"); // "Hello, Ray"
+```
+
+| 메서드 | 실행 | 인자 전달 |
+|--------|------|----------|
+| `call` | 즉시 | 하나씩 |
+| `apply` | 즉시 | 배열 |
+| `bind` | 새 함수 반환 | 하나씩 (부분 적용 가능) |
+
+## 규칙 4: new 바인딩
+
+```javascript
+function User(name) {
+  // new가 하는 일:
+  // 1. 빈 객체 생성 → {}
+  // 2. this를 그 객체로 설정
+  // 3. 함수 본문 실행
+  // 4. 객체 반환
+  this.name = name;
+}
+
+const ray = new User("Ray");
+// ray === { name: "Ray" }
+```
+
+`new`로 호출하면 **새로 생성된 빈 객체** 가 this가 됩니다.
+
+## 우선순위
+
+여러 규칙이 충돌할 때:
+
+**new > 명시적 (bind) > 암시적 (dot) > 기본**
+
+```javascript
+const obj = {
+  greet() { return this; }
+};
+
+const bound = obj.greet.bind({ name: "bound" });
+bound();          // { name: "bound" } — bind가 암시적보다 우선
+new bound();      // {} (새 객체) — new가 bind보다 우선
+```
+
+## 화살표 함수 — 렉시컬 this
+
+화살표 함수는 위 4가지 규칙을 **모두 무시** 합니다. 자신만의 this를 갖지 않고, **정의된 위치의 상위 스코프에서 this를 상속** 받습니다.
+
+이것이 가장 중요한 차이입니다:
+
+<ThisBinding preset="arrow-vs-regular" />
+
+### 왜 화살표 함수가 콜백에 좋은가
+
+```javascript
+class API {
+  constructor(url) {
+    this.url = url;
+  }
+
+  fetch() {
+    // 일반 함수 — this를 잃음
+    // fetch(this.url).then(function(res) {
+    //   console.log(this.url); // undefined!
+    // });
+
+    // 화살표 함수 — this를 상속
+    fetch(this.url).then((res) => {
+      console.log(this.url); // 정상 작동
+    });
+  }
+}
+```
+
+화살표 함수는 이벤트 핸들러, `setTimeout` 콜백, Promise `.then` 콜백 등 **this가 바뀌면 안 되는 상황** 에서 사용하세요.
+
+### 화살표 함수를 쓰면 안 되는 경우
+
+```javascript
+// 객체 메서드 — 화살표 함수 사용 금지
+const obj = {
+  name: "Ray",
+  greet: () => {
+    return this.name; // this가 obj가 아님!
+  }
+};
+
+// 프로토타입 메서드
+User.prototype.getName = () => {
+  return this.name; // this가 인스턴스가 아님!
+};
+
+// 생성자 함수
+const User = (name) => {
+  this.name = name; // TypeError: not a constructor
+};
+```
+
+화살표 함수는 자신의 this가 없으므로:
+- 객체 메서드로 쓰면 객체에 바인딩되지 않습니다
+- `new`로 호출할 수 없습니다
+- `call`/`apply`/`bind`로 this를 바꿀 수 없습니다
+
+## 실무 정리
+
+```javascript
+// ✓ 메서드 — 일반 함수 (또는 축약 메서드)
+const obj = {
+  greet() { return this; }
+};
+
+// ✓ 콜백 — 화살표 함수
+button.addEventListener("click", () => {
+  this.handleClick(); // 상위 this 유지
+});
+
+// ✓ this 고정 — bind
+const handler = this.handleClick.bind(this);
+
+// ✓ 클래스 필드 — 화살표 함수 (인스턴스마다 this 자동 바인딩)
+class App {
+  handleClick = () => {
+    console.log(this); // 항상 App 인스턴스
+  };
+}
+```
+
+## 시리즈를 마치며
+
+5편에 걸쳐 JavaScript의 실행 환경을 살펴봤습니다:
+
+1. **실행 컨텍스트** — 코드 실행의 기본 단위, 생성/실행 단계
+2. **스코프와 스코프 체인** — 변수를 찾아 올라가는 렉시컬 스코프
+3. **클로저** — 함수가 반환된 후에도 유지되는 스코프
+4. **호이스팅** — 생성 단계에서 선언이 먼저 처리되는 메커니즘
+5. **this 바인딩** — 호출 방식에 따른 4가지 규칙 + 화살표 함수
+
+이전의 엔진 시리즈가 "코드가 어떻게 컴파일되고 실행되는가"를 다뤘다면, 이 시리즈는 "실행될 때 환경이 어떻게 구성되는가"를 다뤘습니다. 다음 시리즈에서는 **비동기 JavaScript** — 이벤트 루프, Promise, async/await를 다루겠습니다.

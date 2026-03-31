@@ -12,6 +12,7 @@ import { ExecutionContext } from "@/components/viz/domain/ExecutionContext";
 import { ScopeChain } from "@/components/viz/domain/ScopeChain";
 import { Closure } from "@/components/viz/domain/Closure";
 import { Hoisting } from "@/components/viz/domain/Hoisting";
+import { ThisBinding } from "@/components/viz/domain/ThisBinding";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -27,6 +28,7 @@ export const mdxComponents: MDXComponents = {
   ScopeChain,
   Closure,
   Hoisting,
+  ThisBinding,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{
