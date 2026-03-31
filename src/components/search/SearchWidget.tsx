@@ -2,34 +2,50 @@
 
 import { useEffect, useRef, useState } from "react";
 
+declare global {
+  interface Window {
+    PagefindUI: new (options: Record<string, unknown>) => unknown;
+  }
+}
+
 export function SearchWidget() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [unavailable, setUnavailable] = useState(false);
+  const [status, setStatus] = useState<"loading" | "ready" | "unavailable">(
+    "loading"
+  );
 
   useEffect(() => {
-    async function loadPagefind() {
-      try {
-        const pagefindUI = await import(
-          // @ts-expect-error — Pagefind UI loaded from static assets
-          /* webpackIgnore: true */ "/pagefind/pagefind-ui.js"
-        );
-
-        if (containerRef.current) {
-          new pagefindUI.PagefindUI({
-            element: containerRef.current,
-            showSubResults: true,
-            showImages: false,
-          });
-        }
-      } catch {
-        setUnavailable(true);
+    // Load pagefind-ui.js via script tag to bypass bundler
+    const script = document.createElement("script");
+    script.src = "/pagefind/pagefind-ui.js";
+    script.onload = () => {
+      if (containerRef.current && window.PagefindUI) {
+        new window.PagefindUI({
+          element: containerRef.current,
+          showSubResults: true,
+          showImages: false,
+        });
+        setStatus("ready");
       }
-    }
+    };
+    script.onerror = () => {
+      setStatus("unavailable");
+    };
+    document.head.appendChild(script);
 
-    loadPagefind();
+    // Load CSS
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/pagefind/pagefind-ui.css";
+    document.head.appendChild(link);
+
+    return () => {
+      script.remove();
+      link.remove();
+    };
   }, []);
 
-  if (unavailable) {
+  if (status === "unavailable") {
     return (
       <p className="text-muted">
         검색은 프로덕션 빌드에서만 사용할 수 있습니다.
@@ -37,10 +53,5 @@ export function SearchWidget() {
     );
   }
 
-  return (
-    <>
-      <link href="/pagefind/pagefind-ui.css" rel="stylesheet" />
-      <div ref={containerRef} />
-    </>
-  );
+  return <div ref={containerRef} />;
 }
