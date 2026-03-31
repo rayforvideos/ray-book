@@ -109,15 +109,15 @@ export function ChosungSearch() {
           value={query}
           onChange={handleInput}
           placeholder={
-            loaded ? "검색어를 입력하세요 (초성 검색 가능: ㅇㅂㅌ → 이벤트)" : "인덱스 로딩 중..."
+            loaded ? "검색어 또는 초성 입력 (ㅇㅂㅌ → 이벤트)" : "로딩 중..."
           }
-          className="w-full border border-border bg-bg px-4 py-2.5 font-mono text-[0.8125rem] text-text placeholder:text-muted/50 focus:border-accent focus:outline-none"
+          className="w-full border border-border bg-bg px-4 py-3 text-[0.875rem] text-text placeholder:text-muted/50 focus:border-accent focus:outline-none"
           disabled={!loaded}
         />
         {query && (
           <button
             onClick={() => setQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[0.75rem] text-muted hover:text-text"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[0.75rem] text-muted hover:text-text"
             aria-label="검색어 지우기"
           >
             ✕
@@ -126,10 +126,17 @@ export function ChosungSearch() {
       </div>
 
       {/* Results */}
-      {query.trim() && (
-        <div className="mt-4">
-          {results.length > 0 ? (
-            <div className="space-y-0 divide-y divide-border">
+      <div className="mt-5 min-h-[4rem]">
+        {!query.trim() ? (
+          <p className="text-[0.8125rem] text-muted/40">
+            제목, 설명, 태그에서 검색합니다
+          </p>
+        ) : results.length > 0 ? (
+          <>
+            <p className="mb-3 text-[0.6875rem] text-muted/50">
+              {results.length}개의 글
+            </p>
+            <div className="divide-y divide-border">
               {results.map((post) => (
                 <Link
                   key={post.slug}
@@ -139,15 +146,15 @@ export function ChosungSearch() {
                   <span className="text-[0.875rem] font-medium text-text group-hover:text-accent">
                     {highlightMatch(post.title, query)}
                   </span>
-                  <span className="mt-0.5 block text-[0.75rem] text-muted">
+                  <span className="mt-1 block text-[0.75rem] leading-relaxed text-muted">
                     {post.description}
                   </span>
                   {post.tags.length > 0 && (
-                    <span className="mt-1 flex gap-1.5">
+                    <span className="mt-1.5 flex gap-1.5">
                       {post.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="text-[0.625rem] text-muted/60 before:content-['#']"
+                          className="text-[0.625rem] text-muted/50 before:content-['#']"
                         >
                           {tag}
                         </span>
@@ -157,16 +164,13 @@ export function ChosungSearch() {
                 </Link>
               ))}
             </div>
-          ) : (
-            <p className="text-[0.8125rem] text-muted">
-              검색 결과가 없습니다
-            </p>
-          )}
-          <p className="mt-3 text-[0.6875rem] text-muted/50">
-            {results.length}개의 글
+          </>
+        ) : (
+          <p className="text-[0.8125rem] text-muted">
+            검색 결과가 없습니다
           </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
