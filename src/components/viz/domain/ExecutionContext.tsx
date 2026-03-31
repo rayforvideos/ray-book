@@ -311,6 +311,9 @@ export function ExecutionContext({
 
   const step = data.steps[currentStep];
 
+  // Fixed height based on max stack depth across all steps
+  const maxStackDepth = Math.max(...data.steps.map((s) => s.stack.length));
+
   return (
     <StepPlayer totalSteps={data.steps.length} onStepChange={handleStepChange}>
       <div className="flex gap-4 max-sm:flex-col">
@@ -365,7 +368,10 @@ export function ExecutionContext({
           <span className="mb-1.5 block text-[0.6875rem] uppercase tracking-wider text-muted">
             콜 스택
           </span>
-          <div className="flex flex-col-reverse gap-1">
+          <div
+            className="flex flex-col-reverse justify-end gap-1"
+            style={{ minHeight: `${maxStackDepth * 5.5}rem` }}
+          >
             {step.stack.map((ctx, i) => {
               const style = typeStyles[ctx.type];
               const isTop = i === step.stack.length - 1;

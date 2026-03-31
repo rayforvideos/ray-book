@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 interface StepPlayerProps {
   totalSteps: number;
@@ -14,6 +14,8 @@ export function StepPlayer({
   children,
 }: StepPlayerProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [minHeight, setMinHeight] = useState(0);
 
   const goTo = useCallback(
     (step: number) => {
@@ -24,9 +26,19 @@ export function StepPlayer({
     [totalSteps, onStepChange]
   );
 
+  // Track max content height to prevent layout shifts
+  useEffect(() => {
+    if (contentRef.current) {
+      const height = contentRef.current.scrollHeight;
+      setMinHeight((prev) => Math.max(prev, height));
+    }
+  }, [currentStep]);
+
   return (
     <div className="my-8 border border-border p-5">
-      <div>{children}</div>
+      <div ref={contentRef} style={{ minHeight: minHeight > 0 ? minHeight : undefined }}>
+        {children}
+      </div>
       <div className="mt-5 flex items-center justify-center gap-1">
         <button
           onClick={() => goTo(0)}
@@ -53,10 +65,10 @@ export function StepPlayer({
               onClick={() => goTo(i)}
               className={`h-1.5 rounded-full transition-all ${
                 i === currentStep
-                  ? "w-4 bg-accent dark:bg-accent-dark"
+                  ? "w-4 bg-accent"
                   : i <= currentStep
-                    ? "w-1.5 bg-muted/40 dark:bg-muted-dark/40"
-                    : "w-1.5 bg-border dark:bg-border-dark"
+                    ? "w-1.5 bg-muted/40"
+                    : "w-1.5 bg-border"
               }`}
               aria-label={`Step ${i + 1}`}
             />

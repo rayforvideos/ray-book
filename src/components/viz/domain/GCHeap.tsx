@@ -126,7 +126,7 @@ export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
             <span className="mb-2 block text-[0.625rem] font-semibold uppercase tracking-wider text-muted">
               Young Generation
             </span>
-            <div className="flex flex-wrap gap-1.5" style={{ minHeight: "2rem" }}>
+            <div className="flex flex-wrap gap-1.5" style={{ minHeight: "3rem" }}>
               {youngObjects.map((obj) => (
                 <span
                   key={obj.id}
@@ -150,7 +150,7 @@ export function GCHeap({ preset = "lifecycle" }: GCHeapProps) {
             <span className="mb-2 block text-[0.625rem] font-semibold uppercase tracking-wider text-muted">
               Old Generation
             </span>
-            <div className="flex flex-wrap gap-1.5" style={{ minHeight: "2rem" }}>
+            <div className="flex flex-wrap gap-1.5" style={{ minHeight: "3rem" }}>
               {oldObjects.map((obj) => (
                 <span
                   key={obj.id}
