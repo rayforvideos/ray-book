@@ -27,6 +27,10 @@
 }
 
 /* Base */
+html {
+  overflow-y: scroll;
+}
+
 body {
   @apply bg-bg text-text antialiased;
   font-family: var(--font-sans);
