@@ -52,7 +52,7 @@ const presets: Record<
     steps: [
       { highlighted: 0, registers: { a0: "3", a1: "5" }, accumulator: "undefined", description: "add(3, 5)를 호출했다고 가정합니다. a0=3, a1=5." },
       { highlighted: 0, registers: { a0: "3", a1: "5" }, accumulator: "5", description: "Ldar a1 — 매개변수 b의 값 5를 누산기에 로드했습니다." },
-      { highlighted: 1, registers: { a0: "3", a1: "5" }, accumulator: "8", description: "Add a0 — a0 (3) + 누산기 (5) = 8. 결과가 누산기에 저장됩니다." },
+      { highlighted: 1, registers: { a0: "3", a1: "5" }, accumulator: "8", description: "Add a0 — 누산기 (5) + a0 (3) = 8. 결과가 누산기에 저장됩니다." },
       { highlighted: 2, registers: { a0: "3", a1: "5" }, accumulator: "8", description: "Return — 누산기의 값 8을 반환합니다." },
     ],
   },

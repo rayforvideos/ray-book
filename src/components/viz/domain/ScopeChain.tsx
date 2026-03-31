@@ -119,24 +119,27 @@ outer();`,
         code: "// 함수 스코프 vs 블록 스코프",
         activeLine: null,
         scopes: [
-          { name: "example Scope", type: "function", variables: [{ name: "x", value: "1" }, { name: "y", value: "2" }, { name: "z", value: "3" }] },
+          { name: "example Scope (var)", type: "function", variables: [{ name: "x", value: "1" }, { name: "z", value: "3" }] },
+          { name: "함수 본문 Block (let)", type: "block", variables: [{ name: "y", value: "2" }] },
         ],
-        description: "var x와 var z는 함수 스코프에 속합니다. var는 블록을 무시하고 가장 가까운 함수 스코프에 등록됩니다.",
+        description: "var x, var z는 함수 스코프에, let y는 함수 본문의 블록 스코프에 속합니다. var는 블록을 무시하고 함수 스코프에 등록되지만, let은 가장 가까운 블록에 등록됩니다.",
       },
       {
         code: "if 블록 안",
         activeLine: 6,
         scopes: [
-          { name: "example Scope", type: "function", variables: [{ name: "x", value: "1" }, { name: "y", value: "2" }, { name: "z", value: "3" }] },
+          { name: "example Scope (var)", type: "function", variables: [{ name: "x", value: "1" }, { name: "z", value: "3" }] },
+          { name: "함수 본문 Block (let)", type: "block", variables: [{ name: "y", value: "2" }] },
           { name: "if Block Scope", type: "block", variables: [{ name: "w", value: "4" }], highlight: true },
         ],
-        description: "let w는 if 블록 스코프에 속합니다. 블록 안에서 x, y, z, w 모두 접근 가능합니다.",
+        description: "let w는 if 블록 스코프에 속합니다. 블록 안에서 x, y, z, w 모두 접근 가능합니다. var z는 if 블록 안에서 선언되었지만 함수 스코프에 등록됩니다.",
       },
       {
         code: "if 블록 밖",
         activeLine: 8,
         scopes: [
-          { name: "example Scope", type: "function", variables: [{ name: "x", value: "1" }, { name: "y", value: "2" }, { name: "z", value: "3" }], highlight: true },
+          { name: "example Scope (var)", type: "function", variables: [{ name: "x", value: "1" }, { name: "z", value: "3" }] },
+          { name: "함수 본문 Block (let)", type: "block", variables: [{ name: "y", value: "2" }], highlight: true },
         ],
         lookup: [
           { from: "example", variable: "w", found: false },
