@@ -1,0 +1,245 @@
+---
+title: "합성과 GPU 레이어"
+description: "메인 스레드를 벗어나는 마법 — 합성 스레드, 레이어 승격, GPU 합성을 시각화합니다"
+date: 2026-04-01
+tags: ["browser", "rendering", "compositing", "gpu", "layers"]
+series: "browser-rendering-pipeline"
+seriesOrder: 4
+draft: false
+---
+
+## 두 개의 스레드
+
+이전 글에서 페인트 레코드가 래스터라이즈되어 비트맵이 완성되는 과정을 살펴봤습니다. 하지만 비트맵이 곧바로 화면에 표시되는 것은 아닙니다. 여러 레이어의 비트맵을 합쳐 최종 프레임을 만드는 **합성 (Compositing)** 단계가 남아 있습니다.
+
+Chromium의 렌더링 아키텍처에서 가장 중요한 설계 결정 중 하나는 **메인 스레드와 <Term id="compositor-thread">합성 스레드</Term>의 분리**입니다.
+
+- **메인 스레드** — JavaScript 실행, DOM 조작, 스타일 계산, 레이아웃, 페인트 레코드 생성
+- **합성 스레드** — 레이어 합성, 스크롤 처리, transform/opacity 애니메이션
+
+이 분리 덕분에 메인 스레드에서 무거운 JavaScript가 실행 중이더라도, 합성 스레드는 독립적으로 스크롤과 애니메이션을 처리할 수 있습니다. 60fps를 유지하는 핵심 비결입니다.
+
+```
+메인 스레드:    [JS 실행] → [스타일] → [레이아웃] → [페인트] ──→ 레이어 트리 커밋
+                                                                    ↓
+합성 스레드:                                    [레이어 합성] → [프레임 출력]
+                                                     ↑
+                                    스크롤, transform, opacity 애니메이션은
+                                    메인 스레드를 거치지 않고 직접 처리
+```
+
+## 레이어 분리
+
+브라우저는 모든 요소를 하나의 레이어에 그리지 않습니다. 특정 조건에 해당하는 요소는 **별도의 합성 레이어 (compositing layer)** 로 분리됩니다. 이를 <Term id="layer-promotion">레이어 승격</Term>이라고 합니다.
+
+레이어가 분리되면:
+
+1. 해당 요소는 **독립적인 비트맵**으로 래스터라이즈됩니다
+2. 변경 시 **해당 레이어만 다시 래스터라이즈**하면 됩니다
+3. transform, opacity 변경 시에는 **래스터라이즈 없이 합성만** 다시 실행됩니다
+
+## 레이어 승격 조건
+
+브라우저가 요소를 별도 레이어로 승격하는 주요 조건입니다:
+
+| 조건 | 설명 |
+|------|------|
+| `transform`이 `none`이 아님 | 3D 변환뿐 아니라 2D 변환도 포함 |
+| `opacity`가 1보다 작음 | 투명도가 있으면 별도 레이어 |
+| `will-change: transform, opacity` 등 | 브라우저에 힌트 제공 |
+| `position: fixed` | 스크롤 시 고정 요소 |
+| `<video>`, `<canvas>`, `<iframe>` | 미디어/임베드 요소 |
+| CSS `filter`, `backdrop-filter` | 필터 효과 |
+| `overflow: scroll` 영역 | 스크롤 가능한 컨테이너 |
+| `contain: paint` 또는 `contain: layout` | CSS Containment |
+
+```css
+/* 모두 별도 레이어로 승격됩니다 */
+.promoted-1 { transform: translateZ(0); }
+.promoted-2 { will-change: transform; }
+.promoted-3 { opacity: 0.99; }
+.promoted-4 { position: fixed; top: 0; }
+.promoted-5 { filter: blur(0px); }
+```
+
+Chrome DevTools의 **Layers** 패널에서 실제 레이어 구조를 확인할 수 있습니다. 각 레이어의 크기, 승격 이유, 메모리 사용량이 표시됩니다.
+
+## 시각화
+
+아래 시각화에서 페인트 결과부터 레이어 분리, GPU 업로드, 합성까지의 전체 과정을 단계별로 확인하세요:
+
+<CompositorLayers />
+
+## GPU 합성
+
+레이어가 분리되고 각각 <Term id="rasterization">래스터라이제이션</Term>이 완료되면, 비트맵은 GPU 메모리에 **텍스처 (texture)** 로 업로드됩니다. 합성 스레드는 이 텍스처들을 다음 과정으로 합칩니다:
+
+1. **레이어 트리 순회** — 각 레이어의 z-order, 클리핑 영역, transform 확인
+2. **쿼드 (quad) 생성** — 각 텍스처를 화면 좌표에 매핑하는 사각형
+3. **GPU에 드로 콜** — OpenGL/Vulkan/Metal 등의 그래픽 API로 텍스처를 합성
+4. **스왑 버퍼** — 완성된 프레임을 디스플레이에 출력 (더블 버퍼링)
+
+```
+GPU 합성 파이프라인:
+
+텍스처 #1 (루트)     ─┐
+텍스처 #2 (.card)    ─┼─→ [합성 스레드] ─→ [GPU 드로 콜] ─→ [프레임 버퍼] ─→ 화면
+텍스처 #3 (.sidebar) ─┘
+                           transform, opacity,
+                           clip 적용
+```
+
+이 과정은 GPU의 병렬 처리 능력을 활용하므로 매우 빠릅니다. 수십 개의 레이어를 합성하더라도 1ms 이내에 완료되는 것이 일반적입니다.
+
+## 왜 transform/opacity가 빠른가
+
+렌더링 파이프라인에서 각 단계의 변경이 트리거하는 후속 작업을 비교해봅시다:
+
+```
+width/height 변경:   스타일 → 레이아웃 → 페인트 → 래스터 → 합성
+background 변경:            ────────→ 페인트 → 래스터 → 합성
+transform 변경:             ─────────────────────────→ 합성
+opacity 변경:               ─────────────────────────→ 합성
+```
+
+`transform`과 `opacity`는 **합성 전용 속성 (compositor-only properties)** 입니다. 이 속성이 변경되면:
+
+1. 레이아웃을 다시 계산할 필요 없음 — 요소의 기하학적 위치가 변하지 않음
+2. 페인트를 다시 할 필요 없음 — 비트맵 자체는 동일
+3. GPU에 이미 올라간 텍스처의 **변환 행렬만 업데이트** — 합성 스레드가 처리
+
+```css
+/* 좋음: 합성만 트리거 */
+.animate-good {
+  transition: transform 0.3s, opacity 0.3s;
+}
+.animate-good:hover {
+  transform: scale(1.05);
+  opacity: 0.9;
+}
+
+/* 나쁨: 레이아웃 + 페인트 + 합성 모두 트리거 */
+.animate-bad {
+  transition: width 0.3s, box-shadow 0.3s;
+}
+.animate-bad:hover {
+  width: 110%;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+```
+
+## 과도한 레이어의 비용
+
+레이어를 많이 만들면 성능이 좋아질까요? **아닙니다.** 레이어에는 분명한 비용이 있습니다:
+
+### GPU 메모리 소비
+
+각 레이어는 GPU 메모리 (VRAM) 에 비트맵 텍스처로 저장됩니다. 1000×800 크기의 레이어 하나가 RGBA 32비트 기준으로 약 **3.2MB**를 소비합니다.
+
+```
+메모리 계산:
+1000 × 800 × 4바이트 (RGBA) = 3,200,000 바이트 ≈ 3.2MB
+
+레이어 10개 = 32MB
+레이어 100개 = 320MB → 모바일에서는 치명적
+```
+
+### 레이어 폭발 (Layer Explosion)
+
+불필요한 `will-change`나 `translateZ(0)`를 남발하면 **레이어 폭발**이 발생합니다:
+
+```css
+/* 위험: 리스트 아이템마다 레이어 생성 */
+.list-item {
+  will-change: transform; /* 1000개 아이템 = 1000개 레이어! */
+}
+```
+
+### 합성 비용 증가
+
+레이어가 많을수록 합성 스레드가 처리해야 할 드로 콜이 증가합니다. 특히 겹치는 레이어가 많으면 **오버드로 (overdraw)** — 같은 픽셀을 여러 번 그리는 비용이 발생합니다.
+
+## 실무 사례
+
+### translateZ(0) 핵
+
+과거에는 `transform: translateZ(0)` 또는 `backface-visibility: hidden`을 사용해 강제로 레이어를 승격시키는 "핵"이 널리 사용되었습니다:
+
+```css
+/* 레거시 핵 — 사용하지 마세요 */
+.force-layer {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+```
+
+이 방식의 문제점:
+
+- 의도가 불분명 — 코드를 읽는 사람이 왜 `translateZ(0)`인지 알 수 없음
+- 항상 레이어 유지 — 필요 없는 시점에도 GPU 메모리 소비
+- 부작용 — 새로운 스태킹 컨텍스트 생성, 텍스트 렌더링 변경
+
+### will-change의 올바른 사용
+
+`will-change`는 `translateZ(0)` 핵을 대체하기 위해 도입된 **공식 API**입니다. 하지만 올바르게 사용하지 않으면 오히려 역효과입니다:
+
+```css
+/* 나쁨: 항상 레이어 유지 */
+.always-promoted {
+  will-change: transform;
+}
+
+/* 좋음: 필요한 시점에만 힌트 */
+.card {
+  transition: transform 0.3s;
+}
+.card:hover {
+  will-change: transform;
+}
+
+/* 더 좋음: JavaScript로 동적 제어 */
+```
+
+```js
+// 애니메이션 시작 전에 will-change 설정
+element.style.willChange = "transform";
+
+element.addEventListener("transitionend", () => {
+  // 애니메이션 끝나면 will-change 제거 → 레이어 해제
+  element.style.willChange = "auto";
+});
+```
+
+핵심 원칙: **will-change는 미리 알려주는 힌트이지, 항상 켜두는 스위치가 아닙니다.**
+
+### Chrome DevTools로 레이어 디버깅
+
+레이어 관련 성능 문제를 디버깅하는 방법:
+
+1. **Layers 패널** (More tools → Layers) — 3D로 레이어 구조 확인, 각 레이어의 크기/이유/메모리
+2. **Rendering 패널** → "Layer borders" — 실제 레이어 경계를 페이지 위에 표시
+3. **Performance 패널** — Compositing 시간 측정, 불필요한 레이아웃/페인트 탐지
+4. **CSS Triggers** (csstriggers.com) — 각 CSS 속성이 어떤 단계를 트리거하는지 확인
+
+```
+DevTools에서 보이는 레이어 정보 예시:
+
+Layer #1: document (루트)
+  Size: 1920×1080
+  Memory: 8.3MB
+  Reason: Root layer
+
+Layer #2: .hero-animation
+  Size: 400×300
+  Memory: 0.5MB
+  Reason: Has active CSS animation (transform)
+
+Layer #3: .sticky-nav
+  Size: 1920×60
+  Memory: 0.5MB
+  Reason: position: fixed
+```
+
+## 다음 단계
+
+이제 렌더링 파이프라인의 각 단계 — 파싱, 스타일, 레이아웃, 페인트, 합성 — 을 모두 이해했습니다. 다음 글에서는 이 파이프라인의 **성능 병목**에 집중합니다. Reflow (레이아웃 재계산) 와 Repaint (다시 그리기) 가 언제 발생하고, 어떻게 최소화할 수 있는지를 살펴봅니다.
