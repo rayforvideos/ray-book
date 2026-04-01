@@ -40,6 +40,7 @@ import { RenderTreeLayout } from "@/components/viz/domain/RenderTreeLayout";
 import { PaintRasterize } from "@/components/viz/domain/PaintRasterize";
 import { CompositorLayers } from "@/components/viz/domain/CompositorLayers";
 import { PipelineTrigger } from "@/components/viz/domain/PipelineTrigger";
+import { PipelineMetrics } from "@/components/viz/domain/PipelineMetrics";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -83,6 +84,7 @@ export const mdxComponents: MDXComponents = {
   PaintRasterize,
   CompositorLayers,
   PipelineTrigger,
+  PipelineMetrics,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{

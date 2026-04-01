@@ -1,0 +1,373 @@
+---
+title: "성능 측정과 디버깅"
+description: "렌더링 성능을 측정하고 병목을 찾는 방법 — DevTools Performance, Layers 패널, Core Web Vitals를 시각화합니다"
+date: 2026-04-01
+tags: ["browser", "rendering", "performance", "devtools", "web-vitals", "lighthouse"]
+series: "browser-rendering-pipeline"
+seriesOrder: 6
+draft: false
+---
+
+## 왜 측정인가
+
+> "측정하지 않으면 최적화가 아니라 추측이다."
+
+이전 글들에서 렌더링 파이프라인의 각 단계와 최적화 기법을 살펴봤습니다. 하지만 실제 성능 문제를 해결하려면 **어디서 병목이 발생하는지** 정확히 알아야 합니다. 감으로 최적화하면 효과 없는 곳에 시간을 낭비하거나, 오히려 성능을 악화시킬 수 있습니다.
+
+성능 측정의 핵심 원칙:
+
+1. **먼저 측정하고, 그다음 최적화한다** — 프로파일링 없이 코드를 바꾸지 말 것
+2. **재현 가능한 환경에서 측정한다** — CPU 쓰로틀링, 네트워크 제한을 일관되게 설정
+3. **변경 전후를 비교한다** — 숫자로 개선을 증명할 것
+
+## Chrome DevTools Performance 패널
+
+Performance 패널은 렌더링 파이프라인의 모든 단계를 시간축 위에 펼쳐서 보여줍니다.
+
+### 레코딩 방법
+
+1. DevTools를 열고 **Performance** 탭으로 이동합니다
+2. 좌측 상단의 ⏺ (Record) 버튼을 클릭하거나 `Ctrl+E` / `Cmd+E`를 누릅니다
+3. 측정하려는 동작을 수행합니다 (페이지 로드, 스크롤, 클릭 등)
+4. **Stop** 을 눌러 레코딩을 종료합니다
+
+**팁:** CPU 쓰로틀링 (4x slowdown) 을 켜면 성능 병목이 더 뚜렷하게 드러납니다. 개발 머신은 사용자 디바이스보다 훨씬 빠르므로, 쓰로틀링 없이는 문제를 놓칠 수 있습니다.
+
+### 프레임 타임라인 읽기
+
+레코딩 결과의 상단에는 **프레임 타임라인**이 표시됩니다:
+
+```
+프레임 타임라인
+┌──┬──┬──┬──────┬──┬──┬──┬──┐
+│16│16│16│ 42ms │16│16│16│16│  ← 각 프레임의 소요 시간
+│ms│ms│ms│ !! │ms│ms│ms│ms│
+└──┴──┴──┴──────┴──┴──┴──┴──┘
+          ↑
+   이 프레임에서 쟁크 발생 (16.7ms 초과)
+```
+
+60fps를 유지하려면 각 프레임이 약 **16.7ms** 이내에 완료되어야 합니다. 빨간색으로 표시된 프레임은 이 예산을 초과한 것으로, 사용자가 끊김을 느낄 수 있습니다.
+
+### Main / GPU / Compositor 트랙
+
+Performance 패널의 핵심은 세 가지 트랙입니다:
+
+| 트랙 | 역할 | 주의할 패턴 |
+|------|------|------------|
+| **Main** | JavaScript 실행, 스타일 계산, <Term id="layout">레이아웃</Term>, 페인트 | 긴 태스크 (Long Task), 강제 레이아웃 |
+| **GPU** | 래스터라이제이션, 텍스처 업로드 | GPU 병목 시 프레임 드롭 |
+| **Compositor** | <Term id="compositor-thread">합성 스레드</Term> 작업 | 합성 지연은 드물지만, 레이어가 너무 많으면 발생 |
+
+Main 트랙에서 **보라색 (Layout)**, **초록색 (Paint)** 블록이 크다면 해당 단계가 병목입니다. 노란색 (Scripting) 블록이 크다면 JavaScript 실행이 문제입니다.
+
+## Layers 패널
+
+Layers 패널은 DevTools의 숨겨진 보석입니다. **More tools → Layers** 에서 활성화할 수 있습니다.
+
+### 레이어 분리 확인
+
+Layers 패널은 페이지의 모든 합성 레이어를 3D 뷰로 보여줍니다:
+
+- 각 레이어의 **크기와 위치**
+- **승격 이유** (Compositing Reasons) — 왜 별도 레이어가 되었는지
+- **메모리 사용량** — 레이어당 GPU 메모리
+
+### 불필요한 레이어 찾기
+
+레이어가 많으면 GPU 메모리를 과도하게 사용합니다. 특히 주의할 패턴:
+
+```css
+/* ❌ 모든 요소를 레이어로 승격 → GPU 메모리 폭증 */
+* { will-change: transform; }
+
+/* ❌ 의도치 않은 레이어 승격 (암시적 승격) */
+.parent { position: relative; z-index: 1; }
+.child { position: absolute; }  /* parent 위에 겹치는 요소가 별도 레이어로 */
+```
+
+Layers 패널에서 예상보다 레이어가 많다면, `will-change` 남용이나 암시적 승격을 의심하세요.
+
+### Paint count
+
+**Rendering** 탭에서 **Paint flashing** 을 켜면 페인트가 발생하는 영역이 초록색으로 깜빡입니다. 스크롤이나 애니메이션 중 넓은 영역이 계속 깜빡인다면, 불필요한 Repaint가 발생하고 있는 것입니다.
+
+## Core Web Vitals과 파이프라인
+
+<Term id="core-web-vitals">Core Web Vitals</Term>는 Google이 정의한 사용자 경험의 핵심 지표입니다. 각 지표는 렌더링 파이프라인의 서로 다른 구간을 측정합니다.
+
+아래 시각화에서 각 Web Vital이 파이프라인의 어느 단계에 해당하는지, 그리고 기준값은 얼마인지 단계별로 확인하세요:
+
+<PipelineMetrics />
+
+## LCP — Largest Contentful Paint
+
+LCP는 뷰포트 내에서 **가장 큰 콘텐츠 요소** (이미지, 비디오 포스터, 텍스트 블록 등) 가 렌더링되기까지의 시간을 측정합니다.
+
+### 파이프라인에서의 위치
+
+LCP는 네트워크 요청부터 시작해 파싱 → 스타일 계산 → 레이아웃 → 페인트까지의 전체 경로를 포함합니다:
+
+```
+[서버 응답] → [HTML 파싱] → [리소스 로딩] → [Style] → [Layout] → [Paint] → LCP 시점
+```
+
+### 최적화 포인트
+
+**서버 응답 시간 (TTFB):**
+
+- CDN 활용으로 물리적 거리 단축
+- 서버 사이드 캐싱, 스트리밍 SSR
+- Early Hints (103 상태 코드) 로 리소스 미리 알림
+
+**렌더 블로킹 리소스 제거:**
+
+```html
+<!-- ❌ 렌더 블로킹 -->
+<link rel="stylesheet" href="all-styles.css">
+<script src="analytics.js"></script>
+
+<!-- ✅ 크리티컬 CSS 인라인 + 나머지 비동기 -->
+<style>/* 크리티컬 CSS */</style>
+<link rel="stylesheet" href="non-critical.css" media="print" onload="this.media='all'">
+<script src="analytics.js" defer></script>
+```
+
+**이미지 최적화:**
+
+```html
+<!-- ✅ LCP 이미지에 fetchpriority 설정 -->
+<img src="hero.webp"
+     fetchpriority="high"
+     width="1200" height="600"
+     alt="Hero image">
+
+<!-- ✅ 반응형 이미지로 불필요한 데이터 전송 방지 -->
+<img srcset="hero-400.webp 400w,
+             hero-800.webp 800w,
+             hero-1200.webp 1200w"
+     sizes="100vw"
+     src="hero-1200.webp"
+     alt="Hero image">
+```
+
+## CLS — Cumulative Layout Shift
+
+CLS는 페이지 수명 동안 발생하는 **예기치 않은 레이아웃 이동**의 누적 점수를 측정합니다.
+
+### 레이아웃 시프트 원인
+
+레이아웃 시프트는 <Term id="layout">레이아웃</Term> 단계에서 요소의 위치가 예기치 않게 변경될 때 발생합니다. 주요 원인:
+
+1. **크기가 지정되지 않은 이미지/비디오** — 로드 후 크기가 확정되면서 주변 요소가 밀림
+2. **동적으로 삽입되는 콘텐츠** — 광고 배너, 쿠키 동의 바, 늦게 로드되는 UI
+3. **웹폰트 FOUT/FOIT** — 폰트 교체 시 텍스트 크기가 변경됨
+4. **DOM 조작** — JavaScript로 기존 콘텐츠 위에 요소를 삽입
+
+### 해결 방법
+
+```html
+<!-- ✅ 이미지에 항상 width/height 지정 → 브라우저가 공간 예약 -->
+<img src="photo.webp" width="800" height="600" alt="...">
+
+<!-- ✅ aspect-ratio로 반응형 공간 예약 -->
+<div style="aspect-ratio: 16/9;">
+  <img src="photo.webp" style="width: 100%; height: 100%; object-fit: cover;" alt="...">
+</div>
+```
+
+```css
+/* ✅ 폰트 로딩 최적화 */
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/fonts/custom.woff2') format('woff2');
+  font-display: swap;         /* FOIT 방지 */
+  size-adjust: 100%;          /* fallback 폰트와 크기 맞춤 */
+  ascent-override: 90%;
+  descent-override: 20%;
+  line-gap-override: 0%;
+}
+```
+
+**광고/동적 콘텐츠:**
+
+```css
+/* ✅ 광고 슬롯에 미리 공간 확보 */
+.ad-slot {
+  min-height: 250px;          /* 예상 광고 높이 */
+  contain: layout;            /* 내부 변경이 외부로 전파되지 않음 */
+}
+```
+
+## INP — Interaction to Next Paint
+
+INP는 사용자 인터랙션 (클릭, 탭, 키보드 입력) 에서 **다음 프레임이 화면에 표시되기까지의 시간**을 측정합니다. 2024년 3월부터 FID를 대체하여 Core Web Vitals에 포함되었습니다.
+
+### 전체 파이프라인 관여
+
+INP가 특별한 이유는 **이벤트 처리부터 합성까지 전체 파이프라인**을 포함한다는 점입니다:
+
+```
+[이벤트 발생] → [이벤트 핸들러 실행] → [Style] → [Layout] → [Paint] → [Raster] → [Composite] → 다음 프레임
+     │              │                                                                              │
+     └──────────────┴──────────── INP = 이 전체 시간 ─────────────────────────────────────────────┘
+```
+
+세 구간으로 나눌 수 있습니다:
+
+| 구간 | 설명 | 최적화 방향 |
+|------|------|------------|
+| **Input Delay** | 이벤트 발생 → 핸들러 시작 | 메인 스레드 Long Task 줄이기 |
+| **Processing Time** | 이벤트 핸들러 실행 시간 | 핸들러 코드 최적화 |
+| **Presentation Delay** | 핸들러 완료 → 다음 프레임 표시 | DOM 변경 최소화, Composite-only 속성 사용 |
+
+### INP 최적화
+
+```javascript
+// ❌ 무거운 작업이 메인 스레드를 블로킹
+button.addEventListener('click', () => {
+  const result = heavyComputation(data); // 200ms 블로킹
+  updateDOM(result);
+});
+
+// ✅ 작업을 청크로 분할하여 메인 스레드 양보
+button.addEventListener('click', async () => {
+  // 먼저 시각적 피드백을 즉시 보여줌
+  showLoadingIndicator();
+
+  // scheduler.yield()로 메인 스레드 양보
+  await scheduler.yield();
+
+  const result = heavyComputation(data);
+
+  await scheduler.yield();
+
+  updateDOM(result);
+  hideLoadingIndicator();
+});
+```
+
+## Lighthouse
+
+Lighthouse는 페이지 성능, 접근성, SEO 등을 종합적으로 점수화하는 도구입니다.
+
+### 점수의 의미와 한계
+
+Lighthouse 점수는 **가중 평균**으로 계산됩니다 (Lighthouse 12 기준):
+
+| 지표 | 가중치 |
+|------|--------|
+| FCP (First Contentful Paint) | 10% |
+| SI (Speed Index) | 10% |
+| LCP | 25% |
+| TBT (Total Blocking Time) | 30% |
+| CLS | 25% |
+
+**주의점:**
+
+- Lighthouse는 **합성 (Synthetic) 데이터**입니다 — 실험실 환경에서의 측정값
+- 실제 사용자 경험은 **필드 (Field) 데이터** (CrUX, RUM) 로 확인해야 합니다
+- 점수는 실행할 때마다 다를 수 있습니다 (네트워크, CPU 상태에 따라 변동)
+- 100점이 목표가 아닙니다 — **실제 사용자 경험 개선**이 목표입니다
+
+### Synthetic vs Field Data
+
+| | Synthetic (Lab) | Field (Real User) |
+|---|---|---|
+| **도구** | Lighthouse, WebPageTest | CrUX, RUM (실시간 모니터링) |
+| **환경** | 고정된 네트워크/CPU | 실제 디바이스, 다양한 네트워크 |
+| **장점** | 재현 가능, 디버깅 용이 | 실제 사용자 경험 반영 |
+| **한계** | 실제 환경과 차이 | 원인 분석 어려움 |
+| **용도** | 개발 중 회귀 감지 | 배포 후 모니터링 |
+
+두 데이터를 함께 사용해야 합니다. Lab에서 문제를 찾고 수정한 뒤, Field 데이터로 실제 개선을 확인하는 것이 이상적인 워크플로우입니다.
+
+## 실무 디버깅 시나리오
+
+### 시나리오 1: 레이아웃 시프트 잡기
+
+**증상:** CLS 점수가 나쁘지만 어디서 시프트가 발생하는지 모름
+
+**디버깅 순서:**
+
+1. DevTools Console에서 `Layout Shift` 이벤트를 관찰합니다:
+
+```javascript
+// Performance Observer로 Layout Shift 감지
+new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (!entry.hadRecentInput) {  // 사용자 입력에 의한 것은 제외
+      console.log('Layout Shift:', entry.value, entry.sources);
+      // entry.sources에 시프트를 일으킨 요소 정보가 담겨 있음
+    }
+  }
+}).observe({ type: 'layout-shift', buffered: true });
+```
+
+2. `entry.sources`에서 시프트를 유발한 **요소**를 확인합니다
+3. 해당 요소에 크기를 예약하거나, `contain: layout`을 적용합니다
+
+### 시나리오 2: 쟁크 (Jank) 디버깅
+
+**증상:** 스크롤이나 애니메이션 중 끊김이 발생
+
+**디버깅 순서:**
+
+1. Performance 패널에서 **레코딩** → 끊김이 발생하는 동작 수행
+2. 빨간 프레임을 찾아 Main 트랙을 확인합니다
+3. **패턴별 원인:**
+
+| Main 트랙 패턴 | 원인 | 해결 |
+|---|---|---|
+| 긴 노란색 블록 | JavaScript Long Task | 코드 분할, `scheduler.yield()` |
+| 보라색 블록 반복 | <Term id="layout-thrashing">레이아웃 스래싱</Term> | 읽기/쓰기 분리 |
+| 큰 초록색 블록 | 넓은 영역 Repaint | `will-change`, 레이어 분리 |
+
+### 시나리오 3: 느린 페인트 추적
+
+**증상:** 특정 영역 근처에서 프레임 드롭
+
+**디버깅 순서:**
+
+1. **Rendering** 탭 → **Paint flashing** 활성화
+2. 문제 동작 수행 → 초록색 깜빡임이 과도한 영역 확인
+3. **Layers** 패널에서 해당 영역의 레이어 구조 확인
+4. 해당 요소에 `will-change: transform`으로 별도 레이어 승격을 고려합니다
+
+```css
+/* 자주 다시 그려지는 요소를 별도 레이어로 분리 */
+.frequently-repainted {
+  will-change: transform;   /* 별도 레이어로 승격 */
+  contain: paint;           /* 페인트 영역 격리 */
+}
+```
+
+단, 레이어 승격은 GPU 메모리를 사용하므로 **Layers 패널에서 메모리 사용량을 확인**하고 적용하세요.
+
+## 시리즈 마무리
+
+6편에 걸쳐 브라우저 렌더링 파이프라인의 전체 흐름을 살펴봤습니다. 마지막으로 시리즈 전체를 복습합니다:
+
+```
+[1편] HTML/CSS 파싱         → DOM 트리 + CSSOM 트리 구축
+  ↓
+[2편] 렌더 트리와 레이아웃   → 렌더 트리 생성 → 각 요소의 위치/크기 계산
+  ↓
+[3편] 페인팅과 래스터라이제이션 → 페인트 레코드 생성 → 비트맵으로 변환
+  ↓
+[4편] 합성과 GPU 레이어      → 레이어 분리 → GPU 합성 → 최종 프레임 출력
+  ↓
+[5편] Reflow와 Repaint 최적화 → 변경 유형별 파이프라인 재실행 범위 이해
+  ↓
+[6편] 성능 측정과 디버깅      → DevTools로 병목을 찾고, Core Web Vitals로 정량화
+```
+
+### 핵심 요약
+
+1. **파이프라인을 이해하면 최적화 방향이 보인다** — 어떤 변경이 어떤 단계를 트리거하는지 알면, 불필요한 작업을 줄일 수 있습니다
+2. **Composite-only 속성이 가장 빠르다** — `transform`과 `opacity`는 메인 스레드를 거치지 않습니다
+3. **레이아웃은 가장 비싸다** — 레이아웃 트리거를 최소화하고, <Term id="layout-thrashing">레이아웃 스래싱</Term>을 방지하세요
+4. **측정 없는 최적화는 추측이다** — Performance 패널과 Core Web Vitals로 항상 정량적으로 확인하세요
+5. **Lab + Field 데이터를 함께 사용하라** — Lighthouse로 문제를 찾고, CrUX/RUM으로 실제 개선을 확인하세요
+
+렌더링 파이프라인은 브라우저가 코드를 화면으로 바꾸는 핵심 메커니즘입니다. 이 과정을 이해하고 있으면, 프레임워크나 도구가 바뀌어도 성능 최적화의 본질은 변하지 않습니다.
