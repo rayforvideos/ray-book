@@ -390,7 +390,7 @@ function LayerDetails({ layers }: { layers: LayerInfo[] }) {
           레이어 목록
         </span>
       </div>
-      <div className="space-y-1.5">
+      <div className="rounded-sm bg-surface p-2 space-y-1.5 overflow-x-auto">
         {layers.map((layer) => {
           const cm = colorMap[layer.color] ?? colorMap.sky;
           return (
@@ -448,7 +448,7 @@ export function CompositorLayers({ preset = "basic" }: CompositorLayersProps) {
           </span>
         </div>
 
-        <div className="flex gap-4 max-sm:flex-col">
+        <div className="flex gap-3 max-sm:flex-col">
           {/* Left: layer details */}
           <LayerDetails layers={step.layers} />
 

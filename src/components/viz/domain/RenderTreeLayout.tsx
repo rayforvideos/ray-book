@@ -296,8 +296,16 @@ function TreePane({
   };
   const c = colorMap[color];
 
+  const isLastAtDepth = (idx: number, depth: number) => {
+    for (let j = idx + 1; j < nodes.length; j++) {
+      if (nodes[j].depth < depth) return true;
+      if (nodes[j].depth === depth) return false;
+    }
+    return true;
+  };
+
   return (
-    <div className="flex-1 min-w-0">
+    <div className="min-w-0">
       <div className="mb-1.5">
         <span
           className={`text-[0.6875rem] uppercase tracking-wider ${c.titleText}`}
@@ -305,55 +313,59 @@ function TreePane({
           {title}
         </span>
       </div>
-      <div className="space-y-0.5">
+      <div className="rounded-sm bg-surface p-2 overflow-x-auto">
         {nodes.length === 0 ? (
-          <div className="text-[0.75rem] text-muted/40 italic py-2">
+          <div className="text-[0.75rem] text-muted/40 italic py-1">
             (이 단계에서는 표시하지 않음)
           </div>
         ) : (
-          nodes.map((node, i) => {
-            const isActive = node.active;
-            const isExcluded = node.excluded;
-            const isText = node.type === "text";
-            const isPseudo = node.type === "pseudo";
-            return (
-              <div
-                key={i}
-                className="flex items-center"
-                style={{ paddingLeft: `${node.depth * 14}px` }}
-              >
-                {node.depth > 0 && (
-                  <span className="text-muted/30 text-[0.625rem] mr-1 select-none">
-                    └
-                  </span>
-                )}
-                <span
-                  className={`inline-block px-1.5 py-px text-[0.625rem] font-mono border transition-colors duration-150 ${
+          <div className="font-mono text-[0.625rem] leading-relaxed">
+            {nodes.map((node, i) => {
+              const isActive = node.active;
+              const isExcluded = node.excluded;
+              const isText = node.type === "text";
+              const isPseudo = node.type === "pseudo";
+
+              let connector = "";
+              if (node.depth > 0) {
+                connector = isLastAtDepth(i, node.depth) ? "└─ " : "├─ ";
+              }
+              let indent = "";
+              for (let d = 1; d < node.depth; d++) {
+                let hasSibling = false;
+                for (let j = i + 1; j < nodes.length; j++) {
+                  if (nodes[j].depth < d) break;
+                  if (nodes[j].depth === d) { hasSibling = true; break; }
+                }
+                indent += hasSibling ? "│  " : "   ";
+              }
+
+              const label = isText || isPseudo || node.type === "css" || node.type === "render"
+                ? node.tag
+                : `<${node.tag}>`;
+
+              return (
+                <div
+                  key={i}
+                  className={`whitespace-pre transition-colors duration-150 ${
                     isExcluded
-                      ? `${c.excludedBg} ${c.excludedText} ${c.excludedBorder}`
+                      ? "text-rose-400 dark:text-rose-500 line-through"
                       : isActive
-                        ? `${c.activeBg} ${c.activeText} ${c.activeBorder}`
-                        : `${c.inactiveBg} ${c.inactiveText} ${c.inactiveBorder}`
-                  } ${isText ? "italic" : ""} ${isPseudo ? "border-dashed" : ""}`}
+                        ? "text-text"
+                        : "text-muted/40"
+                  } ${isText ? "italic" : ""} ${isPseudo ? "opacity-80" : ""}`}
                 >
-                  {isText
-                    ? node.tag
-                    : isPseudo
-                      ? node.tag
-                      : node.type === "css"
-                        ? node.tag
-                        : node.type === "render"
-                          ? node.tag
-                          : `<${node.tag}>`}
-                </span>
-                {node.style && isActive && (
-                  <span className="ml-1.5 text-[0.5625rem] text-muted/60 font-mono truncate">
-                    {node.style}
+                  <span className="text-muted/30 select-none">{indent}{connector}</span>
+                  <span className={isActive && !isExcluded ? c.activeText : ""}>
+                    {label}
                   </span>
-                )}
-              </div>
-            );
-          })
+                  {node.style && isActive && (
+                    <span className="text-muted/50 ml-1">{node.style}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -466,7 +478,7 @@ export function RenderTreeLayout({
 
         <div className="flex gap-3 max-sm:flex-col">
           {/* Left side: trees */}
-          <div className="flex flex-col gap-3 flex-1 min-w-0">
+          <div className="flex flex-col gap-3 flex-1 min-w-0 max-w-sm">
             {step.domNodes.length > 0 && (
               <TreePane title="DOM Tree" nodes={step.domNodes} color="sky" />
             )}

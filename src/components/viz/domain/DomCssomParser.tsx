@@ -276,45 +276,74 @@ function TreePane({
   };
   const c = colorMap[color];
 
+  // 같은 depth의 마지막 노드인지 확인 (└ vs ├ 결정용)
+  const isLastAtDepth = (idx: number, depth: number) => {
+    for (let j = idx + 1; j < nodes.length; j++) {
+      if (nodes[j].depth < depth) return true;
+      if (nodes[j].depth === depth) return false;
+    }
+    return true;
+  };
+
   return (
-    <div className="flex-1 min-w-0">
+    <div className="min-w-0">
       <div className="mb-1.5">
         <span className={`text-[0.6875rem] uppercase tracking-wider ${c.titleText}`}>
           {title}
         </span>
       </div>
-      <div className="space-y-0.5">
+      <div className="rounded-sm bg-surface p-2 overflow-x-auto">
         {nodes.length === 0 ? (
-          <div className="text-[0.75rem] text-muted/40 italic py-2">
+          <div className="text-[0.75rem] text-muted/40 italic py-1">
             아직 노드 없음
           </div>
         ) : (
-          nodes.map((node, i) => {
-            const isActive = node.active;
-            const isText = node.type === "text";
-            return (
-              <div
-                key={i}
-                className="flex items-center"
-                style={{ paddingLeft: `${node.depth * 16}px` }}
-              >
-                {node.depth > 0 && (
-                  <span className="text-muted/30 text-[0.625rem] mr-1 select-none">
-                    └
-                  </span>
-                )}
-                <span
-                  className={`inline-block px-1.5 py-px text-[0.6875rem] font-mono border transition-colors duration-150 ${
-                    isActive
-                      ? `${c.activeBg} ${c.activeText} ${c.activeBorder}`
-                      : `${c.inactiveBg} ${c.inactiveText} ${c.inactiveBorder}`
+          <div className="font-mono text-[0.6875rem] leading-relaxed">
+            {nodes.map((node, i) => {
+              const isActive = node.active;
+              const isText = node.type === "text";
+              const isCss = node.type === "css";
+
+              // 트리 커넥터 생성
+              let connector = "";
+              if (node.depth > 0) {
+                const last = isLastAtDepth(i, node.depth);
+                connector = last ? "└─ " : "├─ ";
+              }
+
+              // 들여쓰기 (부모 레벨의 │ 라인 포함)
+              let indent = "";
+              for (let d = 1; d < node.depth; d++) {
+                // 해당 depth에 아직 형제가 남아있으면 │, 아니면 공백
+                let hasSibling = false;
+                for (let j = i + 1; j < nodes.length; j++) {
+                  if (nodes[j].depth < d) break;
+                  if (nodes[j].depth === d) { hasSibling = true; break; }
+                }
+                indent += hasSibling ? "│  " : "   ";
+              }
+
+              const label = isCss
+                ? node.tag
+                : isText
+                  ? node.tag
+                  : `<${node.tag}>`;
+
+              return (
+                <div
+                  key={i}
+                  className={`whitespace-pre transition-colors duration-150 ${
+                    isActive ? "text-text" : "text-muted/40"
                   } ${isText ? "italic" : ""}`}
                 >
-                  {isText ? node.tag : `<${node.tag}>`}
-                </span>
-              </div>
-            );
-          })
+                  <span className="text-muted/30 select-none">{indent}{connector}</span>
+                  <span className={isActive ? (color === "sky" ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400") : ""}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -339,7 +368,7 @@ export function DomCssomParser({ preset = "basic" }: DomCssomParserProps) {
           statusKey={step.parserStatus}
         />
 
-        <div className="flex flex-col gap-3 flex-1 min-w-0">
+        <div className="flex flex-col gap-3 w-56 shrink-0 max-sm:w-full">
           <TreePane
             title="DOM Tree"
             nodes={step.treeNodes}

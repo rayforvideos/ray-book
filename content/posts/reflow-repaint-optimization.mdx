@@ -12,7 +12,7 @@ draft: false
 
 이전 글들에서 브라우저 렌더링 파이프라인의 각 단계를 개별적으로 살펴봤습니다. 전체 흐름을 다시 정리하면:
 
-```
+```text
 Style → Layout → Paint → Raster → Composite
 ```
 
@@ -44,7 +44,7 @@ CSS 속성 변경은 크게 세 가지 경로로 분류됩니다:
 
 Layout을 트리거하는 대표적인 속성들:
 
-```
+```text
 width, height, min-width, max-height
 margin, padding, border-width
 font-size, line-height, text-align
@@ -60,7 +60,7 @@ display, float, clear
 
 Paint만 트리거하는 대표적인 속성들:
 
-```
+```text
 background-color, background-image
 color, text-decoration
 border-color, border-style, border-radius
@@ -125,7 +125,7 @@ requestAnimationFrame(() => {
 
 다음 속성에 접근하면 브라우저가 보류 중인 스타일 변경을 즉시 반영하기 위해 강제 레이아웃을 실행합니다:
 
-```
+```text
 offsetTop, offsetLeft, offsetWidth, offsetHeight
 scrollTop, scrollLeft, scrollWidth, scrollHeight
 clientTop, clientLeft, clientWidth, clientHeight
@@ -213,7 +213,7 @@ list.appendChild(fragment); // DOM 수정 1회
 
 수천 개의 항목을 가진 리스트에서 모든 DOM 노드를 한꺼번에 렌더링하면, 레이아웃 계산과 페인트 비용이 급격히 증가합니다. **가상 스크롤링 (Virtual Scrolling)** 은 뷰포트에 보이는 항목만 실제 DOM에 렌더링합니다:
 
-```
+```text
 전체 리스트: 10,000개 항목
 실제 DOM 노드: ~20개 (뷰포트에 보이는 것 + 버퍼)
 

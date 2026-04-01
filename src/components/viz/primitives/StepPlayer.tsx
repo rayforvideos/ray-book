@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useLayoutEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 
 interface StepPlayerProps {
   steps: React.ReactNode[];
@@ -11,8 +11,6 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const totalSteps = steps.length;
   const contentRef = useRef<HTMLDivElement>(null);
-  const maxHeight = useRef(0);
-  const [height, setHeight] = useState<number | undefined>(undefined);
 
   const goTo = useCallback(
     (step: number) => {
@@ -23,19 +21,9 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
     [totalSteps, onStepChange]
   );
 
-  useLayoutEffect(() => {
-    if (contentRef.current) {
-      const h = contentRef.current.scrollHeight;
-      if (h > maxHeight.current) {
-        maxHeight.current = h;
-        setHeight(h);
-      }
-    }
-  }, [currentStep]);
-
   return (
     <div className="my-8 border border-border p-5">
-      <div ref={contentRef} style={{ minHeight: height }}>
+      <div ref={contentRef}>
         {steps[currentStep]}
       </div>
 

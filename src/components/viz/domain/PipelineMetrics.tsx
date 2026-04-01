@@ -164,14 +164,14 @@ function ThresholdBar({ vital }: { vital: WebVital }) {
         </span>
         <span className="text-muted">{vital.fullName}</span>
       </div>
-      <div className="flex h-6 overflow-hidden font-mono text-[0.625rem]">
-        <div className="flex flex-1 items-center justify-center bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-r border-emerald-300 dark:border-emerald-600">
+      <div className="flex h-6 overflow-hidden font-mono text-[0.5625rem] sm:text-[0.625rem]">
+        <div className="flex flex-1 items-center justify-center bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-r border-emerald-300 dark:border-emerald-600 truncate px-1">
           좋음 {vital.good}
         </div>
-        <div className="flex flex-1 items-center justify-center bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-r border-amber-300 dark:border-amber-600">
-          개선 필요 {vital.needsImprovement}
+        <div className="flex flex-1 items-center justify-center bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-r border-amber-300 dark:border-amber-600 truncate px-1">
+          개선 {vital.needsImprovement}
         </div>
-        <div className="flex flex-1 items-center justify-center bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+        <div className="flex flex-1 items-center justify-center bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 truncate px-1">
           나쁨 {vital.poor}
         </div>
       </div>

@@ -231,7 +231,7 @@ function RecordPane({ records }: { records: PaintRecord[] }) {
           페인트 레코드
         </span>
       </div>
-      <div className="space-y-0.5">
+      <div className="rounded-sm bg-surface p-2 space-y-0.5 overflow-x-auto">
         {records.map((rec, i) => (
           <div key={i} className="flex items-start gap-1.5">
             <span
@@ -385,7 +385,7 @@ export function PaintRasterize({ preset = "basic" }: PaintRasterizeProps) {
           </span>
         </div>
 
-        <div className="flex gap-4 max-sm:flex-col">
+        <div className="flex gap-3 max-sm:flex-col">
           {/* Left: paint records */}
           <RecordPane records={step.records} />
 

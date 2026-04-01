@@ -119,7 +119,7 @@ function PipelineRow({ activeStages }: { activeStages: string[] }) {
 
 function CodeSnippet({ code }: { code: string }) {
   return (
-    <div className="bg-surface border border-border px-3 py-2 font-mono text-[0.75rem] text-text">
+    <div className="bg-surface border border-border px-3 py-2 font-mono text-[0.75rem] text-text overflow-x-auto">
       {code}
     </div>
   );

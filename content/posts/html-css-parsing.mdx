@@ -19,7 +19,7 @@ Content-Type: text/html; charset=UTF-8
 
 브라우저는 HTTP 헤더의 `charset` 값 (또는 HTML 내부의 `<meta charset>`)을 참고해 바이트를 문자열로 디코딩합니다. 대부분의 웹 문서는 **UTF-8** 인코딩을 사용합니다.
 
-```
+```text
 바이트: 3C 68 74 6D 6C 3E ...
          ↓ UTF-8 디코딩
 문자열: <html> ...
@@ -45,7 +45,7 @@ HTML 파싱의 첫 단계는 **토큰화 (tokenization)** 입니다. HTML 토크
 
 위 코드는 아래 토큰들로 분해됩니다:
 
-```
+```text
 StartTag: { tag: "h1", attrs: [{ name: "class", value: "title" }] }
 Character: "Hello"
 EndTag: { tag: "h1" }
@@ -80,7 +80,7 @@ p  { font-size: 16px; line-height: 1.6; }
 
 위 CSS는 다음과 같은 <Term id="cssom">CSSOM</Term> 트리로 변환됩니다:
 
-```
+```text
 StyleSheet
 ├── Rule: h1
 │   ├── color: navy
@@ -133,7 +133,7 @@ HTML 파서가 `<script>` 태그를 만나면 상황이 달라집니다. <Term i
 
 세 방식의 타이밍 차이를 정리하면:
 
-```
+```text
 일반 script:
   HTML 파싱 ──■■ 다운로드 ■■ 실행 ■■──── HTML 파싱 계속 ────
 
@@ -159,7 +159,7 @@ defer:
 3. `<img>`, `<link>`, `<script>` 등의 리소스를 **미리 네트워크 요청**
 4. 메인 파서가 재개되면 이미 다운로드 중이거나 완료된 리소스를 즉시 사용
 
-```
+```text
 메인 파서:       파싱 ─── ■ script 블로킹 ■ ─── 파싱 재개 ───
 프리로드 스캐너:            ■ 나머지 HTML 스캔 ■
 네트워크:                   ■ img 요청 ■  ■ css 요청 ■
