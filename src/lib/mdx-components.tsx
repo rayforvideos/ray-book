@@ -22,6 +22,7 @@ import { PrototypeChain } from "@/components/viz/domain/PrototypeChain";
 import { CallbackPyramid } from "@/components/viz/domain/CallbackPyramid";
 import { PromiseStateMachine } from "@/components/viz/domain/PromiseStateMachine";
 import { DebounceTimeline } from "@/components/viz/domain/DebounceTimeline";
+import { DomCssomParser } from "@/components/viz/domain/DomCssomParser";
 import { NewOperatorFlow } from "@/components/viz/domain/NewOperatorFlow";
 import { InheritanceCompare } from "@/components/viz/domain/InheritanceCompare";
 import { ModuleCompare } from "@/components/viz/domain/ModuleCompare";
@@ -32,6 +33,9 @@ import { MapVsObject } from "@/components/viz/domain/MapVsObject";
 import { IteratorFlow } from "@/components/viz/domain/IteratorFlow";
 import { ProxyTrap } from "@/components/viz/domain/ProxyTrap";
 import { ConfusingPatterns } from "@/components/viz/domain/ConfusingPatterns";
+import { WorkerThread } from "@/components/viz/domain/WorkerThread";
+import { TransferableCost } from "@/components/viz/domain/TransferableCost";
+import { SharedMemoryRace } from "@/components/viz/domain/SharedMemoryRace";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -57,6 +61,7 @@ export const mdxComponents: MDXComponents = {
   CallbackPyramid,
   PromiseStateMachine,
   DebounceTimeline,
+  DomCssomParser,
   NewOperatorFlow,
   InheritanceCompare,
   ModuleCompare,
@@ -67,6 +72,9 @@ export const mdxComponents: MDXComponents = {
   IteratorFlow,
   ProxyTrap,
   ConfusingPatterns,
+  WorkerThread,
+  TransferableCost,
+  SharedMemoryRace,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{

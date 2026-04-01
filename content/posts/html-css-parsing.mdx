@@ -1,0 +1,225 @@
+---
+title: "HTML/CSS 파싱과 DOM/CSSOM"
+description: "바이트 스트림이 트리 구조가 되기까지 — HTML 토크나이저, DOM 트리, CSSOM 트리, 파서 블로킹을 시각화합니다"
+date: 2026-04-01
+tags: ["browser", "rendering", "dom", "cssom", "parsing"]
+series: "browser-rendering-pipeline"
+seriesOrder: 1
+draft: false
+---
+
+## 네트워크에서 도착한 바이트
+
+브라우저에 URL을 입력하면, 서버는 HTML 문서를 **바이트 스트림**으로 응답합니다. 이 바이트는 아직 의미 없는 숫자의 나열입니다.
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+```
+
+브라우저는 HTTP 헤더의 `charset` 값 (또는 HTML 내부의 `<meta charset>`)을 참고해 바이트를 문자열로 디코딩합니다. 대부분의 웹 문서는 **UTF-8** 인코딩을 사용합니다.
+
+```
+바이트: 3C 68 74 6D 6C 3E ...
+         ↓ UTF-8 디코딩
+문자열: <html> ...
+```
+
+문자열이 확보되면 본격적인 **파싱 (parsing)** 이 시작됩니다. 파싱의 목표는 텍스트를 프로그램이 다룰 수 있는 구조화된 트리로 변환하는 것입니다.
+
+## HTML 토크나이저
+
+HTML 파싱의 첫 단계는 **토큰화 (tokenization)** 입니다. HTML 토크나이저는 HTML Living Standard에 정의된 상태 머신(state machine)으로 구현됩니다.
+
+토크나이저는 문자를 하나씩 읽으며 다음과 같은 토큰을 생성합니다:
+
+- **DOCTYPE 토큰**: `<!DOCTYPE html>`
+- **시작 태그 토큰**: `<html>`, `<head>`, `<body>` 등
+- **종료 태그 토큰**: `</html>`, `</head>`, `</body>` 등
+- **문자 토큰**: 태그 사이의 텍스트
+- **주석 토큰**: `<!-- 주석 -->`
+
+```html
+<h1 class="title">Hello</h1>
+```
+
+위 코드는 아래 토큰들로 분해됩니다:
+
+```
+StartTag: { tag: "h1", attrs: [{ name: "class", value: "title" }] }
+Character: "Hello"
+EndTag: { tag: "h1" }
+```
+
+토크나이저의 핵심은 **상태 전이**입니다. `<` 문자를 만나면 "태그 열기 상태"로, `>` 문자를 만나면 "데이터 상태"로 돌아갑니다. 이 상태 머신은 HTML 스펙에 80개 이상의 상태로 정의되어 있습니다.
+
+## DOM 트리 구축
+
+토큰이 생성되면 **트리 빌더 (tree builder)** 가 이를 소비하며 <Term id="dom">DOM</Term> 트리를 구축합니다. 토큰화와 트리 구축은 파이프라인으로 연결되어, 토큰이 하나 만들어질 때마다 즉시 트리에 반영됩니다.
+
+트리 구축 규칙은 단순합니다:
+
+1. **시작 태그 토큰** → 새 `Element` 노드를 생성하고 현재 노드의 자식으로 추가. 이 노드가 새로운 "현재 노드"가 됨
+2. **종료 태그 토큰** → 현재 노드를 부모로 이동 (트리를 한 단계 올라감)
+3. **문자 토큰** → `Text` 노드를 생성하고 현재 노드의 자식으로 추가
+
+아래 시각화로 바이트에서 DOM/CSSOM 트리가 완성되기까지의 전체 과정을 확인하세요:
+
+<DomCssomParser />
+
+결과적으로 DOM은 HTML 문서의 **프로그래밍 인터페이스**입니다. JavaScript의 `document.querySelector()`나 `element.appendChild()` 같은 API는 모두 이 DOM 트리를 조작합니다.
+
+## CSS 파싱과 CSSOM
+
+HTML 파서가 `<link rel="stylesheet">` 또는 `<style>` 태그를 만나면, CSS 파싱이 시작됩니다. CSS 파싱도 HTML과 유사하게 **바이트 → 토큰 → 트리** 과정을 거칩니다.
+
+```css
+h1 { color: navy; font-size: 24px; }
+p  { font-size: 16px; line-height: 1.6; }
+```
+
+위 CSS는 다음과 같은 <Term id="cssom">CSSOM</Term> 트리로 변환됩니다:
+
+```
+StyleSheet
+├── Rule: h1
+│   ├── color: navy
+│   └── font-size: 24px
+└── Rule: p
+    ├── font-size: 16px
+    └── line-height: 1.6
+```
+
+CSSOM은 단순히 CSS 규칙을 나열한 것이 아닙니다. **캐스케이드 (cascade)** 와 **특이도 (specificity)** 규칙을 적용한 최종 계산 결과를 담고 있습니다.
+
+특이도 계산 우선순위 (HTML Living Standard / Selectors Level 4 기준):
+
+| 선택자 유형 | 특이도 | 예시 |
+|---|---|---|
+| 인라인 스타일 | 1-0-0-0 | `style="color: red"` |
+| ID | 0-1-0-0 | `#header` |
+| 클래스, 속성, 의사클래스 | 0-0-1-0 | `.title`, `[type="text"]`, `:hover` |
+| 요소, 의사요소 | 0-0-0-1 | `h1`, `::before` |
+
+중요한 특성: **CSS는 렌더 블로킹 리소스**입니다. CSSOM이 완성되지 않으면 렌더 트리를 만들 수 없으므로, 브라우저는 CSS가 로드될 때까지 화면 렌더링을 멈춥니다. 하지만 CSS는 DOM 파싱을 블로킹하지 않습니다 — DOM 파싱과 CSS 파싱은 병렬로 진행됩니다.
+
+## 파서 블로킹
+
+HTML 파서가 `<script>` 태그를 만나면 상황이 달라집니다. <Term id="parser-blocking">파서 블로킹</Term>이 발생합니다.
+
+```html
+<head>
+  <link rel="stylesheet" href="style.css">
+  <!-- HTML 파서가 여기서 멈춤 -->
+  <script src="app.js"></script>
+  <!-- 스크립트 실행 완료 후 파싱 재개 -->
+</head>
+```
+
+파서가 멈추는 이유는 스크립트가 `document.write()`로 DOM을 직접 수정할 수 있기 때문입니다. 파서는 스크립트의 영향을 예측할 수 없으므로, 안전하게 실행 완료를 기다립니다.
+
+`defer`와 `async` 속성으로 이 블로킹을 제어할 수 있습니다:
+
+```html
+<!-- 1. 일반 script: 다운로드 + 실행 동안 파서 블로킹 -->
+<script src="app.js"></script>
+
+<!-- 2. async: 다운로드는 병렬, 다운로드 완료 시점에 실행 (실행 중 블로킹) -->
+<script async src="analytics.js"></script>
+
+<!-- 3. defer: 다운로드는 병렬, DOMContentLoaded 직전에 순서대로 실행 -->
+<script defer src="app.js"></script>
+```
+
+세 방식의 타이밍 차이를 정리하면:
+
+```
+일반 script:
+  HTML 파싱 ──■■ 다운로드 ■■ 실행 ■■──── HTML 파싱 계속 ────
+
+async:
+  HTML 파싱 ─────────────────────── HTML 파싱 계속 ────
+                ■■ 다운로드 ■■ 실행 ■■  (완료 즉시 실행)
+
+defer:
+  HTML 파싱 ─────────────────────── HTML 파싱 완료 ─ 실행 ─
+                ■■ 다운로드 ■■          (DOMContentLoaded 전)
+```
+
+**실무 권장**: 대부분의 스크립트는 `defer`로 로드하세요. 실행 순서가 보장되며, DOM이 완전히 파싱된 후에 실행됩니다. `async`는 Google Analytics처럼 독립적이고 순서가 중요하지 않은 스크립트에 적합합니다.
+
+## 프리로드 스캐너
+
+파서 블로킹은 성능에 치명적일 수 있습니다. 스크립트를 다운로드하는 동안 파서가 멈추면, 나머지 HTML에 있는 이미지나 CSS 파일을 발견하지 못해 추가 지연이 생깁니다.
+
+이 문제를 해결하기 위해 모든 주요 브라우저는 **프리로드 스캐너 (preload scanner)** 를 구현합니다. HTML Living Standard에서 "speculative parsing"으로 언급되는 이 메커니즘은 다음과 같이 동작합니다:
+
+1. 메인 HTML 파서가 스크립트 실행을 기다리며 블로킹됨
+2. 프리로드 스캐너가 **나머지 HTML을 경량 파싱**하며 리소스 URL을 추출
+3. `<img>`, `<link>`, `<script>` 등의 리소스를 **미리 네트워크 요청**
+4. 메인 파서가 재개되면 이미 다운로드 중이거나 완료된 리소스를 즉시 사용
+
+```
+메인 파서:       파싱 ─── ■ script 블로킹 ■ ─── 파싱 재개 ───
+프리로드 스캐너:            ■ 나머지 HTML 스캔 ■
+네트워크:                   ■ img 요청 ■  ■ css 요청 ■
+```
+
+프리로드 스캐너 덕분에 파서 블로킹의 성능 영향이 크게 줄어듭니다. 하지만 프리로드 스캐너가 발견할 수 없는 리소스도 있습니다 — JavaScript로 동적 생성되는 요소나 CSS `background-image`가 그 예입니다.
+
+## 실무 사례
+
+### Chrome의 프리로드 스캐너
+
+Chrome (Blink 엔진)의 프리로드 스캐너는 `HTMLPreloadScanner`라는 이름으로 구현되어 있습니다. 이 스캐너는 메인 파서와 별도로 토큰화만 수행하며, DOM 트리를 구축하지 않습니다. 발견한 리소스 URL을 `PreloadRequest`로 변환해 네트워크 스택에 전달합니다.
+
+Chrome DevTools의 **Performance** 탭에서 파서 블로킹과 프리로드의 효과를 직접 확인할 수 있습니다:
+
+1. DevTools → Performance → Record
+2. 페이지 새로고침
+3. "Parse HTML" 이벤트와 "Send Request" 이벤트의 타이밍을 비교
+4. 프리로드된 리소스는 파서 블로킹 중에도 다운로드가 시작된 것을 확인 가능
+
+### defer/async 실제 로딩 타이밍
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="critical.css">
+  <!-- defer: DOM 파싱과 병렬 다운로드, DOMContentLoaded 전 실행 -->
+  <script defer src="app.js"></script>
+  <!-- async: 병렬 다운로드, 완료 즉시 실행 -->
+  <script async src="analytics.js"></script>
+</head>
+<body>
+  <h1>Hello</h1>
+  <img src="hero.jpg" alt="Hero">
+  <!-- body 끝에 놓아도 defer와 유사하지만, 프리로드 스캐너가 더 늦게 발견 -->
+  <script src="late.js"></script>
+</body>
+</html>
+```
+
+`<script defer>`를 `<head>`에 두는 것이 `<body>` 끝에 일반 `<script>`를 두는 것보다 유리합니다. `defer` 스크립트는 프리로드 스캐너가 즉시 발견해 다운로드를 시작하지만, `<body>` 끝의 스크립트는 파서가 해당 지점에 도달해야 발견됩니다.
+
+### 렌더 블로킹 CSS 최적화
+
+CSS는 렌더 블로킹이므로, 크리티컬 CSS를 인라인하면 첫 렌더링이 빨라집니다:
+
+```html
+<head>
+  <!-- 크리티컬 CSS 인라인: 네트워크 왕복 없이 즉시 CSSOM 구축 -->
+  <style>
+    h1 { color: navy; } body { margin: 0; font-family: sans-serif; }
+  </style>
+  <!-- 비크리티컬 CSS: 비동기 로드 -->
+  <link rel="preload" href="full.css" as="style" onload="this.rel='stylesheet'">
+</head>
+```
+
+## 다음 단계
+
+DOM과 CSSOM 트리가 완성되면, 브라우저는 이 두 트리를 결합해 **렌더 트리 (Render Tree)** 를 만듭니다. 렌더 트리는 실제로 화면에 표시될 노드만 포함하며, 각 노드에 최종 계산된 스타일이 적용되어 있습니다.
+
+다음 글에서는 렌더 트리 구축과 **레이아웃 (Layout)** 단계 — 각 요소의 정확한 위치와 크기를 계산하는 과정 — 을 살펴봅니다.
