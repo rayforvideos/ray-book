@@ -29,6 +29,11 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://raybook.astro-ninza.com"),
   title: "Ray Book",
   description: "프론트엔드 개념을 시각화로 이해하는 학습 블로그",
+  verification: {
+    other: {
+      "naver-site-verification": "d2e24d236c83fc9f094460aa45a481d527bd116d",
+    },
+  },
   openGraph: {
     siteName: "Ray Book",
     locale: "ko_KR",

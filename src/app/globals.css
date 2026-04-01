@@ -18,7 +18,7 @@
 /* Dark — all text colors pass WCAG AA (4.5:1+) on bg */
 .dark {
   --color-primary: #fafafa;
-  --color-bg: #0c0c0c;
+  --color-bg: #141210;
   --color-text: #e7e5e4;       /* ~16:1 on bg */
   --color-muted: #a39e99;      /* ~6.5:1 on bg */
   --color-border: #2e2a28;

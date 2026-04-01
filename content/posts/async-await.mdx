@@ -1,0 +1,230 @@
+---
+title: "async/await"
+description: "Promise 체이닝을 동기 코드처럼 작성하는 방법 — async 함수의 실행 흐름, 에러 처리, 병렬 실행을 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "async", "await", "promise", "error-handling"]
+series: "async-javascript"
+seriesOrder: 4
+draft: false
+---
+
+## Promise 체이닝의 아쉬움
+
+이전 글에서 Promise가 콜백의 문제를 해결하는 것을 봤습니다. 하지만 `.then()` 체인은 여전히 동기 코드와 모양이 다릅니다:
+
+```javascript
+// 동기 코드 — 위에서 아래로
+const res = httpGet("/user/1");
+const user = parseJSON(res);
+console.log(user.name);
+
+// Promise — .then() 체인
+fetch("/user/1")
+  .then(res => res.json())
+  .then(user => console.log(user.name))
+  .catch(err => console.error(err));
+```
+
+ES2017에서 도입된 **async/await** 는 Promise 위에 구축된 문법적 설탕 (syntactic sugar) 으로, 비동기 코드를 동기 코드처럼 작성할 수 있게 합니다.
+
+## async 함수
+
+`async` 키워드를 함수 앞에 붙이면 **async 함수** 가 됩니다.
+
+```javascript
+async function loadUser() {
+  return "Ray";
+}
+
+// 위는 아래와 동일합니다
+function loadUser() {
+  return Promise.resolve("Ray");
+}
+```
+
+async 함수의 규칙:
+
+1. **항상 Promise를 반환** 합니다. `return` 값은 자동으로 `Promise.resolve()`로 감싸집니다.
+2. `throw`하면 **rejected Promise** 가 됩니다.
+3. 함수 안에서 `await` 키워드를 사용할 수 있습니다.
+
+```javascript
+async function fail() {
+  throw new Error("문제 발생");
+}
+
+// 위는 아래와 동일합니다
+function fail() {
+  return Promise.reject(new Error("문제 발생"));
+}
+```
+
+## await
+
+`await`는 Promise가 settled될 때까지 **async 함수의 실행을 일시 중단** 합니다.
+
+```javascript
+async function loadUser() {
+  const res = await fetch("/user/1");
+  const user = await res.json();
+  console.log(user.name);
+}
+```
+
+Promise 체이닝과 비교하면:
+
+```javascript
+// async/await
+const res = await fetch("/user/1");
+const user = await res.json();
+console.log(user.name);
+
+// Promise 체이닝 (동일한 동작)
+fetch("/user/1")
+  .then(res => res.json())
+  .then(user => console.log(user.name));
+```
+
+핵심: **await는 함수를 멈추는 것이지, 스레드를 멈추는 것이 아닙니다.** 중단된 동안 이벤트 루프는 계속 돌아갑니다.
+
+<AsyncAwait preset="await-flow" />
+
+## 에러 처리
+
+async/await의 가장 큰 장점 중 하나는 **try-catch** 로 비동기 에러를 처리할 수 있다는 것입니다.
+
+```javascript
+// Promise — .catch()
+fetch("/api")
+  .then(res => res.json())
+  .then(data => process(data))
+  .catch(err => console.error(err));
+
+// async/await — try-catch
+async function loadData() {
+  try {
+    const res = await fetch("/api");
+    const data = await res.json();
+    return process(data);
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+```
+
+동기 코드와 동일한 에러 처리 패턴입니다. `if (err)` 체크도, `.catch()` 체인도 필요 없습니다.
+
+<AsyncAwait preset="error-handling" />
+
+### finally도 동일하게
+
+```javascript
+async function loadData() {
+  showSpinner();
+  try {
+    const res = await fetch("/api");
+    return await res.json();
+  } catch (err) {
+    showError(err);
+    return null;
+  } finally {
+    hideSpinner(); // 성공이든 실패든 항상 실행
+  }
+}
+```
+
+## 순차 실행 vs 병렬 실행
+
+async/await를 사용할 때 가장 흔한 실수는 **불필요한 순차 실행** 입니다.
+
+```javascript
+// 순차 — fetchA가 끝나야 fetchB 시작 (느림)
+async function sequential() {
+  const a = await fetchA(); // 1초
+  const b = await fetchB(); // 1초
+  const c = await fetchC(); // 1초
+  return [a, b, c]; // 총 3초
+}
+
+// 병렬 — 세 요청을 동시에 시작 (빠름)
+async function parallel() {
+  const [a, b, c] = await Promise.all([
+    fetchA(), // 1초
+    fetchB(), // 1초
+    fetchC(), // 1초
+  ]);
+  return [a, b, c]; // 총 1초
+}
+```
+
+<AsyncAwait preset="sequential-vs-parallel" />
+
+규칙은 간단합니다:
+
+- **다음 요청이 이전 결과에 의존** → `await` 순차 실행
+- **요청들이 서로 독립적** → `Promise.all` 병렬 실행
+
+```javascript
+// 순차가 필요한 경우 — user를 먼저 받아야 orders 요청 가능
+const user = await getUser(id);
+const orders = await getOrders(user.id);
+
+// 병렬이 가능한 경우 — 서로 독립적
+const [user, products, notifications] = await Promise.all([
+  getUser(id),
+  getProducts(),
+  getNotifications(id),
+]);
+```
+
+## async/await의 변환
+
+async/await는 Promise의 문법적 설탕입니다. 엔진 내부에서 어떻게 변환되는지 보면:
+
+```javascript
+// 작성하는 코드
+async function example() {
+  console.log("A");
+  const val = await fetchData();
+  console.log("B", val);
+  return val;
+}
+
+// 엔진이 이해하는 형태 (개념적)
+function example() {
+  return new Promise((resolve) => {
+    console.log("A");
+    fetchData().then((val) => {
+      console.log("B", val);
+      resolve(val);
+    });
+  });
+}
+```
+
+`await` 지점에서 함수가 분할되고, 이후 코드는 `.then()` 콜백으로 들어갑니다. 이것이 "함수를 멈추지만 스레드는 멈추지 않는" 메커니즘입니다.
+
+## Top-level await
+
+ES2022부터 모듈의 최상위 레벨에서도 `await`를 사용할 수 있습니다:
+
+```javascript
+// config.js (ES Module)
+const res = await fetch("/config.json");
+export const config = await res.json();
+```
+
+이 모듈을 import하는 쪽은 config가 로드될 때까지 자동으로 기다립니다.
+
+## 콜백에서 async/await까지
+
+비동기 JavaScript의 진화를 정리하면:
+
+| 패턴 | 시기 | 에러 처리 | 가독성 |
+|------|------|-----------|--------|
+| **콜백** | ES1 (1997) | `if (err)` 매번 반복 | 중첩 → 콜백 지옥 |
+| **Promise** | ES2015 (2015) | `.catch()` 체인 | 평탄하지만 `.then()` 체인 |
+| **async/await** | ES2017 (2017) | `try-catch` | 동기 코드와 동일 |
+
+각 단계는 이전 단계 위에 구축되었습니다. async/await는 Promise 없이 존재할 수 없고, Promise는 콜백 없이 존재할 수 없습니다. 내부 동작을 이해하면 어떤 패턴이든 자유롭게 선택할 수 있습니다.

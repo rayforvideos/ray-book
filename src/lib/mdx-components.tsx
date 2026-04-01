@@ -14,6 +14,9 @@ import { Closure } from "@/components/viz/domain/Closure";
 import { Hoisting } from "@/components/viz/domain/Hoisting";
 import { ThisBinding } from "@/components/viz/domain/ThisBinding";
 import { EventLoopFull } from "@/components/viz/domain/EventLoopFull";
+import { PromiseChain } from "@/components/viz/domain/PromiseChain";
+import { AsyncAwait } from "@/components/viz/domain/AsyncAwait";
+import { AsyncErrorPattern } from "@/components/viz/domain/AsyncErrorPattern";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -31,6 +34,9 @@ export const mdxComponents: MDXComponents = {
   Hoisting,
   ThisBinding,
   EventLoopFull,
+  PromiseChain,
+  AsyncAwait,
+  AsyncErrorPattern,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{

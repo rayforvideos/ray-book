@@ -11,6 +11,7 @@ interface ClosureScope {
 
 interface ClosureStep {
   codeLine: string;
+  activeLines: number[];
   scopes: ClosureScope[];
   closureCapture?: { fn: string; captures: string[] };
   description: string;
@@ -49,6 +50,7 @@ counter(); // 2`,
     steps: [
       {
         codeLine: "makeCounter() 호출",
+        activeLines: [0, 1],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "makeCounter", value: "function" }] },
           { name: "makeCounter()", type: "function", variables: [{ name: "count", value: "0" }] },
@@ -57,6 +59,7 @@ counter(); // 2`,
       },
       {
         codeLine: "return function increment() {...}",
+        activeLines: [2, 3, 4, 5, 7],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "makeCounter", value: "function" }, { name: "counter", value: "function" }] },
           { name: "makeCounter() 스코프", type: "function", variables: [{ name: "count", value: "0" }], closed: true },
@@ -66,6 +69,7 @@ counter(); // 2`,
       },
       {
         codeLine: "counter() → 1",
+        activeLines: [8, 3, 4],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "counter", value: "function" }] },
           { name: "makeCounter() 스코프", type: "function", variables: [{ name: "count", value: "1" }], closed: true },
@@ -76,6 +80,7 @@ counter(); // 2`,
       },
       {
         codeLine: "counter() → 2",
+        activeLines: [9, 3, 4],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "counter", value: "function" }] },
           { name: "makeCounter() 스코프", type: "function", variables: [{ name: "count", value: "2" }], closed: true },
@@ -99,6 +104,7 @@ b(); // 1  ← a와 독립!`,
     steps: [
       {
         codeLine: "const a = makeCounter()",
+        activeLines: [3],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "a", value: "function" }] },
           { name: "makeCounter() #1 스코프", type: "function", variables: [{ name: "count", value: "0" }], closed: true },
@@ -108,6 +114,7 @@ b(); // 1  ← a와 독립!`,
       },
       {
         codeLine: "const b = makeCounter()",
+        activeLines: [4],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "a", value: "function" }, { name: "b", value: "function" }] },
           { name: "makeCounter() #1 스코프", type: "function", variables: [{ name: "count", value: "0" }], closed: true },
@@ -118,6 +125,7 @@ b(); // 1  ← a와 독립!`,
       },
       {
         codeLine: "a() → 1, a() → 2",
+        activeLines: [5, 6],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "a", value: "function" }, { name: "b", value: "function" }] },
           { name: "makeCounter() #1 스코프", type: "function", variables: [{ name: "count", value: "2" }], closed: true },
@@ -127,6 +135,7 @@ b(); // 1  ← a와 독립!`,
       },
       {
         codeLine: "b() → 1",
+        activeLines: [7],
         scopes: [
           { name: "Global", type: "global", variables: [{ name: "a", value: "function" }, { name: "b", value: "function" }] },
           { name: "makeCounter() #1 스코프", type: "function", variables: [{ name: "count", value: "2" }], closed: true },
@@ -155,16 +164,25 @@ export function Closure({ preset = "basic-closure" }: ClosureProps) {
             코드
           </span>
           <div className="rounded-sm bg-surface font-mono text-[0.75rem] leading-relaxed overflow-x-auto">
-            {lines.map((line, i) => (
-              <div key={i} className="flex">
-                <span className="select-none w-8 shrink-0 text-right pr-3 text-muted/30">
-                  {i + 1}
-                </span>
-                <span className="flex-1 pr-3 py-px text-muted/50">
-                  {line || "\u00A0"}
-                </span>
-              </div>
-            ))}
+            {lines.map((line, i) => {
+              const isActive = step.activeLines.includes(i);
+              return (
+                <div
+                  key={i}
+                  className={`flex transition-colors duration-150 ${isActive ? "bg-accent/10" : ""}`}
+                >
+                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/30"}`}>
+                    {i + 1}
+                  </span>
+                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : "text-muted/40"}`}>
+                    {line || "\u00A0"}
+                  </span>
+                  {isActive && (
+                    <span className="shrink-0 pr-2 text-accent text-[0.625rem] pt-px">◄</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
