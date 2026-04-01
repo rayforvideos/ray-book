@@ -39,6 +39,7 @@ import { SharedMemoryRace } from "@/components/viz/domain/SharedMemoryRace";
 import { RenderTreeLayout } from "@/components/viz/domain/RenderTreeLayout";
 import { PaintRasterize } from "@/components/viz/domain/PaintRasterize";
 import { CompositorLayers } from "@/components/viz/domain/CompositorLayers";
+import { PipelineTrigger } from "@/components/viz/domain/PipelineTrigger";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -81,6 +82,7 @@ export const mdxComponents: MDXComponents = {
   RenderTreeLayout,
   PaintRasterize,
   CompositorLayers,
+  PipelineTrigger,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{

@@ -1,0 +1,285 @@
+---
+title: "Reflow와 Repaint 최적화"
+description: "어떤 변경이 파이프라인의 어떤 단계를 다시 트리거하는가 — Layout Thrashing 방지와 CSS 최적화를 시각화합니다"
+date: 2026-04-01
+tags: ["browser", "rendering", "reflow", "repaint", "performance", "optimization"]
+series: "browser-rendering-pipeline"
+seriesOrder: 5
+draft: false
+---
+
+## 파이프라인 다시 보기
+
+이전 글들에서 브라우저 렌더링 파이프라인의 각 단계를 개별적으로 살펴봤습니다. 전체 흐름을 다시 정리하면:
+
+```
+Style → Layout → Paint → Raster → Composite
+```
+
+1. **Style** — DOM 요소에 어떤 CSS 규칙이 적용되는지 계산합니다 (Computed Style)
+2. **<Term id="layout">Layout</Term>** — 각 요소의 위치와 크기를 계산합니다 (Reflow)
+3. **Paint** — 요소를 픽셀로 변환하는 명령 목록 (Paint Records) 을 생성합니다
+4. **Raster** — Paint 명령을 실제 비트맵으로 래스터라이즈합니다
+5. **Composite** — <Term id="compositor-thread">합성 스레드</Term>가 레이어들을 최종 프레임으로 합칩니다
+
+핵심은 **모든 변경이 모든 단계를 다시 실행하지는 않는다**는 점입니다. 어떤 CSS 속성을 변경하느냐에 따라 재실행 범위가 달라집니다.
+
+## 변경 유형별 트리거
+
+CSS 속성 변경은 크게 세 가지 경로로 분류됩니다:
+
+| 변경 유형 | 예시 속성 | 재실행 범위 | 비용 |
+|---|---|---|---|
+| **Geometry 변경** | `width`, `height`, `margin`, `padding`, `font-size` | Style → Layout → Paint → Raster → Composite | 높음 |
+| **Paint-only 변경** | `background-color`, `color`, `box-shadow`, `visibility` | Style → Paint → Raster → Composite | 중간 |
+| **Composite-only 변경** | `transform`, `opacity` | Style → Composite | 낮음 |
+
+이 분류는 CSSTriggers.com에서 속성별로 확인할 수 있습니다. 아래 시각화에서 각 유형이 파이프라인에 어떤 영향을 미치는지 직접 확인해보세요.
+
+## width 변경 — 전체 파이프라인 재실행
+
+`width`처럼 요소의 기하학적 크기를 변경하는 속성은 Layout부터 모든 단계를 다시 실행합니다. 이것이 가장 비용이 높은 변경입니다.
+
+<PipelineTrigger preset="layout-change" />
+
+Layout을 트리거하는 대표적인 속성들:
+
+```
+width, height, min-width, max-height
+margin, padding, border-width
+font-size, line-height, text-align
+position (top, left, right, bottom)
+display, float, clear
+```
+
+## background-color 변경 — Layout 스킵
+
+`background-color`처럼 시각적 외형만 바꾸는 속성은 기하학 계산이 불필요하므로 Layout을 건너뜁니다.
+
+<PipelineTrigger preset="paint-change" />
+
+Paint만 트리거하는 대표적인 속성들:
+
+```
+background-color, background-image
+color, text-decoration
+border-color, border-style, border-radius
+box-shadow, outline
+visibility (hidden↔visible)
+```
+
+## transform 변경 — 합성만 재실행
+
+`transform`과 `opacity`는 이미 GPU에 업로드된 레이어의 변환 행렬이나 투명도만 수정하면 됩니다. Layout과 Paint를 모두 건너뛰므로 가장 빠릅니다.
+
+<PipelineTrigger preset="composite-change" />
+
+이것이 CSS 애니메이션에서 `transform`과 `opacity`만 사용하라고 권장하는 이유입니다. 60fps를 유지하려면 프레임당 약 16.7ms 안에 모든 작업을 완료해야 하는데, Composite-only 변경은 메인 스레드를 거치지 않으므로 JavaScript가 바쁘더라도 부드러운 애니메이션이 가능합니다.
+
+## Layout Thrashing
+
+<Term id="layout-thrashing">Layout Thrashing</Term>은 JavaScript에서 DOM 읽기와 쓰기를 번갈아 반복할 때 발생하는 성능 안티패턴입니다. 브라우저는 레이아웃 정보가 요청될 때 최신 값을 반환해야 하므로, 스타일 변경 후 레이아웃 정보를 읽으면 **강제 동기 레이아웃 (Forced Synchronous Layout)** 이 발생합니다.
+
+### 안티패턴: 읽기-쓰기 반복
+
+```javascript
+// ❌ 매 반복마다 강제 레이아웃 발생
+for (const el of elements) {
+  const height = el.offsetHeight;    // 읽기 → 레이아웃 강제 실행
+  el.style.height = height * 2 + 'px'; // 쓰기 → 레이아웃 무효화
+  // 다음 루프의 offsetHeight 읽기에서 또 강제 레이아웃...
+}
+```
+
+이 패턴이 위험한 이유는 반복 횟수만큼 레이아웃이 동기적으로 실행되기 때문입니다. 요소가 100개라면 100번의 레이아웃이 발생합니다.
+
+### 해결법 1: 읽기/쓰기 분리
+
+```javascript
+// ✅ 읽기를 먼저 모아서 실행
+const heights = elements.map(el => el.offsetHeight);
+
+// 쓰기를 나중에 모아서 실행
+elements.forEach((el, i) => {
+  el.style.height = heights[i] * 2 + 'px';
+});
+// 레이아웃은 프레임 끝에 한 번만 실행
+```
+
+### 해결법 2: requestAnimationFrame 배치 처리
+
+```javascript
+// ✅ 읽기는 즉시, 쓰기는 rAF 콜백으로 배치
+const heights = elements.map(el => el.offsetHeight);
+
+requestAnimationFrame(() => {
+  elements.forEach((el, i) => {
+    el.style.height = heights[i] * 2 + 'px';
+  });
+});
+```
+
+`requestAnimationFrame`은 다음 페인트 직전에 콜백을 실행합니다. 읽기를 현재 프레임에서, 쓰기를 다음 프레임의 시작점에서 처리하면 강제 레이아웃을 방지할 수 있습니다.
+
+### 레이아웃을 강제하는 속성들
+
+다음 속성에 접근하면 브라우저가 보류 중인 스타일 변경을 즉시 반영하기 위해 강제 레이아웃을 실행합니다:
+
+```
+offsetTop, offsetLeft, offsetWidth, offsetHeight
+scrollTop, scrollLeft, scrollWidth, scrollHeight
+clientTop, clientLeft, clientWidth, clientHeight
+getComputedStyle()
+getBoundingClientRect()
+```
+
+## CSS 최적화
+
+### contain — 레이아웃 범위 제한
+
+`contain` 속성은 브라우저에게 **이 요소의 변경이 외부에 영향을 주지 않는다**는 힌트를 줍니다:
+
+```css
+.card {
+  contain: layout;   /* 레이아웃 변경이 외부로 전파되지 않음 */
+  contain: paint;    /* 자식의 페인트가 이 요소 밖으로 넘치지 않음 */
+  contain: strict;   /* layout + paint + size 모두 격리 */
+}
+```
+
+`contain: layout`을 설정하면, 이 요소 내부에서 레이아웃이 변경되어도 브라우저는 이 요소 바깥의 레이아웃을 다시 계산하지 않습니다. 카드 리스트, 피드 아이템 등 독립적인 UI 단위에 효과적입니다.
+
+### content-visibility — 화면 밖 렌더링 지연
+
+`content-visibility: auto`는 뷰포트 밖의 요소에 대해 레이아웃, 페인트, 합성을 모두 건너뜁니다:
+
+```css
+.article-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 200px; /* 높이 예측값 → 스크롤바 안정화 */
+}
+```
+
+긴 목록이나 피드에서 화면에 보이지 않는 항목의 렌더링을 건너뛰어 초기 로딩 성능을 크게 개선합니다. Chrome 기준으로 7배 이상의 렌더링 시간 단축이 보고된 바 있습니다.
+
+### will-change — <Term id="layer-promotion">레이어 승격</Term> 힌트
+
+`will-change`는 브라우저에게 **이 속성이 곧 변경될 것**이라고 미리 알려줍니다:
+
+```css
+.animated-element {
+  will-change: transform; /* 미리 별도 레이어로 승격 */
+}
+```
+
+브라우저는 이 힌트를 받으면 해당 요소를 별도 GPU 레이어로 승격시켜, 실제 변경이 발생했을 때 Composite-only 경로를 탈 수 있게 준비합니다. 단, 남용하면 GPU 메모리를 과도하게 사용하므로 실제로 애니메이션하는 요소에만 적용해야 합니다.
+
+```css
+/* ❌ 모든 요소에 will-change → GPU 메모리 낭비 */
+* { will-change: transform; }
+
+/* ✅ 필요한 요소에만, 필요한 시점에만 */
+.card:hover { will-change: transform; }
+.card.animating { will-change: transform; }
+```
+
+## DOM 조작 최적화
+
+### DocumentFragment — 배치 DOM 삽입
+
+여러 요소를 DOM에 추가할 때, 매번 직접 추가하면 매 삽입마다 레이아웃이 발생할 수 있습니다:
+
+```javascript
+// ❌ N번의 DOM 수정 → 잠재적으로 N번의 레이아웃
+for (const item of items) {
+  const li = document.createElement('li');
+  li.textContent = item.name;
+  list.appendChild(li); // 매번 DOM 트리 수정
+}
+
+// ✅ DocumentFragment에 모아서 한 번에 삽입
+const fragment = document.createDocumentFragment();
+for (const item of items) {
+  const li = document.createElement('li');
+  li.textContent = item.name;
+  fragment.appendChild(li); // 메모리에서만 조작
+}
+list.appendChild(fragment); // DOM 수정 1회
+```
+
+`DocumentFragment`는 메모리 상의 경량 DOM 컨테이너입니다. 실제 DOM에 추가되기 전까지 렌더링 파이프라인을 트리거하지 않습니다.
+
+### 가상 스크롤링
+
+수천 개의 항목을 가진 리스트에서 모든 DOM 노드를 한꺼번에 렌더링하면, 레이아웃 계산과 페인트 비용이 급격히 증가합니다. **가상 스크롤링 (Virtual Scrolling)** 은 뷰포트에 보이는 항목만 실제 DOM에 렌더링합니다:
+
+```
+전체 리스트: 10,000개 항목
+실제 DOM 노드: ~20개 (뷰포트에 보이는 것 + 버퍼)
+
+┌─────────────────────────┐
+│  ▨ (spacer: 3000px)     │ ← 스크롤 위치 위의 빈 공간
+├─────────────────────────┤
+│  Item 150               │ ← 실제 DOM 노드
+│  Item 151               │
+│  ...                    │
+│  Item 169               │
+├─────────────────────────┤
+│  ▨ (spacer: 58000px)    │ ← 스크롤 위치 아래의 빈 공간
+└─────────────────────────┘
+```
+
+React 생태계에서는 `react-window`, `@tanstack/virtual` 등의 라이브러리가 이 패턴을 구현합니다.
+
+## 실무 사례 — React와 렌더링 파이프라인
+
+React의 상태 업데이트와 브라우저 렌더링 파이프라인의 관계를 이해하면 최적화 방향이 명확해집니다.
+
+### React Batched Updates
+
+React 18부터 모든 상태 업데이트는 자동으로 **배치 처리**됩니다:
+
+```javascript
+function handleClick() {
+  setCount(c => c + 1);    // 즉시 렌더링하지 않음
+  setFlag(f => !f);         // 즉시 렌더링하지 않음
+  setText('updated');       // 즉시 렌더링하지 않음
+  // → 세 변경이 하나의 리렌더링으로 배치됨
+}
+```
+
+이 배치 처리는 Layout Thrashing 방지의 React 버전이라고 볼 수 있습니다. 여러 상태 변경을 하나의 DOM 업데이트로 묶어 렌더링 파이프라인을 최소 횟수로 실행합니다.
+
+### useLayoutEffect vs useEffect
+
+```javascript
+// useLayoutEffect: DOM 변경 후, 브라우저 페인트 전에 동기 실행
+useLayoutEffect(() => {
+  // DOM 측정 → 스타일 변경 → 한 번의 페인트
+  const height = ref.current.offsetHeight;
+  ref.current.style.height = height * 2 + 'px';
+}, []);
+
+// useEffect: 브라우저 페인트 후에 비동기 실행
+useEffect(() => {
+  // 이미 한 번 그려진 후이므로 → 시각적 깜빡임 가능
+  const height = ref.current.offsetHeight;
+  ref.current.style.height = height * 2 + 'px';
+}, []);
+```
+
+`useLayoutEffect`는 DOM 변경과 페인트 사이에 실행되므로, 측정 후 스타일을 바꿔도 사용자에게는 최종 결과만 보입니다. 반면 `useEffect`는 이미 페인트된 후 실행되므로 깜빡임이 발생할 수 있습니다.
+
+### CSS-in-JS와 렌더링 비용
+
+런타임 CSS-in-JS (styled-components, Emotion) 는 렌더링 시 동적으로 스타일을 생성하므로 Style 재계산 비용이 추가됩니다. 성능이 중요한 경우:
+
+- **빌드 타임 CSS** (Tailwind CSS, vanilla-extract, Panda CSS) 로 전환
+- `style` 속성 대신 CSS 클래스 토글 사용
+- 인라인 스타일은 `transform`과 `opacity` 같은 Composite-only 속성에 한정
+
+## 다음 단계
+
+지금까지 렌더링 파이프라인의 각 단계와 최적화 방법을 살펴봤습니다. 하지만 실제 성능 문제를 해결하려면 **측정**이 필수입니다. "측정 없는 최적화는 추측에 불과하다"는 말처럼, DevTools의 Performance 패널과 Lighthouse를 활용해야 합니다.
+
+다음 글에서는 Chrome DevTools로 렌더링 파이프라인의 병목을 찾고, Core Web Vitals를 측정하는 방법을 다룹니다.
