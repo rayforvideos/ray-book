@@ -213,6 +213,8 @@ function reactive(target) {
 
 get 트랩에서 "이 속성을 누가 읽었는지" 기록하고, set 트랩에서 "이 속성이 바뀌었으니 다시 렌더링하라" 알립니다. Vue 2에서 사용하던 `Object.defineProperty`는 새 속성 추가를 감지하지 못했지만, Proxy는 모든 작업을 가로채므로 이 한계가 해결됩니다.
 
+MobX도 `observable()` 함수에서 Proxy를 사용하여 객체의 속성 변경을 자동으로 감지하고 관련 reaction을 실행합니다. 이처럼 Proxy 기반 반응형 시스템은 현대 프론트엔드 상태 관리의 핵심 패턴이 되었습니다.
+
 ## Revocable Proxy
 
 `Proxy.revocable()`은 **취소 가능한 Proxy** 를 생성합니다. `revoke()`를 호출하면 Proxy가 비활성화되어 이후 모든 작업이 TypeError를 발생시킵니다.

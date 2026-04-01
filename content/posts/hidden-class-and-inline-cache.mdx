@@ -138,7 +138,7 @@ obj.x = undefined;
 
 ## 실제로 확인하기
 
-Chrome DevTools의 Performance 탭에서 IC 상태 변화를 추적할 수 있습니다. 또한 `--trace-ic` 플래그로 IC 이벤트를 로깅할 수 있습니다:
+V8 팀은 공식 블로그 (v8.dev) 에서 Hidden Class와 인라인 캐시의 동작을 상세히 다루고 있습니다. "What's up with monomorphism?" 및 "Fast properties in V8" 게시물이 대표적입니다. Chrome DevTools의 Performance 탭에서 IC 상태 변화를 추적할 수 있습니다. 또한 `--trace-ic` 플래그로 IC 이벤트를 로깅할 수 있습니다:
 
 ```bash
 node --trace-ic script.js

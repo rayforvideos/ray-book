@@ -198,6 +198,8 @@ class App {
 }
 ```
 
+React 클래스 컴포넌트에서 이벤트 핸들러의 `this` 바인딩 문제는 대표적인 실전 사례입니다. `constructor`에서 `this.handleClick = this.handleClick.bind(this)`로 바인딩하거나, 클래스 필드의 화살표 함수를 사용하는 두 패턴이 널리 쓰였습니다. React의 함수형 컴포넌트에서는 `this`를 사용하지 않으므로 이 문제 자체가 사라졌습니다.
+
 ## 시리즈를 마치며
 
 5편에 걸쳐 JavaScript의 실행 환경을 살펴봤습니다:

@@ -98,6 +98,8 @@ function throttle(fn, ms) {
 
 <AsyncUtilPattern preset="throttle" />
 
+실전에서는 **lodash** 의 `_.debounce`와 `_.throttle`이 널리 사용됩니다. lodash의 구현은 `leading`/`trailing` 옵션과 `maxWait` (최대 대기 시간) 을 지원하며, 흥미롭게도 `_.throttle`은 내부적으로 `_.debounce`에 `maxWait` 옵션을 전달하는 방식으로 구현되어 있습니다.
+
 ### Debounce vs Throttle
 
 | | Debounce | Throttle |

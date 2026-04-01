@@ -216,6 +216,8 @@ async function loadESM() {
 - **기존 Node.js 프로젝트** — 점진적으로 ESM으로 마이그레이션하세요
 - **라이브러리** — CJS와 ESM 모두 지원하는 것이 좋습니다 (dual package)
 
+현대 빌드 도구도 이 흐름을 반영합니다. **Vite** 는 개발 환경에서 네이티브 ESM을 직접 브라우저에 제공하고, npm 패키지 중 CJS로 배포된 의존성은 사전 번들링 (dependency pre-bundling) 단계에서 ESM으로 변환합니다. **Next.js** 역시 ESM을 기본으로 채택하고, `next.config.mjs` 형태의 ESM 설정 파일을 지원합니다.
+
 ## 다음 단계
 
 ESM의 정적 구조는 단순히 문법의 차이가 아닙니다. 이 특성 덕분에 **번들러가 사용하지 않는 코드를 제거** 할 수 있습니다. 다음 글에서는 번들링과 tree-shaking이 어떻게 동작하는지 살펴보겠습니다.
