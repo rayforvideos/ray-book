@@ -89,6 +89,117 @@ const terms: Record<string, TermDef> = {
     description: "최적화된 기계어의 타입 가정이 깨졌을 때, 바이트코드 실행으로 되돌아가는 과정.",
     analogy: "고속도로에서 공사 구간을 만나 일반 도로로 빠지는 것과 비슷합니다 — 다시 고속도로에 진입할 수 있지만 일시적으로 느려집니다.",
   },
+  "structured-clone": {
+    title: "구조적 복제",
+    emoji: "📋",
+    description: "객체를 깊은 복사하는 브라우저 내장 알고리즘. JSON보다 더 많은 타입 (Map, Set, ArrayBuffer, Date 등) 을 지원합니다. postMessage의 기본 데이터 전달 방식입니다.",
+    analogy: "서류를 복사기로 복사하는 것과 비슷합니다 — 원본과 동일한 사본이 나오지만, 완전히 별개의 종이입니다.",
+  },
+  "race-condition": {
+    title: "레이스 컨디션",
+    emoji: "🏎️",
+    description: "두 개 이상의 스레드가 공유 자원에 동시에 접근할 때, 실행 순서에 따라 결과가 달라지는 버그. 재현이 어려워 디버깅이 까다롭습니다.",
+    analogy: "두 사람이 동시에 같은 은행 계좌에서 출금하는 것과 비슷합니다 — 잔액 확인과 출금 사이에 다른 사람이 끼어들면 잔액이 맞지 않게 됩니다.",
+  },
+  "atomic-operation": {
+    title: "원자적 연산",
+    emoji: "⚛️",
+    description: "중간에 다른 스레드가 끼어들 수 없는 '올인원' 연산. 읽기-수정-쓰기가 하나의 쪼갤 수 없는 단위로 처리됩니다.",
+    analogy: "자동문 에어록과 비슷합니다 — 한 사람이 통과하는 동안 문이 잠겨서, 두 사람이 동시에 끼어들 수 없습니다.",
+  },
+  "cross-origin-isolation": {
+    title: "교차 출처 격리",
+    emoji: "🔒",
+    description: "COOP/COEP 헤더로 페이지를 다른 출처로부터 격리하는 보안 메커니즘. SharedArrayBuffer 사용과 고해상도 타이머 접근의 전제 조건입니다.",
+    analogy: "보안 구역 출입문과 비슷합니다 — 허가된 사람만 들어올 수 있으므로 내부에서 민감한 작업을 해도 안전합니다.",
+  },
+  "transferable": {
+    title: "Transferable 객체",
+    emoji: "📦",
+    description: "postMessage로 전달할 때 복사 대신 소유권을 이전하는 객체. ArrayBuffer, MessagePort, OffscreenCanvas 등이 해당합니다. 전송 후 원본은 사용할 수 없게 됩니다.",
+    analogy: "이사할 때 짐을 복사하지 않고 트럭에 실어 보내는 것과 비슷합니다 — 새 집에 도착하면 원래 집엔 아무것도 없습니다.",
+  },
+  "detached-buffer": {
+    title: "분리된 버퍼",
+    emoji: "🚫",
+    description: "소유권이 이전되어 더 이상 접근할 수 없는 ArrayBuffer. byteLength가 0이 되고 모든 읽기/쓰기가 TypeError를 발생시킵니다.",
+    analogy: "양도한 콘서트 티켓과 비슷합니다 — 내 이름으로 발급됐지만 양도 후에는 입장할 수 없습니다.",
+  },
+  "dom": {
+    title: "DOM",
+    emoji: "🌲",
+    description: "Document Object Model. HTML 문서를 트리 구조로 표현한 프로그래밍 인터페이스. 브라우저가 HTML을 파싱하여 생성합니다.",
+    analogy: "건물의 골조와 비슷합니다 — HTML이 설계도라면, DOM은 그 설계도대로 세운 실제 구조물입니다.",
+  },
+  "cssom": {
+    title: "CSSOM",
+    emoji: "🎨",
+    description: "CSS Object Model. CSS 규칙을 트리 구조로 표현한 것. DOM과 결합하여 각 요소의 최종 스타일을 결정합니다.",
+    analogy: "건물의 인테리어 시방서와 비슷합니다 — 골조(DOM)에 어떤 색, 크기, 배치를 적용할지 기록한 문서입니다.",
+  },
+  "parser-blocking": {
+    title: "파서 블로킹",
+    emoji: "🚧",
+    description: "HTML 파서가 <script> 태그를 만나면 스크립트 실행이 끝날 때까지 DOM 구축을 중단하는 현상. defer/async로 회피할 수 있습니다.",
+    analogy: "건설 현장에서 전기 배선팀이 올 때까지 벽 공사를 멈추는 것과 비슷합니다.",
+  },
+  "render-tree": {
+    title: "렌더 트리",
+    emoji: "🌿",
+    description: "DOM과 CSSOM을 결합하여 화면에 실제로 그려질 요소만 포함하는 트리. display:none인 요소는 제외됩니다.",
+    analogy: "무대 위에 실제로 등장하는 배우 목록과 비슷합니다 — 대본(DOM)에 있지만 등장하지 않는 캐릭터는 빠집니다.",
+  },
+  "box-model": {
+    title: "박스 모델",
+    emoji: "📦",
+    description: "모든 HTML 요소를 content, padding, border, margin 네 영역으로 구성된 사각형 박스로 다루는 CSS 레이아웃 모델.",
+    analogy: "택배 상자와 비슷합니다 — 내용물(content), 완충재(padding), 상자(border), 상자 간 간격(margin).",
+  },
+  "layout": {
+    title: "레이아웃",
+    emoji: "📐",
+    description: "렌더 트리의 각 요소가 뷰포트 내에서 차지하는 정확한 위치와 크기를 계산하는 단계. Reflow라고도 합니다.",
+  },
+  "paint-record": {
+    title: "페인트 레코드",
+    emoji: "🖌️",
+    description: "레이아웃 결과를 바탕으로 '이 좌표에 이 색 사각형을 그려라' 같은 그리기 명령을 순서대로 기록한 목록.",
+    analogy: "화가의 작업 순서 메모와 비슷합니다 — 배경부터 칠하고, 그 위에 가구, 마지막에 장식.",
+  },
+  "rasterization": {
+    title: "래스터라이제이션",
+    emoji: "🔲",
+    description: "벡터 형태의 페인트 명령을 실제 픽셀 비트맵으로 변환하는 과정. GPU가 처리하는 경우가 많습니다.",
+    analogy: "벡터 일러스트를 JPEG 이미지로 내보내는 것과 비슷합니다 — 수학적 도형을 픽셀 격자에 찍는 과정.",
+  },
+  "stacking-context": {
+    title: "스태킹 컨텍스트",
+    emoji: "🗂️",
+    description: "z-index, opacity, transform 등의 속성이 만드는 요소의 쌓임 순서 그룹. 같은 컨텍스트 내에서만 z-index가 비교됩니다.",
+    analogy: "건물의 층과 비슷합니다 — 1층 내부에서 아무리 높이 쌓아도 2층보다 위로 갈 수 없습니다.",
+  },
+  "compositor-thread": {
+    title: "합성 스레드",
+    emoji: "🧵",
+    description: "메인 스레드와 별도로 동작하며 레이어를 합성하는 브라우저 스레드. transform/opacity 애니메이션은 이 스레드에서 처리되어 메인 스레드를 블로킹하지 않습니다.",
+    analogy: "영상 편집에서 레이어를 합치는 렌더링 엔진과 비슷합니다 — 편집자(메인 스레드)가 다른 작업을 하는 동안 백그라운드에서 합성합니다.",
+  },
+  "layer-promotion": {
+    title: "레이어 승격",
+    emoji: "⬆️",
+    description: "특정 요소를 별도의 합성 레이어로 분리하는 것. will-change, transform, opacity 등이 트리거합니다. GPU 메모리를 추가로 사용합니다.",
+  },
+  "layout-thrashing": {
+    title: "레이아웃 스래싱",
+    emoji: "💥",
+    description: "DOM 쓰기와 읽기를 번갈아 반복하여 브라우저가 매번 강제로 레이아웃을 재계산하게 만드는 성능 안티패턴.",
+    analogy: "메모를 쓰다가 매번 전체 문서를 다시 읽는 것과 비슷합니다 — 쓸 내용을 모아서 한 번에 쓰는 것이 훨씬 효율적입니다.",
+  },
+  "core-web-vitals": {
+    title: "Core Web Vitals",
+    emoji: "📊",
+    description: "Google이 정의한 웹 페이지 사용자 경험 핵심 지표. LCP(로딩), INP(상호작용), CLS(시각적 안정성) 세 가지로 구성됩니다.",
+  },
 };
 
 interface TermProps {
