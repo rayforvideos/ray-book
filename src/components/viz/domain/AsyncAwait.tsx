@@ -280,7 +280,7 @@ function CodePanel({ lines, activeLines }: { lines: string[]; activeLines: numbe
               <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/50"}`}>
                 {i + 1}
               </span>
-              <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : "text-muted/50"}`}>
+              <span className={`flex-1 pr-3 py-px whitespace-pre ${isActive ? "text-text" : "text-muted/50"}`}>
                 {line || "\u00A0"}
               </span>
               {isActive && (

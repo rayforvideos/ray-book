@@ -331,7 +331,7 @@ export function ExecutionContext({
                     {j + 1}
                   </span>
                   <span
-                    className={`flex-1 pr-3 py-px ${
+                    className={`flex-1 pr-3 py-px whitespace-pre ${
                       isActive
                         ? "text-text"
                         : step.activeLine === null

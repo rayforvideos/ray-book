@@ -166,7 +166,7 @@ export function EventLoopFull({ preset = "setTimeout-promise" }: EventLoopFullPr
                 return (
                   <div key={i} className={`flex transition-colors duration-150 ${isActive ? "bg-accent/10" : ""}`}>
                     <span className={`select-none w-7 shrink-0 text-right pr-2 ${isActive ? "text-accent" : "text-muted/50"}`}>{i + 1}</span>
-                    <span className={`flex-1 pr-2 py-px ${isActive ? "text-text" : "text-muted/50"}`}>{line || "\u00A0"}</span>
+                    <span className={`flex-1 pr-2 py-px whitespace-pre ${isActive ? "text-text" : "text-muted/50"}`}>{line || "\u00A0"}</span>
                     {isActive && <span className="shrink-0 pr-2 text-accent text-[0.625rem] pt-px">◄</span>}
                   </div>
                 );

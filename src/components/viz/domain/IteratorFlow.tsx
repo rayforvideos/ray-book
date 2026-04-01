@@ -220,7 +220,7 @@ function CodePanel({
                 {i + 1}
               </span>
               <span
-                className={`flex-1 pr-3 py-px ${isActive ? "text-text" : "text-muted"}`}
+                className={`flex-1 pr-3 py-px whitespace-pre ${isActive ? "text-text" : "text-muted"}`}
               >
                 {line || "\u00A0"}
               </span>
