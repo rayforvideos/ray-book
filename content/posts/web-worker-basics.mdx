@@ -1,0 +1,208 @@
+---
+title: "Web Worker: 메인 스레드를 해방시켜라"
+description: "JavaScript의 싱글 스레드 한계를 극복하는 방법 — Web Worker로 무거운 연산을 별도 스레드에 오프로드합니다"
+date: 2026-04-01
+tags: ["javascript", "web-worker", "concurrency", "multithreading"]
+series: "web-workers"
+seriesOrder: 1
+draft: false
+---
+
+## 메인 스레드 차단 문제
+
+JavaScript는 싱글 스레드 언어입니다. 이벤트 루프 시리즈에서 살펴봤듯이, <Term id="call-stack">콜스택</Term>은 하나이며 한 번에 하나의 작업만 처리합니다.
+
+이것은 CPU 집약적 작업에서 문제가 됩니다:
+
+```javascript
+// 이 코드가 실행되는 동안 UI는 완전히 멈춥니다
+function heavyCompute(size) {
+  let sum = 0;
+  for (let i = 0; i < size; i++) {
+    sum += Math.sqrt(i) * Math.sin(i);
+  }
+  return sum;
+}
+
+heavyCompute(100_000_000); // ~1-2초 동안 UI 프리즈
+```
+
+네트워크 요청은 브라우저가 별도로 처리하지만, 순수 CPU 작업은 `setTimeout`이나 `requestAnimationFrame`으로 나눠도 결국 같은 UI 스레드에서 실행됩니다. 이때 **Web Worker** 가 필요합니다.
+
+## Web Worker란
+
+Web Worker는 **메인 스레드와 별도로 동작하는 JavaScript 실행 환경**입니다. 실제 OS 스레드 위에서 실행되므로 진정한 병렬 처리가 가능합니다.
+
+```
+메인 스레드:    DOM 조작, 이벤트 처리, UI 업데이트
+Worker 스레드:  CPU 집약적 연산, 데이터 처리, 파싱
+```
+
+두 스레드는 **공유 메모리 없이** `postMessage`로 통신합니다. 기본적으로 데이터는 <Term id="structured-clone">구조적 복제</Term>로 복사되어 전달됩니다.
+
+## 기본 사용법
+
+Worker는 별도의 스크립트 파일로 정의합니다:
+
+```javascript
+// worker.js
+self.onmessage = (e) => {
+  const { nums } = e.data;
+  const sum = nums.reduce((acc, n) => acc + n, 0);
+  self.postMessage({ sum });
+};
+```
+
+메인 스레드에서 Worker를 생성하고 메시지를 주고받습니다:
+
+```javascript
+// main.js
+const worker = new Worker('worker.js');
+
+worker.onmessage = (e) => {
+  console.log('결과:', e.data.sum);
+};
+
+worker.postMessage({ nums: [1, 2, 3, 4, 5] });
+```
+
+아래 시각화로 전체 흐름을 확인하세요:
+
+<WorkerThread preset="basic" />
+
+## Worker의 전역 스코프
+
+Worker는 브라우저 환경이지만 **DOM에 접근할 수 없습니다**. Worker 내부의 전역 객체는 `DedicatedWorkerGlobalScope`이며, `self` 키워드로 접근합니다.
+
+Worker에서 **사용 가능한** API (MDN Web Workers API 기준):
+- `fetch`, `XMLHttpRequest`
+- `setTimeout`, `setInterval`, `requestAnimationFrame`
+- `WebSocket`
+- `IndexedDB`, `Cache API`
+- `crypto`, `navigator`
+- `importScripts()` (classic worker) / `import` (module worker)
+
+Worker에서 **접근 불가능한** 것들:
+- `document`, `window`, `parent`
+- 모든 DOM API (`querySelector`, `createElement` 등)
+- `localStorage`, `sessionStorage` (대신 `IndexedDB` 사용)
+- `alert`, `confirm`, `prompt`
+
+## Module Worker
+
+ES 모듈을 Worker에서도 사용할 수 있습니다:
+
+```javascript
+// module-worker.js
+import { heavyCompute } from './utils.js';
+
+self.onmessage = (e) => {
+  const result = heavyCompute(e.data.input);
+  self.postMessage(result);
+};
+```
+
+```javascript
+// main.js
+const worker = new Worker('./module-worker.js', { type: 'module' });
+```
+
+Vite, webpack 같은 번들러에서는 `new URL()`을 사용해 번들러가 Worker 파일을 별도로 처리하게 합니다:
+
+```javascript
+// 번들러 환경 (Vite, webpack 5+)
+const worker = new Worker(
+  new URL('./worker.js', import.meta.url),
+  { type: 'module' }
+);
+```
+
+이 방식은 번들러가 Worker 파일의 의존성을 추적하고 별도 청크로 번들링할 수 있게 합니다.
+
+## 오류 처리
+
+```javascript
+const worker = new Worker('worker.js');
+
+// Worker 내부에서 잡히지 않은 예외
+worker.onerror = (e) => {
+  console.error('Worker 오류:', e.message, e.filename, e.lineno);
+  e.preventDefault(); // 오류가 전파되지 않도록
+};
+
+// 역직렬화 불가능한 값이 전달되었을 때
+worker.onmessageerror = (e) => {
+  console.error('메시지 역직렬화 실패:', e);
+};
+```
+
+Worker 내부에서 잡히지 않은 예외는 메인 스레드의 `onerror` 핸들러로 전파됩니다.
+
+## Worker 종료
+
+```javascript
+// 메인 스레드에서 강제 종료
+worker.terminate();
+
+// Worker 내부에서 스스로 종료
+self.close();
+```
+
+`terminate()`는 즉시 종료합니다. 진행 중인 작업도 중단됩니다. `close()`는 Worker가 자신을 종료하는 방식입니다.
+
+## Worker 재사용
+
+Worker 생성에는 스레드 시작 비용이 있습니다. 반복적으로 사용할 작업이라면 재사용하는 것이 좋습니다:
+
+```javascript
+const worker = new Worker('worker.js');
+
+async function processData(data) {
+  return new Promise((resolve) => {
+    worker.onmessage = (e) => resolve(e.data);
+    worker.postMessage(data);
+  });
+}
+
+// 같은 Worker를 여러 번 사용
+const result1 = await processData(dataset1);
+const result2 = await processData(dataset2);
+```
+
+다만 위 패턴은 `onmessage` 핸들러를 매번 덮어쓰므로, 동시에 여러 요청을 보내면 이전 요청의 응답이 무시될 수 있습니다. 실무에서는 메시지에 ID를 부여하거나, Worker 풀(pool) 패턴으로 여러 Worker를 미리 생성해 작업을 분배합니다.
+
+## Worker 종류
+
+지금까지 다룬 것은 **Dedicated Worker** (전용 워커)입니다. 이 외에도 두 가지가 더 있습니다:
+
+- **Shared Worker**: 같은 출처의 여러 탭/iframe이 하나의 Worker를 공유합니다. `MessagePort`로 통신하며, 탭 간 상태 공유에 유용합니다.
+- **Service Worker**: 네트워크 프록시 역할을 하는 특수한 Worker입니다. 오프라인 캐싱, 푸시 알림 등 PWA의 핵심이며, 페이지와 독립적인 생명주기를 가집니다.
+
+이 시리즈에서는 가장 일반적인 Dedicated Worker에 집중합니다.
+
+## 실무 적용 사례
+
+**Vite**: 개발 서버에서 TypeScript 타입 체크를 Worker 스레드로 오프로드합니다 (`vite-plugin-checker`). 프로덕션 빌드에서는 Rollup의 병렬 플러그인 실행에 Worker를 활용합니다.
+
+**Comlink (Google Chrome Labs)**: Worker와 메인 스레드 간 통신을 `Proxy`로 감싸 일반 async 함수처럼 호출할 수 있게 해줍니다. `postMessage` 기반의 직렬화/역직렬화를 추상화해서, Worker 함수를 마치 로컬 async 함수처럼 호출할 수 있습니다.
+
+```javascript
+// worker.js
+import * as Comlink from 'comlink';
+const api = {
+  async heavyCompute(n) { /* ... */ }
+};
+Comlink.expose(api);
+
+// main.js
+import * as Comlink from 'comlink';
+const worker = new Worker('worker.js', { type: 'module' });
+const api = Comlink.wrap(worker);
+const result = await api.heavyCompute(1_000_000); // 일반 async 함수처럼!
+```
+
+**Figma**: 공식 엔지니어링 블로그에 따르면, 렌더링 엔진의 레이아웃 계산과 플러그인 코드 실행을 Worker에서 처리합니다. 메인 스레드는 WebGL 렌더링만 담당해 UI 반응성을 유지합니다.
+
+## 다음 단계
+
+Worker 간 데이터 전달은 기본적으로 **복사**입니다. 256MB 버퍼를 전달하면 256MB를 복사합니다. 다음 글에서는 복사 없이 데이터를 이전하는 <Term id="transferable">**Transferable Objects**</Term>를 살펴봅니다.

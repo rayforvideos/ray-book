@@ -1,0 +1,187 @@
+---
+title: "SharedArrayBuffer와 Atomics: 공유 메모리와 동기화"
+description: "두 스레드가 같은 메모리를 공유하는 방법 — SharedArrayBuffer, 레이스 컨디션, Atomics API를 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "web-worker", "shared-array-buffer", "atomics", "concurrency"]
+series: "web-workers"
+seriesOrder: 3
+draft: false
+---
+
+## 복사도, 이전도 아닌 — 공유
+
+이전 글들에서 살펴본 두 방식은 데이터를 주고받는 것이었습니다. **SharedArrayBuffer**는 다릅니다 — 두 스레드가 **같은 메모리를 동시에** 읽고 씁니다.
+
+```javascript
+const sab = new SharedArrayBuffer(4); // 공유 메모리
+const view = new Int32Array(sab);
+
+view[0] = 42;
+// worker.postMessage({ sab }) 후, Worker에서도:
+// view[0] === 42  — 복사나 전달 없이!
+```
+
+복사 비용이 없고, Transferable처럼 소유권을 넘기지 않아도 됩니다. 양쪽 모두 언제든 읽고 쓸 수 있습니다. 대신 동시 접근으로 인한 <Term id="race-condition">**레이스 컨디션**</Term>을 직접 관리해야 합니다.
+
+## 보안 요구사항: 교차 출처 격리
+
+SharedArrayBuffer는 Spectre 취약점으로 인해 2018년에 비활성화되었다가, <Term id="cross-origin-isolation">교차 출처 격리 (cross-origin isolation)</Term> 조건에서 재활성화되었습니다. (MDN Web Docs, "SharedArrayBuffer" 참고)
+
+서버에서 다음 HTTP 헤더를 설정해야 합니다:
+
+```http
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+JavaScript에서 활성화 여부를 확인합니다:
+
+```javascript
+if (crossOriginIsolated) {
+  // SharedArrayBuffer 사용 가능
+  const sab = new SharedArrayBuffer(4);
+} else {
+  console.warn('교차 출처 격리가 필요합니다');
+}
+```
+
+## 레이스 컨디션
+
+두 스레드가 같은 메모리를 동시에 읽고 쓰면 <Term id="race-condition">**레이스 컨디션 (Race Condition)**</Term>이 발생합니다:
+
+```javascript
+// Worker A와 Worker B가 동시에 실행
+const local = view[0];  // 읽기
+view[0] = local + 1;   // 쓰기 — 원자적이지 않음!
+```
+
+두 워커가 동시에 0을 읽은 뒤 각자 1을 쓰면, 두 번 증가했는데 결과는 1이 됩니다. 이것이 **갱신 손실(Lost Update)** 입니다.
+
+<SharedMemoryRace preset="race" />
+
+## Atomics: 원자적 연산
+
+`Atomics`는 읽기-수정-쓰기를 <Term id="atomic-operation">**하나의 중단 불가능한 연산**</Term>으로 처리합니다. 중간에 다른 스레드가 끼어들 수 없습니다.
+
+<SharedMemoryRace preset="atomics" />
+
+### 산술 연산
+
+```javascript
+const sab = new SharedArrayBuffer(4);
+const view = new Int32Array(sab);
+
+// 원자적 증가 — 이전 값을 반환
+const oldValue = Atomics.add(view, 0, 1);
+
+// 기타 산술 연산
+Atomics.sub(view, 0, 1);          // 빼기
+Atomics.and(view, 0, 0b1111);     // 비트 AND
+Atomics.or(view, 0, 0b0001);      // 비트 OR
+Atomics.xor(view, 0, 0b1010);     // 비트 XOR
+```
+
+### 읽기 / 쓰기
+
+```javascript
+// 원자적 읽기
+const val = Atomics.load(view, 0);
+
+// 원자적 쓰기
+Atomics.store(view, 0, 42);
+
+// 원자적 교환 — 새 값을 쓰고 이전 값을 반환
+const prev = Atomics.exchange(view, 0, 100);
+```
+
+### CAS (Compare-And-Swap)
+
+```javascript
+// expectedValue와 현재 값이 같을 때만 쓰기
+const old = Atomics.compareExchange(
+  view, 0,
+  /* expected  */ 5,
+  /* replacement */ 10
+);
+// old === 5이면 성공 → view[0] === 10
+// old !== 5이면 실패 → view[0] 변경 없음
+```
+
+CAS는 락 없는(lock-free) 알고리즘의 기반입니다. "내가 읽었을 때의 값이 아직 같으면 쓰기"를 원자적으로 수행합니다.
+
+## Atomics.wait / notify: 스레드 간 신호
+
+워커 스레드는 특정 값이 될 때까지 대기하거나, 대기 중인 스레드를 깨울 수 있습니다:
+
+```javascript
+// worker.js — view[0]가 0인 동안 대기 (블로킹)
+const result = Atomics.wait(view, 0, 0);
+// result: "ok" | "not-equal" | "timed-out"
+
+// main.js (또는 다른 worker) — 대기 중인 스레드 깨우기
+Atomics.store(view, 0, 1);
+Atomics.notify(view, 0, 1); // 최대 1개 스레드 깨우기
+```
+
+**주의**: `Atomics.wait`는 스레드를 완전히 블로킹합니다. 메인 스레드에서는 호출할 수 없습니다 (UI가 멈추기 때문입니다). Worker에서만 사용 가능합니다.
+
+메인 스레드에서 비동기적으로 기다리려면 `Atomics.waitAsync`를 사용합니다. ECMAScript 2024 (ECMA-262, 15th Edition)에서 표준화되었습니다:
+
+```javascript
+// 메인 스레드에서도 사용 가능 — 비블로킹
+const { async, value } = Atomics.waitAsync(view, 0, 0);
+if (async) {
+  value.then((result) => console.log('깨어남:', result));
+}
+```
+
+## 실제 활용 패턴: 워크 스틸링
+
+여러 Worker가 작업을 분배하는 **워크 스틸링(Work Stealing)** 패턴입니다:
+
+```javascript
+// main.js
+const sab = new SharedArrayBuffer(8);
+const ctrl = new Int32Array(sab);
+// ctrl[0]: 다음 작업 인덱스 (공유 카운터)
+// ctrl[1]: 완료된 작업 수
+
+const TOTAL = 1000;
+const workers = Array.from({ length: 4 }, () =>
+  new Worker(new URL('./worker.js', import.meta.url))
+);
+workers.forEach(w => w.postMessage({ sab, total: TOTAL }));
+
+// worker.js
+self.onmessage = ({ data: { sab, total } }) => {
+  const ctrl = new Int32Array(sab);
+  while (true) {
+    // 원자적으로 다음 작업 번호를 가져옴
+    const idx = Atomics.add(ctrl, 0, 1);
+    if (idx >= total) break;
+    processTask(idx);
+    Atomics.add(ctrl, 1, 1); // 완료 카운터
+  }
+};
+```
+
+4개의 Worker가 `ctrl[0]`을 원자적으로 증가시키며 작업을 나눠 처리합니다. 어떤 Worker도 같은 인덱스를 두 번 처리하지 않습니다.
+
+## 실무 적용 사례
+
+**ffmpeg.wasm**: WebAssembly로 컴파일된 FFmpeg은 멀티스레드 인코딩을 위해 SharedArrayBuffer를 사용합니다. C의 `pthread`가 SAB + Atomics로 구현됩니다. 이 때문에 ffmpeg.wasm을 사용하는 페이지는 교차 출처 격리 헤더가 필요합니다. (ffmpeg.wasm 공식 문서 "SharedArrayBuffer and ffmpeg.wasm" 참고)
+
+**Emscripten pthreads**: C/C++ 코드를 WebAssembly로 컴파일할 때 `USE_PTHREADS` 옵션을 활성화하면, Emscripten은 `pthread`를 SharedArrayBuffer + Atomics로 변환합니다. 멀티스레드 네이티브 코드를 브라우저에서 그대로 실행할 수 있게 됩니다. (Emscripten 공식 문서 "Pthreads support" 참고)
+
+**Partytown (Builder.io)**: 서드파티 스크립트(analytics, 태그 매니저 등)를 Worker로 이동시킵니다. 메인 스레드의 DOM 접근이 필요한 경우 SAB를 통해 동기적으로 통신합니다. 메인 스레드와의 동기 통신에 `Atomics.wait`를 활용합니다.
+
+## SharedArrayBuffer vs Transferable 선택 기준
+
+| 상황 | 권장 방식 |
+|------|-----------|
+| 대용량 데이터를 워커에 일회성 전달 | Transferable |
+| 여러 워커가 같은 데이터를 동시 접근 | SharedArrayBuffer |
+| 워커 간 상태 공유 및 동기화 | SharedArrayBuffer + Atomics |
+| 메시지 기반 단방향 통신 | 기본 postMessage |
+
+SharedArrayBuffer는 강력하지만 <Term id="race-condition">레이스 컨디션</Term>을 직접 관리해야 하고, <Term id="cross-origin-isolation">교차 출처 격리</Term> 헤더도 필요합니다. Transferable이나 기본 postMessage로 해결 가능하다면 그것을 먼저 고려하세요. 대부분의 워커 사용 사례는 postMessage + Transferable 조합으로 충분합니다.
