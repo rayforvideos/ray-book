@@ -17,6 +17,21 @@ import { EventLoopFull } from "@/components/viz/domain/EventLoopFull";
 import { PromiseChain } from "@/components/viz/domain/PromiseChain";
 import { AsyncAwait } from "@/components/viz/domain/AsyncAwait";
 import { AsyncErrorPattern } from "@/components/viz/domain/AsyncErrorPattern";
+import { AsyncUtilPattern } from "@/components/viz/domain/AsyncUtilPattern";
+import { PrototypeChain } from "@/components/viz/domain/PrototypeChain";
+import { CallbackPyramid } from "@/components/viz/domain/CallbackPyramid";
+import { PromiseStateMachine } from "@/components/viz/domain/PromiseStateMachine";
+import { DebounceTimeline } from "@/components/viz/domain/DebounceTimeline";
+import { NewOperatorFlow } from "@/components/viz/domain/NewOperatorFlow";
+import { InheritanceCompare } from "@/components/viz/domain/InheritanceCompare";
+import { ModuleCompare } from "@/components/viz/domain/ModuleCompare";
+import { TreeShaking } from "@/components/viz/domain/TreeShaking";
+import { TypeCoercion } from "@/components/viz/domain/TypeCoercion";
+import { EqualityCompare } from "@/components/viz/domain/EqualityCompare";
+import { MapVsObject } from "@/components/viz/domain/MapVsObject";
+import { IteratorFlow } from "@/components/viz/domain/IteratorFlow";
+import { ProxyTrap } from "@/components/viz/domain/ProxyTrap";
+import { ConfusingPatterns } from "@/components/viz/domain/ConfusingPatterns";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -37,6 +52,21 @@ export const mdxComponents: MDXComponents = {
   PromiseChain,
   AsyncAwait,
   AsyncErrorPattern,
+  AsyncUtilPattern,
+  PrototypeChain,
+  CallbackPyramid,
+  PromiseStateMachine,
+  DebounceTimeline,
+  NewOperatorFlow,
+  InheritanceCompare,
+  ModuleCompare,
+  TreeShaking,
+  TypeCoercion,
+  EqualityCompare,
+  MapVsObject,
+  IteratorFlow,
+  ProxyTrap,
+  ConfusingPatterns,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{

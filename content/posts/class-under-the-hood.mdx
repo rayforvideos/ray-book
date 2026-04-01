@@ -1,0 +1,250 @@
+---
+title: "클래스의 실체"
+description: "ES2015 class는 프로토타입의 문법적 설탕 — class, extends, super, static의 내부 동작을 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "class", "prototype", "extends", "super"]
+series: "prototype-and-inheritance"
+seriesOrder: 4
+draft: false
+---
+
+## class는 함수다
+
+```javascript
+class Dog {
+  constructor(name) {
+    this.name = name;
+  }
+  bark() {
+    return this.name + " barks!";
+  }
+}
+
+typeof Dog; // "function"
+```
+
+`class`는 새로운 타입이 아닙니다. **함수** 입니다. 이전 글의 생성자 함수 + prototype 패턴의 문법적 설탕 (syntactic sugar) 입니다.
+
+```javascript
+// class 문법
+class Dog {
+  constructor(name) { this.name = name; }
+  bark() { return this.name + " barks!"; }
+}
+
+// 동등한 생성자 함수 패턴
+function Dog(name) { this.name = name; }
+Dog.prototype.bark = function() {
+  return this.name + " barks!";
+};
+```
+
+두 코드는 거의 동일한 결과를 만듭니다.
+
+## "거의" 동일한 차이
+
+class는 몇 가지 차이가 있습니다:
+
+### 1. new 없이 호출 불가
+
+```javascript
+function OldDog() {}
+OldDog(); // 동작함 (좋지 않지만)
+
+class NewDog {}
+NewDog(); // TypeError: Class constructor NewDog
+          // cannot be invoked without 'new'
+```
+
+### 2. 엄격 모드 강제
+
+```javascript
+class Dog {
+  bark() {
+    // 여기는 자동으로 strict mode
+    undeclaredVar = 1; // ReferenceError
+  }
+}
+```
+
+### 3. 열거 불가능
+
+```javascript
+class Dog {
+  bark() {}
+}
+
+// class 메서드는 열거되지 않음
+Object.keys(Dog.prototype); // [] — bark가 안 보임
+
+// 생성자 함수 방식은 열거됨
+function OldDog() {}
+OldDog.prototype.bark = function() {};
+Object.keys(OldDog.prototype); // ["bark"]
+```
+
+## extends — 상속
+
+```javascript
+class Animal {
+  constructor(name) {
+    this.name = name;
+  }
+  speak() {
+    return this.name + " speaks";
+  }
+}
+
+class Dog extends Animal {
+  bark() {
+    return this.name + " barks";
+  }
+}
+
+const d = new Dog("Rex");
+d.bark();  // "Rex barks"  — Dog.prototype
+d.speak(); // "Rex speaks" — Animal.prototype
+```
+
+<PrototypeChain preset="class-desugar" />
+
+### extends가 설정하는 두 개의 링크
+
+`extends`는 프로토타입 링크를 **두 개** 설정합니다:
+
+```javascript
+// 1. 인스턴스 메서드 상속
+Object.getPrototypeOf(Dog.prototype) === Animal.prototype; // true
+// d.speak()를 찾을 때: d → Dog.prototype → Animal.prototype
+
+// 2. 정적 메서드 상속
+Object.getPrototypeOf(Dog) === Animal; // true
+// Dog.create()를 찾을 때: Dog → Animal
+```
+
+이전 글의 생성자 함수로 이것을 수동 구현하면:
+
+```javascript
+function Animal(name) { this.name = name; }
+Animal.prototype.speak = function() {
+  return this.name + " speaks";
+};
+
+function Dog(name) { Animal.call(this, name); }
+
+// extends가 하는 일
+Dog.prototype = Object.create(Animal.prototype);
+Dog.prototype.constructor = Dog;
+Object.setPrototypeOf(Dog, Animal);
+
+Dog.prototype.bark = function() {
+  return this.name + " barks";
+};
+```
+
+`class extends`가 이 모든 과정을 한 줄로 처리합니다.
+
+## super
+
+`super`는 두 가지 용도로 쓰입니다:
+
+### super() — 부모 생성자 호출
+
+```javascript
+class Dog extends Animal {
+  constructor(name, breed) {
+    super(name);     // Animal의 constructor 호출
+    this.breed = breed;
+  }
+}
+```
+
+`extends`를 사용하면 자식 클래스의 constructor에서 **반드시 `super()`를 먼저 호출** 해야 합니다. `this`를 사용하기 전에 부모가 초기화해야 하기 때문입니다.
+
+```javascript
+class Dog extends Animal {
+  constructor(name) {
+    this.breed = "unknown"; // ReferenceError!
+    super(name);            // super() 전에 this 사용 불가
+  }
+}
+```
+
+### super.method() — 부모 메서드 호출
+
+```javascript
+class Dog extends Animal {
+  speak() {
+    const parentResult = super.speak();
+    return parentResult + " and barks";
+  }
+}
+
+const d = new Dog("Rex");
+d.speak(); // "Rex speaks and barks"
+```
+
+`super.speak()`는 `Animal.prototype.speak`를 `this`를 바인딩하여 호출합니다.
+
+## static — 정적 메서드
+
+```javascript
+class Dog {
+  constructor(name) {
+    this.name = name;
+  }
+
+  // 인스턴스 메서드 — Dog.prototype에 저장
+  bark() {
+    return this.name + " barks";
+  }
+
+  // 정적 메서드 — Dog 자체에 저장
+  static create(name) {
+    return new Dog(name);
+  }
+}
+
+const d = Dog.create("Rex"); // Dog.create() — OK
+d.bark();                     // d.bark() — OK
+d.create("Buddy");            // TypeError — 인스턴스에서는 접근 불가
+```
+
+정적 메서드는 `Dog.prototype`이 아닌 **Dog 함수 자체** 에 저장됩니다. 인스턴스에서는 접근할 수 없습니다.
+
+## private 필드
+
+```javascript
+class Dog {
+  #name; // private 필드
+
+  constructor(name) {
+    this.#name = name;
+  }
+
+  get name() {
+    return this.#name;
+  }
+}
+
+const d = new Dog("Rex");
+d.name;   // "Rex" (getter)
+d.#name;  // SyntaxError — 외부 접근 불가
+```
+
+`#` 접두사로 선언한 필드는 클래스 바깥에서 접근할 수 없습니다. 프로토타입이 아닌 **각 인스턴스에 직접** 저장됩니다.
+
+## class 문법은 언제 쓰는가
+
+| 상황 | 추천 |
+|------|------|
+| 상태 + 메서드가 있는 객체를 여러 개 만들 때 | class |
+| 상속 관계가 필요할 때 | class extends |
+| 단순 유틸리티 함수 모음 | 일반 함수 / 모듈 |
+| 설정 객체, 옵션 | 객체 리터럴 |
+
+class는 프로토타입을 더 읽기 쉽고 안전하게 사용하는 문법입니다. 하지만 내부에서는 여전히 프로토타입 체인이 동작합니다.
+
+## 다음 단계
+
+class의 실체를 이해했습니다. 마지막 글에서는 실전에서 쓰이는 **상속 패턴** — 프로토타입 상속, 조합 (composition), 믹스인을 비교하고, 언제 무엇을 선택해야 하는지 정리합니다.

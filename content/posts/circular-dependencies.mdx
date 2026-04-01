@@ -1,0 +1,225 @@
+---
+title: "순환 참조"
+description: "모듈 간 순환 참조가 발생했을 때 CommonJS와 ESM 각각의 동작 방식, 문제점, 그리고 해결 전략을 살펴봅니다"
+date: 2026-04-01
+tags: ["javascript", "module", "circular-dependency", "commonjs", "esm"]
+series: "module-system"
+seriesOrder: 4
+draft: false
+---
+
+## 순환 참조란
+
+**순환 참조** (circular dependency) 는 모듈 A가 모듈 B를 import하고, 모듈 B가 다시 모듈 A를 import하는 상황입니다.
+
+```text
+moduleA.js --import--> moduleB.js
+     ^                      |
+     +------import----------+
+```
+
+의도치 않게 자주 발생합니다. 프로젝트가 커지면서 모듈 간 의존성이 복잡해지면, 간접적인 순환 (A → B → C → A) 도 생깁니다.
+
+## CommonJS의 순환 참조
+
+CJS에서 순환 참조가 발생하면, **불완전한 export 객체** 를 받게 됩니다.
+
+```javascript
+// a.js
+console.log('a.js 시작');
+const b = require('./b');
+console.log('a.js에서 b.value:', b.value);
+
+module.exports = { value: 'A' };
+console.log('a.js 끝');
+
+// b.js
+console.log('b.js 시작');
+const a = require('./a');
+console.log('b.js에서 a.value:', a.value);
+
+module.exports = { value: 'B' };
+console.log('b.js 끝');
+```
+
+`node a.js`를 실행하면:
+
+```text
+a.js 시작
+b.js 시작
+b.js에서 a.value: undefined    ← a.js가 아직 export를 완료하지 않음!
+b.js 끝
+a.js에서 b.value: B
+a.js 끝
+```
+
+### 왜 이렇게 되는가
+
+1. `a.js` 실행 시작 → `require('./b')` 호출
+2. `b.js` 실행 시작 → `require('./a')` 호출
+3. Node.js가 순환을 감지 → **a.js의 현재까지의 export** (아직 빈 객체) 를 반환
+4. `b.js`가 받은 `a`에는 `value`가 없음 → `undefined`
+5. `b.js` 실행 완료 → `module.exports = { value: 'B' }` 설정
+6. `a.js`로 돌아와 `b.value`를 읽음 → `'B'` (정상)
+
+핵심: CJS는 순환을 만나면 **실행이 완료되지 않은 모듈의 불완전한 export** 를 반환합니다.
+
+## ESM의 순환 참조
+
+ESM은 **라이브 바인딩** 덕분에 다르게 동작합니다.
+
+```javascript
+// a.mjs
+console.log('a.mjs 시작');
+import { valueB } from './b.mjs';
+
+export const valueA = 'A';
+console.log('a.mjs에서 valueB:', valueB);
+
+// b.mjs
+console.log('b.mjs 시작');
+import { valueA } from './a.mjs';
+
+export const valueB = 'B';
+console.log('b.mjs에서 valueA:', valueA);
+```
+
+`node a.mjs`를 실행하면:
+
+```text
+b.mjs 시작
+ReferenceError: Cannot access 'valueA' before initialization
+```
+
+### ESM의 동작 과정
+
+1. **구문 분석** — a.mjs와 b.mjs의 import/export를 모두 파악
+2. **인스턴스화** — export 바인딩을 메모리에 생성 (아직 값 없음)
+3. **평가** — 의존성 그래프의 가장 깊은 곳 (b.mjs) 부터 실행
+
+b.mjs가 먼저 실행될 때, `valueA`의 바인딩은 존재하지만 아직 초기화되지 않았습니다. `const`/`let`으로 선언된 변수를 초기화 전에 접근하면 TDZ (Temporal Dead Zone) 에 의해 `ReferenceError`가 발생합니다. CJS의 조용한 `undefined`와 달리, ESM은 에러를 명시적으로 던져서 문제를 빨리 발견할 수 있습니다.
+
+### 함수 선언은 호이스팅된다
+
+```javascript
+// a.mjs
+import { greetB } from './b.mjs';
+export function greetA() { return 'Hello from A'; }
+console.log(greetB()); // "Hello from B" — 정상!
+
+// b.mjs
+import { greetA } from './a.mjs';
+export function greetB() { return 'Hello from B'; }
+console.log(greetA()); // "Hello from A" — 정상!
+```
+
+`function` 선언은 호이스팅되므로, 평가 순서와 관계없이 사용할 수 있습니다. 반면 `const`, `let`, 화살표 함수는 호이스팅되지 않습니다.
+
+## CJS vs ESM 순환 참조 비교
+
+| 항목 | CommonJS | ESM |
+|------|----------|-----|
+| **감지 방법** | 캐시에서 불완전한 export 반환 | 초기화되지 않은 바인딩 참조 |
+| **결과** | `undefined` (조용한 실패) | `ReferenceError` (const/let의 TDZ) |
+| **함수 선언** | 순서에 따라 `undefined` 가능 | 호이스팅으로 정상 동작 |
+| **값 변경 반영** | 불가 (값 복사) | 가능 (라이브 바인딩) |
+
+## 순환 참조 감지하기
+
+### 도구 활용
+
+```bash
+# madge — 의존성 그래프를 시각화하고 순환 참조를 감지
+npx madge --circular src/
+
+# 결과 예시
+# Circular dependencies found!
+# src/a.js → src/b.js → src/a.js
+```
+
+```bash
+# eslint-plugin-import — lint 규칙으로 순환 참조 방지
+# .eslintrc
+# { "rules": { "import/no-cycle": "error" } }
+```
+
+### 수동 확인
+
+모듈에서 import한 값이 `undefined`인데 분명 export하고 있다면, 순환 참조를 의심해보세요.
+
+## 순환 참조 해결 전략
+
+### 1. 공통 모듈 추출
+
+순환의 원인이 되는 공유 코드를 별도 모듈로 분리합니다.
+
+```javascript
+// Before: A ↔ B (순환)
+
+// After: A → shared, B → shared (순환 해소)
+// shared.js
+export const config = { /* ... */ };
+
+// a.js
+import { config } from './shared';
+
+// b.js
+import { config } from './shared';
+```
+
+### 2. 의존성 역전
+
+콜백이나 인터페이스를 사용해 직접 참조를 제거합니다.
+
+```javascript
+// Before
+// auth.js
+import { log } from './logger';  // logger가 auth를 import하면 순환
+
+// After
+// auth.js — 의존성 주입
+export function createAuth(logger) {
+  return {
+    login(user) {
+      logger.log(`${user} 로그인`);
+    }
+  };
+}
+```
+
+### 3. 지연 로딩
+
+import를 함수 안으로 이동하여 실행 시점을 늦춥니다.
+
+```javascript
+// a.mjs
+export function getB() {
+  // 필요한 시점에 동적 import
+  return import('./b.mjs').then(m => m.valueB);
+}
+```
+
+### 4. 모듈 구조 재설계
+
+순환 참조는 종종 모듈 구조 설계의 문제를 알려주는 신호입니다. 모듈의 책임이 명확하지 않거나, 너무 많은 일을 하고 있을 수 있습니다.
+
+```text
+// 좋지 않은 구조 — 서로 참조
+userService ↔ orderService
+
+// 개선된 구조 — 단방향 의존
+userService → shared/types
+orderService → shared/types
+orderService → userService (단방향)
+```
+
+## 시리즈 정리
+
+모듈 시스템 시리즈를 통해 다음을 살펴봤습니다:
+
+1. **모듈이 필요한 이유** — 전역 스코프 오염과 IIFE의 한계
+2. **CommonJS와 ESM** — 두 모듈 시스템의 동작 방식과 핵심 차이
+3. **번들링과 Tree-shaking** — ESM의 정적 구조가 가능하게 하는 최적화
+4. **순환 참조** — 순환 의존성의 동작과 해결 전략
+
+JavaScript 모듈 시스템의 진화는 "전역 변수의 혼란을 어떻게 정리할 것인가"라는 질문에서 시작해, **스코프 격리**, **명시적 의존성**, **정적 분석** 이라는 답에 도달했습니다. ESM이 표준으로 자리잡으면서 tree-shaking 같은 최적화가 가능해졌고, 이는 현대 프론트엔드 빌드 시스템의 핵심이 되었습니다.

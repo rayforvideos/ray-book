@@ -325,7 +325,7 @@ export function ExecutionContext({
                 >
                   <span
                     className={`select-none w-8 shrink-0 text-right pr-3 ${
-                      isActive ? "text-accent" : "text-muted/30"
+                      isActive ? "text-accent" : "text-muted/50"
                     }`}
                   >
                     {j + 1}
@@ -335,8 +335,8 @@ export function ExecutionContext({
                       isActive
                         ? "text-text"
                         : step.activeLine === null
-                          ? "text-muted/60"
-                          : "text-muted/40"
+                          ? "text-muted/70"
+                          : "text-muted/50"
                     }`}
                   >
                     {line || "\u00A0"}
@@ -404,7 +404,7 @@ export function ExecutionContext({
                     ))}
                     {ctx.thisBinding && (
                       <span className="flex items-baseline justify-between font-mono text-[0.625rem]">
-                        <span className="text-amber-700 dark:text-amber-300">this</span>
+                        <span className="text-amber-800 dark:text-amber-300">this</span>
                         <span className="text-muted">{ctx.thisBinding}</span>
                       </span>
                     )}

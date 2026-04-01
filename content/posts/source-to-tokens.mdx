@@ -10,7 +10,7 @@ draft: false
 
 ## 코드는 그냥 문자열이다
 
-브라우저에게 JavaScript 코드란 처음에는 그냥 **긴 문자열** 입니다. `<script>` 태그 안의 텍스트든, `.js` 파일의 내용이든, 엔진이 보는 것은 UTF-16으로 인코딩된 문자의 나열입니다.
+브라우저에게 JavaScript 코드란 처음에는 그냥 **긴 문자열** 입니다. `<script>` 태그 안의 텍스트든, `.js` 파일의 내용이든, 엔진은 이 문자열을 ECMAScript 명세에 따라 UTF-16 코드 유닛의 나열로 다룹니다 (소스 파일 자체는 보통 UTF-8입니다).
 
 ```javascript
 let message = "hello";

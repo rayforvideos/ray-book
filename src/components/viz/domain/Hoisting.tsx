@@ -19,7 +19,7 @@ interface HoistingStep {
 }
 
 const stateStyles = {
-  uninitialized: { bg: "bg-stone-100 dark:bg-stone-800/40", text: "text-stone-500 dark:text-stone-400", label: "미등록" },
+  uninitialized: { bg: "bg-stone-100 dark:bg-stone-800/40", text: "text-stone-600 dark:text-stone-400", label: "미등록" },
   undefined: { bg: "bg-amber-50 dark:bg-amber-950/40", text: "text-amber-800 dark:text-amber-200", label: "undefined" },
   initialized: { bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-900 dark:text-emerald-100", label: "초기화됨" },
   tdz: { bg: "bg-rose-50 dark:bg-rose-950/40", text: "text-rose-900 dark:text-rose-100", label: "TDZ" },
@@ -164,8 +164,8 @@ export function Hoisting({ preset = "all-types" }: HoistingProps) {
               const isActive = step.activeLine === i;
               return (
                 <div key={i} className={`flex transition-colors duration-150 ${isActive ? "bg-accent/10" : ""}`}>
-                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/30"}`}>{i + 1}</span>
-                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : step.activeLine === null ? "text-muted/60" : "text-muted/40"}`}>{line || "\u00A0"}</span>
+                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/50"}`}>{i + 1}</span>
+                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : step.activeLine === null ? "text-muted/70" : "text-muted/50"}`}>{line || "\u00A0"}</span>
                   {isActive && <span className="shrink-0 pr-2 text-accent text-[0.625rem] pt-px">◄</span>}
                 </div>
               );

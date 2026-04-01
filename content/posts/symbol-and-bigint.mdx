@@ -1,0 +1,265 @@
+---
+title: "Symbol과 BigInt"
+description: "ES2015+에서 추가된 두 가지 원시 타입 — Symbol의 고유성과 well-known symbols, BigInt의 임의 정밀도 정수를 살펴봅니다"
+date: 2026-04-01
+tags: ["javascript", "symbol", "bigint", "well-known-symbols", "primitive"]
+series: "types-and-coercion"
+seriesOrder: 4
+draft: false
+---
+
+## 새로운 원시 타입들
+
+이 시리즈에서 JavaScript의 타입 시스템, 형변환, 동등 비교를 살펴봤습니다. 마지막으로 ES2015와 ES2020에서 추가된 두 가지 원시 타입을 다룹니다:
+
+- **Symbol** (ES2015) — 고유한 식별자
+- **BigInt** (ES2020) — 임의 정밀도 정수
+
+## Symbol
+
+### 고유한 식별자
+
+Symbol은 **항상 고유한 원시값** 입니다. 같은 설명을 전달해도 서로 다른 Symbol이 만들어집니다.
+
+```javascript
+const s1 = Symbol("id");
+const s2 = Symbol("id");
+
+s1 === s2  // false — 설명이 같아도 다른 Symbol
+typeof s1  // "symbol"
+```
+
+`Symbol()`은 new 없이 호출합니다. `new Symbol()`은 TypeError입니다.
+
+### 객체 프로퍼티 키로 사용
+
+Symbol의 가장 기본적인 용도는 **충돌 없는 객체 프로퍼티 키** 입니다.
+
+```javascript
+const ID = Symbol("id");
+const user = {
+  name: "ray",
+  [ID]: 123,
+};
+
+user[ID]          // 123
+user.id           // undefined — 문자열 "id"와는 다른 키
+Object.keys(user) // ["name"] — Symbol 키는 열거되지 않음
+```
+
+Symbol 키는 `for...in`, `Object.keys()`, `JSON.stringify()`에서 보이지 않습니다. 의도적으로 "숨겨진" 프로퍼티를 만들 때 유용합니다. `Object.getOwnPropertySymbols()`로 접근할 수 있습니다.
+
+### Symbol.for — 전역 레지스트리
+
+`Symbol.for(key)`는 전역 Symbol 레지스트리에서 key에 해당하는 Symbol을 찾거나 새로 생성합니다. 같은 key면 같은 Symbol을 반환합니다.
+
+```javascript
+const s1 = Symbol.for("app.id");
+const s2 = Symbol.for("app.id");
+
+s1 === s2  // true — 전역 레지스트리에서 같은 Symbol
+
+Symbol.keyFor(s1) // "app.id" — 키 역추적
+```
+
+라이브러리 간에 Symbol을 공유해야 할 때 사용합니다.
+
+## Well-Known Symbols
+
+JavaScript 명세는 엔진 내부 동작을 커스터마이즈할 수 있는 **well-known symbols** 를 정의합니다. 이 시리즈에서 다룬 형변환과 직접 관련된 것들을 살펴봅니다.
+
+### Symbol.toPrimitive
+
+객체의 ToPrimitive 동작을 직접 정의합니다. 이전 글에서 다룬 `valueOf()`/`toString()` 대신 이 메서드가 우선 호출됩니다.
+
+```javascript
+const price = {
+  amount: 9900,
+  currency: "KRW",
+
+  [Symbol.toPrimitive](hint) {
+    if (hint === "number") return this.amount;
+    if (hint === "string") return `${this.amount}${this.currency}`;
+    return this.amount; // "default"
+  },
+};
+
++price           // 9900 — hint: "number"
+`${price}`       // "9900KRW" — hint: "string"
+price + 100      // 10000 — hint: "default"
+price == 9900    // true — hint: "default"
+```
+
+`hint` 파라미터는 `"number"`, `"string"`, `"default"` 중 하나입니다. 이 시리즈에서 배운 형변환 규칙이 여기서 적용됩니다.
+
+### Symbol.iterator
+
+객체를 `for...of`로 순회할 수 있게 만듭니다.
+
+```javascript
+const range = {
+  from: 1,
+  to: 5,
+
+  [Symbol.iterator]() {
+    let current = this.from;
+    const last = this.to;
+    return {
+      next() {
+        return current <= last
+          ? { value: current++, done: false }
+          : { done: true, value: undefined };
+      },
+    };
+  },
+};
+
+for (const n of range) console.log(n); // 1, 2, 3, 4, 5
+[...range] // [1, 2, 3, 4, 5] — 스프레드도 가능
+```
+
+### Symbol.hasInstance
+
+`instanceof` 연산자의 동작을 커스터마이즈합니다.
+
+```javascript
+class EvenNumber {
+  static [Symbol.hasInstance](value) {
+    return typeof value === "number" && value % 2 === 0;
+  }
+}
+
+4 instanceof EvenNumber  // true
+3 instanceof EvenNumber  // false
+```
+
+### 기타 well-known symbols
+
+| Symbol | 용도 |
+|--------|------|
+| `Symbol.toStringTag` | `Object.prototype.toString()`의 태그 커스터마이즈 |
+| `Symbol.species` | 파생 객체의 생성자 지정 |
+| `Symbol.isConcatSpreadable` | `Array.concat()`에서 펼칠지 여부 |
+| `Symbol.asyncIterator` | `for await...of` 지원 |
+
+## BigInt
+
+### 안전한 정수의 한계
+
+JavaScript의 number는 IEEE 754 배정밀도 부동소수점으로, 안전하게 표현할 수 있는 정수 범위가 있습니다.
+
+```javascript
+Number.MAX_SAFE_INTEGER  // 9007199254740991 (2^53 - 1)
+Number.MIN_SAFE_INTEGER  // -9007199254740991
+
+// 이 범위를 넘으면 정밀도를 잃습니다
+9007199254740992 === 9007199254740993  // true! — 같은 값으로 취급
+```
+
+금융 계산, 큰 ID, 암호학 등에서 이 한계는 심각한 문제입니다. **BigInt** 는 이 문제를 해결합니다.
+
+### BigInt 생성
+
+숫자 리터럴 끝에 `n`을 붙이거나 `BigInt()` 함수를 사용합니다.
+
+```javascript
+const big = 9007199254740993n;
+typeof big  // "bigint"
+
+BigInt("9007199254740993") // 문자열에서 생성
+BigInt(42)                  // number에서 생성
+```
+
+### 연산
+
+BigInt는 BigInt끼리만 연산할 수 있습니다. number와 혼합하면 TypeError입니다.
+
+```javascript
+10n + 20n       // 30n
+10n * 3n        // 30n
+10n ** 100n     // 매우 큰 수 — 정밀도 손실 없음
+
+// number와 혼합 불가
+10n + 5         // TypeError!
+10n === 10      // false — 타입이 다름
+10n == 10       // true — 형변환 후 비교
+```
+
+나눗셈은 소수점을 버립니다:
+
+```javascript
+7n / 2n  // 3n — 정수 나눗셈 (소수점 버림)
+```
+
+### 형변환 규칙
+
+BigInt의 형변환 규칙은 이 시리즈의 지식을 적용하면 이해할 수 있습니다:
+
+```javascript
+// ToString — 정상 동작
+String(42n)        // "42"
+`${42n}`           // "42"
+
+// ToNumber — 불가
+Number(42n)        // TypeError!
++42n               // TypeError! — 단항 +도 불가
+
+// ToBoolean — 0n만 falsy
+Boolean(0n)        // false
+Boolean(42n)       // true
+if (0n) {}         // 실행 안 됨
+```
+
+단항 `+` 연산자가 BigInt에서 작동하지 않는 것은 기존 코드에서 `+x`가 항상 number를 반환한다고 가정하기 때문입니다.
+
+### 비교 연산
+
+```javascript
+// 관계 비교 — number와 혼합 가능
+10n > 5     // true
+10n < 20    // true
+
+// 정렬
+[3n, 1, 4n, 1, 5n, 9].sort((a, b) => {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+});
+// [1, 1, 3n, 4n, 5n, 9]
+```
+
+### 실용적 사용 예시
+
+```javascript
+// 1. 큰 ID 처리 (API에서 받은 64비트 정수)
+const tweetId = 1352674621041348609n;
+
+// 2. 정밀한 타임스탬프 (나노초)
+const nanos = BigInt(Date.now()) * 1000000n;
+
+// 3. 비트 연산
+const flags = 0b1010n;
+flags & 0b0010n  // 0b0010n — 비트 AND
+
+// 4. JSON 처리 시 주의
+JSON.stringify(42n) // TypeError!
+// BigInt는 JSON에 직접 직렬화할 수 없음
+// 문자열로 변환하거나 toJSON을 구현해야 함
+```
+
+## 시리즈 정리
+
+이 시리즈에서 다룬 내용을 정리합니다:
+
+1. **타입 시스템** — 7가지 원시 타입, typeof의 함정, 타입 확인 패턴
+2. **암묵적 형변환** — ToPrimitive, ToNumber, ToString, ToBoolean 추상 연산
+3. **동등 비교** — `==`의 단계별 변환 규칙, `===`와의 차이, Object.is
+4. **Symbol과 BigInt** — 고유 식별자, well-known symbols, 임의 정밀도 정수
+
+핵심 교훈:
+
+- `===`를 기본으로 사용하세요. `==`는 `null` 체크에만 제한적으로 사용하세요.
+- 형변환이 필요하면 `String()`, `Number()`, `Boolean()`으로 명시적으로 하세요.
+- `typeof null === "object"`와 `NaN !== NaN` 같은 함정을 기억하세요.
+- Symbol로 충돌 없는 키를 만들고, `Symbol.toPrimitive`로 형변환을 커스터마이즈하세요.
+- 큰 정수가 필요하면 BigInt를 사용하되, number와 혼합할 수 없다는 점을 주의하세요.

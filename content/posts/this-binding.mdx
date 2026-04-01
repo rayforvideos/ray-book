@@ -48,7 +48,7 @@ obj.greet(); // "Ray" — this === obj
 
 ```javascript
 const fn = obj.greet; // 메서드를 변수에 할당
-fn(); // undefined — this가 obj가 아니라 window!
+fn(); // undefined (strict mode) 또는 "" (non-strict, this가 window)
 ```
 
 메서드를 변수에 할당하면 호출 시 점 앞에 객체가 없으므로, 기본 바인딩으로 돌아갑니다. 이것이 **암시적 바인딩 손실** 입니다.

@@ -1,0 +1,244 @@
+---
+title: "실전 비동기 유틸리티 패턴"
+description: "실무에서 반복적으로 쓰이는 비동기 유틸리티 — debounce, throttle, 동시성 제한을 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "async", "debounce", "throttle", "concurrency"]
+series: "async-javascript"
+seriesOrder: 6
+draft: false
+---
+
+## 비동기 제어의 필요성
+
+이전 글에서 에러 처리 패턴을 다뤘습니다. 하지만 실전에서는 "에러가 나지 않아도" 제어가 필요한 상황이 있습니다:
+
+- 검색창에 타이핑할 때마다 API를 호출하면? → 요청 폭탄
+- 스크롤 이벤트마다 위치를 계산하면? → 프레임 드랍
+- 100개 URL을 동시에 fetch하면? → 서버 과부하
+
+이 문제들을 해결하는 유틸리티 패턴을 살펴봅니다.
+
+## Debounce
+
+**마지막 호출 후 일정 시간이 지나야 실행** 합니다. 연속된 호출 중 마지막 것만 실행됩니다.
+
+```javascript
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+```
+
+핵심: 매 호출마다 `clearTimeout`으로 이전 타이머를 취소하고 새 타이머를 설정합니다. 마지막 호출 후 `ms`가 지나야 비로소 실행됩니다.
+
+### 검색 입력에 적용
+
+```javascript
+const searchInput = document.querySelector("#search");
+
+const search = debounce(async (query) => {
+  const res = await fetch("/search?q=" + query);
+  const data = await res.json();
+  renderResults(data);
+}, 300);
+
+searchInput.addEventListener("input", (e) => {
+  search(e.target.value);
+});
+```
+
+사용자가 타이핑을 멈춘 후 300ms가 지나야 요청을 보냅니다.
+
+<AsyncUtilPattern preset="debounce" />
+
+### Leading vs Trailing
+
+위의 debounce는 **trailing** 방식입니다 — 대기 시간이 끝난 후 실행. **leading** 방식은 첫 호출에 즉시 실행하고, 이후 호출을 무시합니다:
+
+```javascript
+function debounce(fn, ms, leading = false) {
+  let timer;
+  return (...args) => {
+    if (leading && !timer) {
+      fn(...args); // 즉시 실행
+    }
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      if (!leading) fn(...args);
+    }, ms);
+  };
+}
+```
+
+- **Trailing** (기본): 검색 입력 — 최종 결과만 필요
+- **Leading**: 버튼 클릭 — 첫 클릭에 즉시 반응, 연타 방지
+
+## Throttle
+
+**일정 간격으로 최대 1번 실행** 합니다. debounce와 달리 실행이 보장됩니다.
+
+```javascript
+function throttle(fn, ms) {
+  let last = 0;
+  return (...args) => {
+    const now = Date.now();
+    if (now - last >= ms) {
+      last = now;
+      fn(...args);
+    }
+  };
+}
+```
+
+핵심: 마지막 실행 시간을 기록하고, 다음 호출에서 `ms`가 경과했는지 확인합니다.
+
+<AsyncUtilPattern preset="throttle" />
+
+### Debounce vs Throttle
+
+| | Debounce | Throttle |
+|--|----------|----------|
+| **실행 시점** | 마지막 호출 후 ms 경과 | ms마다 최대 1번 |
+| **연속 호출 시** | 마지막 것만 실행 | 주기적으로 실행 |
+| **사용처** | 검색 입력, 폼 검증, 리사이즈 완료 | 스크롤, 마우스 이동, 게임 입력 |
+| **특징** | 조용해질 때까지 기다림 | 일정 간격 보장 |
+
+<DebounceTimeline />
+
+```javascript
+// debounce — 리사이즈가 끝나면 레이아웃 재계산
+window.addEventListener("resize",
+  debounce(() => recalcLayout(), 250)
+);
+
+// throttle — 스크롤 중에도 100ms마다 위치 업데이트
+window.addEventListener("scroll",
+  throttle(() => updateScrollPosition(), 100)
+);
+```
+
+## 동시성 제한 (Concurrency Pool)
+
+`Promise.all`은 모든 작업을 동시에 시작합니다. 100개 URL을 동시에 fetch하면 서버가 429 (Too Many Requests) 를 반환하거나, 브라우저가 연결을 거부할 수 있습니다.
+
+### 기본 구현
+
+```javascript
+async function poolAll(urls, limit = 3) {
+  const results = [];
+  const executing = new Set();
+
+  for (const url of urls) {
+    const p = fetch(url).then(r => r.json());
+    results.push(p);
+    executing.add(p);
+    p.finally(() => executing.delete(p));
+
+    if (executing.size >= limit)
+      await Promise.race(executing);
+  }
+  return Promise.all(results);
+}
+```
+
+`executing` Set이 `limit`에 도달하면 `Promise.race`로 하나가 끝날 때까지 기다립니다. 완료되면 다음 요청을 시작합니다.
+
+<AsyncUtilPattern preset="concurrency" />
+
+### 사용 예시
+
+```javascript
+const urls = Array.from(
+  { length: 100 },
+  (_, i) => `/api/item/${i}`
+);
+
+// 동시에 최대 5개만 요청
+const results = await poolAll(urls, 5);
+```
+
+### Promise.all과 비교
+
+```javascript
+// Promise.all — 100개 동시 요청 (위험)
+const results = await Promise.all(
+  urls.map(url => fetch(url))
+);
+
+// poolAll — 5개씩 순차적 병렬 (안전)
+const results = await poolAll(urls, 5);
+```
+
+| | Promise.all | poolAll(limit=5) |
+|--|-------------|------------------|
+| **동시 요청** | 100개 전부 | 최대 5개 |
+| **서버 부하** | 높음 | 제어 가능 |
+| **속도** | 가장 빠름 (서버가 버틸 때) | 약간 느림 |
+| **안정성** | 429 에러 위험 | 안전 |
+
+## 큐잉 (Queue)
+
+여러 비동기 작업을 순서대로 실행해야 할 때 사용합니다. 예를 들어, 채팅 메시지 전송은 순서가 보장되어야 합니다.
+
+```javascript
+function createQueue() {
+  let pending = Promise.resolve();
+
+  return function enqueue(fn) {
+    const run = () => fn();
+    pending = pending.then(run, run);
+    return pending;
+  };
+}
+
+const queue = createQueue();
+
+// 순서 보장: A → B → C
+queue(() => sendMessage("A"));
+queue(() => sendMessage("B"));
+queue(() => sendMessage("C"));
+```
+
+`pending`이 이전 작업의 Promise를 가리키므로, `.then()`으로 체이닝하면 순서가 보장됩니다. 이전 작업이 실패해도 다음 작업은 실행됩니다 (`then(run, run)`).
+
+## requestAnimationFrame
+
+UI 업데이트는 `requestAnimationFrame`으로 브라우저의 렌더링 주기에 맞추는 것이 가장 효율적입니다:
+
+```javascript
+function rafThrottle(fn) {
+  let scheduled = false;
+  return (...args) => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      fn(...args);
+      scheduled = false;
+    });
+  };
+}
+
+// 매 프레임마다 최대 1번 실행 (~16.6ms)
+window.addEventListener("mousemove",
+  rafThrottle((e) => updateCursor(e.clientX, e.clientY))
+);
+```
+
+`throttle(fn, 16)`과 비슷하지만, 브라우저의 렌더링 타이밍에 정확히 동기화되므로 더 부드럽습니다.
+
+## 시리즈 마무리
+
+비동기 JavaScript 시리즈를 통해 다음을 다뤘습니다:
+
+1. **이벤트 루프** — 싱글 스레드에서 비동기가 동작하는 메커니즘
+2. **콜백** — 가장 오래된 비동기 패턴과 그 한계
+3. **Promise** — 체이닝, 에러 전파, 병렬 실행
+4. **async/await** — 동기 코드처럼 비동기를 작성
+5. **에러 처리 패턴** — 재시도, 타임아웃, AbortController
+6. **유틸리티 패턴** — debounce, throttle, 동시성 제한
+
+이벤트 루프 위에 콜백이, 콜백 위에 Promise가, Promise 위에 async/await가 구축되었습니다. 각 계층을 이해하면 어떤 비동기 문제든 적절한 도구를 선택할 수 있습니다.

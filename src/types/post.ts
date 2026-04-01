@@ -27,4 +27,5 @@ export interface Series {
   slug: string;
   title: string;
   description: string;
+  category: string;
 }

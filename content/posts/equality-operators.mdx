@@ -1,0 +1,184 @@
+---
+title: "== vs ==="
+description: "느슨한 동등 비교(==)와 엄격한 동등 비교(===)의 내부 동작 — 형변환 규칙을 단계별로 추적합니다"
+date: 2026-04-01
+tags: ["javascript", "equality", "coercion", "comparison", "abstract-equality"]
+series: "types-and-coercion"
+seriesOrder: 3
+draft: false
+---
+
+## 두 가지 동등 비교
+
+JavaScript에는 동등 비교 연산자가 두 가지 있습니다:
+
+- `==` — **느슨한 동등 비교** (abstract equality), 형변환을 수행
+- `===` — **엄격한 동등 비교** (strict equality), 형변환 없음
+
+```javascript
+0 == ""    // true — 형변환 후 비교
+0 === ""   // false — 타입이 다르면 즉시 false
+```
+
+`==`를 이해하려면 이전 글에서 다룬 형변환 규칙을 알아야 합니다.
+
+## 엄격한 동등 비교 (===)
+
+`===`는 단순합니다. **타입이 다르면 즉시 false** 이고, 타입이 같으면 값을 비교합니다.
+
+```javascript
+// 타입이 다르면 → false (형변환 없음)
+42 === "42"      // false
+0 === false      // false
+null === undefined // false
+
+// 타입이 같으면 → 값 비교
+42 === 42        // true
+"hello" === "hello" // true
+true === true    // true
+```
+
+예외: `NaN`은 `===`에서도 자기 자신과 같지 않습니다.
+
+```javascript
+NaN === NaN // false — 유일한 예외
+```
+
+## 느슨한 동등 비교 (==)
+
+`==`의 규칙은 명세 (Abstract Equality Comparison) 에 정의되어 있습니다. 단계별로 정리하면:
+
+### 규칙 1: 같은 타입이면 === 와 동일
+
+```javascript
+42 == 42        // true — 같은 타입이면 값만 비교
+"hi" == "hi"    // true
+```
+
+### 규칙 2: null과 undefined는 서로만 같음
+
+```javascript
+null == undefined  // true — 특수 규칙
+undefined == null  // true
+
+null == 0          // false — null은 0과 다름!
+null == ""         // false
+null == false      // false
+undefined == 0     // false
+undefined == ""    // false
+undefined == false // false
+```
+
+이것은 별도의 특수 규칙입니다. `null`과 `undefined`는 형변환을 하지 않고, 오직 서로하고만 `==` true입니다. 이 규칙 덕분에 `if (value == null)`로 null과 undefined를 동시에 체크할 수 있습니다.
+
+### 규칙 3: 숫자와 문자열 → 문자열을 ToNumber
+
+```javascript
+42 == "42"   // ToNumber("42") = 42 → 42 == 42 → true
+0 == ""      // ToNumber("") = 0 → 0 == 0 → true
+1 == "1.0"   // ToNumber("1.0") = 1 → 1 == 1 → true
+```
+
+### 규칙 4: boolean이 있으면 → boolean을 ToNumber
+
+```javascript
+// == 에서 boolean은 먼저 숫자로 변환됩니다
+true == 1     // ToNumber(true) = 1 → 1 == 1 → true
+false == 0    // ToNumber(false) = 0 → 0 == 0 → true
+false == ""   // ToNumber(false) = 0, 그 다음 0 == "" → ToNumber("") = 0 → true
+
+// 주의: "truthy" 값이라고 == true가 되는 것은 아닙니다!
+"1" == true   // "1" == 1 → 1 == 1 → true
+"2" == true   // "2" == 1 → 2 == 1 → false!
+```
+
+`"2" == true`가 false인 이유: true가 1로 변환되고, `"2"`가 2로 변환되어, `2 == 1`이 false가 됩니다. truthy/falsy와 `==` 비교는 전혀 다른 연산입니다.
+
+### 규칙 5: 객체와 원시값 → ToPrimitive
+
+```javascript
+[0] == 0       // ToPrimitive([0]) = "0" → ToNumber("0") = 0 → true
+[""] == 0      // ToPrimitive([""]) = "" → ToNumber("") = 0 → true
+[null] == 0    // ToPrimitive([null]) = "" → ToNumber("") = 0 → true
+```
+
+## 비교 결과표
+
+아래에서 `==`와 `===`의 결과를 직접 비교해보세요. 셀을 클릭하면 그 비교의 변환 과정을 확인할 수 있습니다.
+
+<EqualityCompare />
+
+## 특수한 경우들
+
+### NaN은 어떤 것과도 같지 않음
+
+```javascript
+NaN == NaN   // false
+NaN === NaN  // false
+NaN == 0     // false
+NaN == null  // false
+
+// NaN 확인 방법
+Number.isNaN(NaN)  // true — 정확한 방법
+Object.is(NaN, NaN) // true — NaN도 같다고 판단
+```
+
+### -0과 +0
+
+```javascript
+-0 === +0     // true — === 는 구분 못 함
+-0 == +0      // true
+Object.is(-0, +0) // false — Object.is는 구분
+```
+
+### Object.is
+
+`Object.is()`는 `===`보다 더 엄격한 비교입니다. NaN과 -0을 정확히 구분합니다.
+
+```javascript
+Object.is(NaN, NaN)  // true (=== 는 false)
+Object.is(-0, +0)    // false (=== 는 true)
+Object.is(42, 42)    // true
+Object.is("a", "a")  // true
+```
+
+### 객체의 동등 비교 — 참조 비교
+
+객체 (배열, 함수 포함) 의 `==`와 `===`는 모두 **참조 비교** 입니다. 내용이 같아도 다른 객체면 false입니다.
+
+```javascript
+const a = [1, 2, 3];
+const b = [1, 2, 3];
+const c = a;
+
+a == b   // false — 다른 객체
+a === b  // false — 다른 객체
+a == c   // true — 같은 참조
+a === c  // true — 같은 참조
+```
+
+내용을 비교하려면 직접 구현하거나, `JSON.stringify()`, 또는 라이브러리의 deep equal 함수를 사용해야 합니다.
+
+## 어떤 것을 사용해야 하는가
+
+**`===` 를 기본으로 사용하세요.** `==`가 유용한 경우는 하나뿐입니다:
+
+```javascript
+// null과 undefined를 동시에 체크할 때
+if (value == null) {
+  // value가 null 또는 undefined
+}
+
+// === 로 하려면 두 번 비교해야 합니다
+if (value === null || value === undefined) {
+  // 같은 동작
+}
+```
+
+`==`를 사용하면 암묵적 형변환이 발생하고, 코드를 읽는 사람이 변환 규칙을 머릿속으로 추적해야 합니다. `===`를 사용하면 "타입이 같고 값이 같다"만 확인하면 됩니다.
+
+ESLint의 `eqeqeq` 규칙을 활성화하면 `==` 사용을 자동으로 경고합니다.
+
+## 다음 단계
+
+동등 비교의 규칙을 이해했습니다. 다음 글에서는 이 시리즈의 마지막으로, ES2015에서 추가된 두 가지 원시 타입인 **Symbol** 과 **BigInt** 를 살펴보겠습니다. 특히 `Symbol.toPrimitive`가 형변환 과정을 어떻게 커스터마이즈하는지 다룹니다.

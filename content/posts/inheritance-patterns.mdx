@@ -1,0 +1,289 @@
+---
+title: "상속 패턴"
+description: "프로토타입 상속, 조합, 믹스인 — JavaScript에서 코드를 재사용하는 패턴을 비교합니다"
+date: 2026-04-01
+tags: ["javascript", "inheritance", "composition", "mixin", "prototype"]
+series: "prototype-and-inheritance"
+seriesOrder: 5
+draft: false
+---
+
+## 상속은 왜 필요한가
+
+코드 재사용입니다. 여러 객체가 공통 동작을 가질 때, 매번 복사하는 대신 한 곳에서 정의하고 공유합니다. JavaScript에서는 여러 방식으로 이를 구현할 수 있습니다.
+
+## 1. 프로토타입 상속 (Prototypal Inheritance)
+
+가장 기본적인 방식. `Object.create`로 프로토타입을 연결합니다.
+
+```javascript
+const animal = {
+  init(name) {
+    this.name = name;
+    return this;
+  },
+  speak() {
+    return this.name + " speaks";
+  }
+};
+
+const dog = Object.create(animal);
+dog.bark = function() {
+  return this.name + " barks";
+};
+
+const rex = Object.create(dog).init("Rex");
+rex.speak(); // "Rex speaks" — animal에서
+rex.bark();  // "Rex barks"  — dog에서
+```
+
+class 없이, `new` 없이, 순수하게 객체 간 연결만으로 상속합니다. Douglas Crockford가 주장한 방식입니다.
+
+### 장점과 단점
+
+- **장점**: 단순함. 객체가 다른 객체를 직접 상속. class 키워드 불필요.
+- **단점**: 초기화가 명시적이지 않음 (`init` 패턴). `instanceof` 사용 불가.
+
+## 2. 클래스 상속 (Classical Inheritance)
+
+`class extends`로 계층 구조를 만듭니다.
+
+```javascript
+class Animal {
+  constructor(name) {
+    this.name = name;
+  }
+  speak() {
+    return this.name + " speaks";
+  }
+}
+
+class Dog extends Animal {
+  bark() {
+    return this.name + " barks";
+  }
+}
+
+class GuideDog extends Dog {
+  constructor(name, owner) {
+    super(name);
+    this.owner = owner;
+  }
+  guide() {
+    return this.name + " guides " + this.owner;
+  }
+}
+```
+
+### 다이아몬드 문제
+
+JavaScript는 **단일 상속** 만 지원합니다. 하나의 클래스는 하나의 부모만 가질 수 있습니다.
+
+```javascript
+class A {}
+class B {}
+class C extends A, B {} // SyntaxError — 다중 상속 불가
+```
+
+이것이 믹스인이 필요한 이유입니다.
+
+### 깊은 계층의 문제
+
+```javascript
+class Animal {}
+class Dog extends Animal {}
+class GuideDog extends Dog {}
+class TrainedGuideDog extends GuideDog {}
+class CertifiedTrainedGuideDog extends TrainedGuideDog {}
+// 5단계... 상위 클래스를 변경하면 모든 하위에 영향
+```
+
+계층이 깊어질수록:
+- 상위 변경의 파급 범위가 커짐
+- 중간 계층에 불필요한 메서드가 쌓임
+- 새로운 조합이 필요할 때 계층 재구성이 어려움
+
+## 3. 조합 (Composition)
+
+"상속보다 조합을 선호하라" — Gang of Four.
+
+상속은 "A **는** B다" (is-a) 관계를 표현합니다. 조합은 "A **는** B를 **가진다**" (has-a) 관계를 표현합니다.
+
+```javascript
+// 상속: GuideDog는 Dog다
+class GuideDog extends Dog {
+  guide() { /* ... */ }
+}
+
+// 조합: dog가 guide 기능을 가진다
+function createGuideDog(name, owner) {
+  return {
+    ...createDog(name),
+    ...guideAbility(owner),
+  };
+}
+```
+
+### 팩토리 함수로 조합
+
+```javascript
+function swimmer(state) {
+  return {
+    swim() { return state.name + " swims"; }
+  };
+}
+
+function flyer(state) {
+  return {
+    fly() { return state.name + " flies"; }
+  };
+}
+
+function barker(state) {
+  return {
+    bark() { return state.name + " barks"; }
+  };
+}
+
+function createDuck(name) {
+  const state = { name };
+  return {
+    name,
+    ...swimmer(state),
+    ...flyer(state),
+  };
+}
+
+function createDog(name) {
+  const state = { name };
+  return {
+    name,
+    ...swimmer(state),
+    ...barker(state),
+  };
+}
+
+const duck = createDuck("Donald");
+duck.swim(); // "Donald swims"
+duck.fly();  // "Donald flies"
+
+const dog = createDog("Rex");
+dog.swim();  // "Rex swims"
+dog.bark();  // "Rex barks"
+```
+
+오리는 수영 + 비행, 개는 수영 + 짖기. 상속 계층 없이 기능을 자유롭게 조합합니다.
+
+### 조합 vs 상속
+
+| | 상속 | 조합 |
+|--|------|------|
+| **관계** | is-a (A는 B다) | has-a (A는 B를 가진다) |
+| **유연성** | 계층 변경이 어려움 | 기능 조합이 자유로움 |
+| **결합도** | 강함 (부모 변경 → 자식 영향) | 약함 (독립적 기능) |
+| **다중 상속** | 불가 | 가능 (여러 기능 조합) |
+| **instanceof** | 사용 가능 | 사용 불가 |
+
+## 4. 믹스인 (Mixin)
+
+단일 상속의 한계를 보완하는 패턴입니다. 여러 소스에서 메서드를 복사합니다.
+
+### Object.assign으로 믹스인
+
+```javascript
+const Serializable = {
+  serialize() {
+    return JSON.stringify(this);
+  },
+  deserialize(json) {
+    return Object.assign(this, JSON.parse(json));
+  }
+};
+
+const EventEmitter = {
+  on(event, fn) {
+    (this._handlers ??= {})[event] ??= [];
+    this._handlers[event].push(fn);
+  },
+  emit(event, ...args) {
+    this._handlers?.[event]?.forEach(fn => fn(...args));
+  }
+};
+
+class Dog {
+  constructor(name) {
+    this.name = name;
+  }
+  bark() {
+    return this.name + " barks";
+  }
+}
+
+// 믹스인 적용
+Object.assign(Dog.prototype, Serializable, EventEmitter);
+
+const d = new Dog("Rex");
+d.bark();       // Dog 자체 메서드
+d.serialize();  // Serializable에서 복사
+d.on("bark", () => {}); // EventEmitter에서 복사
+```
+
+### 클래스 믹스인 (서브클래스 팩토리)
+
+```javascript
+const Serializable = (Base) => class extends Base {
+  serialize() {
+    return JSON.stringify(this);
+  }
+};
+
+const EventEmitter = (Base) => class extends Base {
+  on(event, fn) {
+    (this._handlers ??= {})[event] ??= [];
+    this._handlers[event].push(fn);
+  }
+  emit(event, ...args) {
+    this._handlers?.[event]?.forEach(fn => fn(...args));
+  }
+};
+
+class Dog extends Serializable(EventEmitter(Animal)) {
+  bark() {
+    return this.name + " barks";
+  }
+}
+
+// 체인: Dog → Serializable → EventEmitter → Animal
+```
+
+함수로 클래스를 감싸서 동적으로 상속 체인을 구성합니다.
+
+## 패턴 선택 가이드
+
+```text
+코드 재사용이 필요한가?
++-- 단순한 공통 로직 -> 일반 함수 / 유틸리티
++-- is-a 관계가 명확 (2~3단계) -> class extends
++-- 여러 독립 기능의 조합 -> 조합 (팩토리 함수)
++-- 기존 class에 기능 추가 -> 믹스인
+```
+
+실전 규칙:
+
+1. **상속은 2~3단계까지만.** 더 깊으면 조합을 고려하세요.
+2. **"A는 B다"가 자연스럽지 않으면 상속하지 마세요.** "사각형은 도형이다"는 자연스럽지만, "버튼은 이벤트 이미터다"는 어색합니다.
+3. **먼저 조합을 시도하세요.** 상속은 나중에도 가능합니다.
+
+<InheritanceCompare />
+
+## 시리즈 마무리
+
+프로토타입과 상속 시리즈를 통해 다음을 다뤘습니다:
+
+1. **프로토타입** — [[Prototype]] 내부 슬롯과 속성 탐색
+2. **프로토타입 체인** — 다단계 체인, Object.prototype, null
+3. **생성자 함수와 new** — new의 4단계, prototype과 constructor
+4. **클래스의 실체** — class는 생성자 함수의 문법적 설탕
+5. **상속 패턴** — 프로토타입 상속, class 상속, 조합, 믹스인
+
+JavaScript의 "class"는 Java나 C++의 클래스와 다릅니다. 내부는 프로토타입 체인이고, 이를 이해하면 상속의 동작을 정확히 예측할 수 있습니다.

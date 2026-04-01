@@ -171,10 +171,10 @@ export function Closure({ preset = "basic-closure" }: ClosureProps) {
                   key={i}
                   className={`flex transition-colors duration-150 ${isActive ? "bg-accent/10" : ""}`}
                 >
-                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/30"}`}>
+                  <span className={`select-none w-8 shrink-0 text-right pr-3 ${isActive ? "text-accent" : "text-muted/50"}`}>
                     {i + 1}
                   </span>
-                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : "text-muted/40"}`}>
+                  <span className={`flex-1 pr-3 py-px ${isActive ? "text-text" : "text-muted/50"}`}>
                     {line || "\u00A0"}
                   </span>
                   {isActive && (
@@ -235,7 +235,7 @@ export function Closure({ preset = "basic-closure" }: ClosureProps) {
                 <div className="flex items-baseline gap-1.5 font-mono text-[0.625rem]">
                   <span className="text-emerald-700 dark:text-emerald-300">{step.closureCapture.fn}</span>
                   <span className="text-muted">→</span>
-                  <span className="text-amber-700 dark:text-amber-300">
+                  <span className="text-amber-800 dark:text-amber-300">
                     {step.closureCapture.captures.join(", ")}
                   </span>
                 </div>

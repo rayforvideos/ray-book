@@ -1,0 +1,187 @@
+---
+title: "생성자 함수와 new"
+description: "new 키워드의 동작 원리 — 생성자 함수, prototype, constructor, instanceof의 관계를 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "prototype", "constructor", "new", "instanceof"]
+series: "prototype-and-inheritance"
+seriesOrder: 3
+draft: false
+---
+
+## 객체를 찍어내는 틀
+
+이전 글까지 `__proto__`와 `Object.create`로 프로토타입을 수동 설정했습니다. 하지만 같은 구조의 객체를 여러 개 만들 때는 **생성자 함수** 와 `new`가 이 과정을 자동화합니다.
+
+```javascript
+function Dog(name) {
+  this.name = name;
+}
+
+Dog.prototype.bark = function() {
+  return this.name + " barks!";
+};
+
+const rex = new Dog("Rex");
+const buddy = new Dog("Buddy");
+
+rex.bark();   // "Rex barks!"
+buddy.bark(); // "Buddy barks!"
+```
+
+`rex`와 `buddy`는 각자의 `name`을 가지지만, `bark` 메서드는 `Dog.prototype`에서 공유합니다.
+
+<PrototypeChain preset="constructor-new" />
+
+## new가 하는 일
+
+`new Dog("Rex")`를 호출하면 엔진이 4단계를 수행합니다:
+
+```javascript
+// new Dog("Rex")의 내부 동작
+function newOperator(Constructor, ...args) {
+  // 1. 빈 객체 생성
+  const obj = {};
+
+  // 2. [[Prototype]]을 Constructor.prototype으로 설정
+  Object.setPrototypeOf(obj, Constructor.prototype);
+
+  // 3. this를 obj로 바인딩하여 생성자 실행
+  const result = Constructor.apply(obj, args);
+
+  // 4. 생성자가 객체를 반환하면 그것을, 아니면 obj 반환
+  return (typeof result === "object" || typeof result === "function")
+    && result !== null
+    ? result
+    : obj;
+}
+```
+
+<NewOperatorFlow />
+
+핵심은 **2단계** 입니다. `new`가 자동으로 [[Prototype]] 링크를 설정합니다. 수동으로 `__proto__`를 설정할 필요가 없습니다.
+
+## prototype과 [[Prototype]]의 차이
+
+헷갈리기 쉬운 두 개념:
+
+| | `prototype` | `[[Prototype]]` |
+|--|------------|-----------------|
+| **어디에** | 함수에 존재 | 모든 객체에 존재 |
+| **역할** | new로 생성된 객체의 [[Prototype]]이 될 대상 | 속성 탐색 시 올라갈 링크 |
+| **접근** | `Dog.prototype` | `Object.getPrototypeOf(obj)` |
+
+```javascript
+function Dog() {}
+const d = new Dog();
+
+// Dog의 prototype 프로퍼티
+Dog.prototype; // { constructor: Dog }
+
+// d의 [[Prototype]] 내부 슬롯
+Object.getPrototypeOf(d) === Dog.prototype; // true
+```
+
+`Dog.prototype`은 "Dog로 만들 인스턴스의 부모가 될 객체"입니다.
+
+## constructor 프로퍼티
+
+모든 함수의 `prototype` 객체에는 자동으로 `constructor`가 들어 있습니다:
+
+```javascript
+function Dog() {}
+
+Dog.prototype.constructor === Dog; // true
+
+const d = new Dog();
+d.constructor === Dog; // true (prototype에서 상속)
+```
+
+`constructor`는 "이 프로토타입과 연결된 생성자 함수"를 가리킵니다. 인스턴스에서 생성자를 알아내는 데 쓸 수 있습니다.
+
+### constructor가 깨지는 경우
+
+```javascript
+function Dog() {}
+
+// prototype을 통째로 교체하면 constructor가 사라짐
+Dog.prototype = {
+  bark() { return "woof"; }
+};
+
+const d = new Dog();
+d.constructor === Dog; // false — Object가 됨
+
+// 수동으로 복원해야 함
+Dog.prototype = {
+  constructor: Dog,
+  bark() { return "woof"; }
+};
+```
+
+## instanceof
+
+`instanceof`는 프로토타입 체인을 검사합니다:
+
+```javascript
+function Dog() {}
+function Cat() {}
+const d = new Dog();
+
+d instanceof Dog; // true
+d instanceof Cat; // false
+d instanceof Object; // true (체인 끝에 Object.prototype)
+```
+
+`d instanceof Dog`는 **"d의 프로토타입 체인에 Dog.prototype이 있는가?"** 를 확인합니다:
+
+```javascript
+// instanceof의 내부 동작 (개념적)
+function instanceOf(obj, Constructor) {
+  let proto = Object.getPrototypeOf(obj);
+  while (proto !== null) {
+    if (proto === Constructor.prototype) return true;
+    proto = Object.getPrototypeOf(proto);
+  }
+  return false;
+}
+```
+
+## new 없이 호출하면?
+
+```javascript
+function Dog(name) {
+  this.name = name;
+}
+
+// new 없이 호출
+const d = Dog("Rex");
+d;          // undefined (반환값 없음)
+window.name; // "Rex" — this가 전역 객체!
+```
+
+`new` 없이 호출하면 `this`가 전역 객체 (또는 strict mode에서 `undefined`) 를 가리킵니다. 실수를 방지하는 패턴:
+
+```javascript
+function Dog(name) {
+  // new 없이 호출되면 new로 다시 호출
+  if (!(this instanceof Dog)) {
+    return new Dog(name);
+  }
+  this.name = name;
+}
+```
+
+ES2015 이후에는 `new.target`으로 더 정확하게 확인할 수 있습니다:
+
+```javascript
+function Dog(name) {
+  if (!new.target) {
+    return new Dog(name);
+  }
+  this.name = name;
+}
+```
+
+## 다음 단계
+
+생성자 함수와 `new`의 동작을 이해했습니다. 다음 글에서는 ES2015의 `class` 문법이 이 생성자 함수 + prototype 패턴을 어떻게 감싸고 있는지 — **클래스의 실체** 를 살펴보겠습니다.

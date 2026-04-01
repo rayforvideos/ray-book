@@ -1,0 +1,177 @@
+---
+title: "JavaScript의 타입 시스템"
+description: "JavaScript의 7가지 원시 타입과 참조 타입, typeof의 함정, 그리고 정확한 타입 확인 방법을 살펴봅니다"
+date: 2026-04-01
+tags: ["javascript", "types", "typeof", "primitive", "type-checking"]
+series: "types-and-coercion"
+seriesOrder: 1
+draft: false
+---
+
+## 동적 타입 언어
+
+JavaScript는 **동적 타입** (dynamically typed) 언어입니다. 변수를 선언할 때 타입을 지정하지 않으며, 실행 중에 타입이 바뀔 수 있습니다.
+
+```javascript
+let x = 42;       // number
+x = "hello";      // string — 에러 없음
+x = true;         // boolean — 역시 에러 없음
+```
+
+타입이 변수에 묶이는 것이 아니라 **값에 묶입니다.** 변수는 어떤 타입의 값이든 담을 수 있는 그릇일 뿐입니다. 이 유연함이 JavaScript의 장점이자, 타입 관련 버그의 원인이 됩니다.
+
+## 7가지 원시 타입
+
+JavaScript에는 7가지 **원시 타입** (primitive type) 이 있습니다. 원시값은 불변 (immutable) 이며, 메서드를 호출하면 임시 래퍼 객체가 생성됩니다.
+
+| 타입 | 예시 | typeof 결과 |
+|------|------|-------------|
+| **string** | `"hello"`, `'world'` | `"string"` |
+| **number** | `42`, `3.14`, `NaN`, `Infinity` | `"number"` |
+| **bigint** | `9007199254740993n` | `"bigint"` |
+| **boolean** | `true`, `false` | `"boolean"` |
+| **undefined** | `undefined` | `"undefined"` |
+| **symbol** | `Symbol("id")` | `"symbol"` |
+| **null** | `null` | `"object"` (버그!) |
+
+### typeof null === "object"
+
+`typeof null`이 `"object"`를 반환하는 것은 JavaScript 초기 버전의 버그입니다. 초기 구현에서 값의 타입을 하위 비트로 구분했는데, 객체의 타입 태그가 `000`이었고 null은 null pointer (모든 비트가 0) 로 표현되어 객체로 판별되었습니다.
+
+```javascript
+typeof null === "object" // true — 의도된 동작이 아닌 역사적 버그
+```
+
+이 버그를 수정하자는 제안 (typeof null === "null") 이 있었지만, 기존 코드와의 호환성 문제로 영구히 유지되었습니다.
+
+### NaN은 number
+
+`NaN` (Not-a-Number) 의 타입은 역설적으로 `"number"`입니다.
+
+```javascript
+typeof NaN === "number" // true
+
+// NaN은 자기 자신과도 같지 않은 유일한 값
+NaN === NaN  // false
+NaN == NaN   // false
+```
+
+`NaN`인지 확인하려면 `Number.isNaN()`을 사용합니다. 전역 `isNaN()`은 인자를 먼저 숫자로 변환하므로 예상과 다르게 동작할 수 있습니다.
+
+```javascript
+isNaN("hello")        // true — "hello"를 숫자로 변환하면 NaN
+Number.isNaN("hello") // false — 문자열은 NaN이 아님
+Number.isNaN(NaN)     // true — 정확한 NaN 체크
+```
+
+## 참조 타입
+
+원시 타입이 아닌 모든 값은 **객체** (object) 입니다. 객체는 참조로 전달되며, 같은 객체를 가리키는 여러 변수가 있을 수 있습니다.
+
+```javascript
+const a = { name: "ray" };
+const b = a;
+b.name = "lee";
+console.log(a.name); // "lee" — 같은 객체를 참조
+```
+
+주요 참조 타입:
+
+```javascript
+typeof {}           // "object"
+typeof []           // "object" — 배열도 객체!
+typeof function(){} // "function" — 특별 취급
+typeof new Date()   // "object"
+typeof /regex/      // "object"
+```
+
+함수는 `typeof`에서 `"function"`으로 나오지만, 명세상 함수도 객체입니다. 내부적으로 `[[Call]]` 슬롯을 가진 객체를 함수로 분류합니다.
+
+## 타입 확인 패턴
+
+`typeof`만으로는 정확한 타입 확인이 어렵습니다. 상황에 맞는 방법을 사용해야 합니다.
+
+### typeof
+
+원시 타입을 확인할 때 가장 기본적인 방법입니다. null 체크에는 사용하지 마세요.
+
+```javascript
+typeof "hello"   === "string"    // ✓
+typeof 42        === "number"    // ✓
+typeof true      === "boolean"   // ✓
+typeof undefined === "undefined" // ✓
+typeof Symbol()  === "symbol"    // ✓
+typeof 42n       === "bigint"    // ✓
+```
+
+### null 확인
+
+`null`은 `typeof`로 확인할 수 없으므로 직접 비교합니다.
+
+```javascript
+const value = null;
+value === null // ✓ — 가장 정확한 방법
+```
+
+### Array.isArray
+
+배열은 `typeof`로는 `"object"`이므로 전용 메서드를 사용합니다.
+
+```javascript
+Array.isArray([1, 2, 3])  // true
+Array.isArray({ 0: "a" }) // false
+typeof [1, 2, 3]          // "object" — 구분 불가
+```
+
+### instanceof
+
+생성자 함수나 클래스의 인스턴스인지 확인합니다. 프로토타입 체인을 따라 검사합니다.
+
+```javascript
+const date = new Date();
+date instanceof Date   // true
+date instanceof Object // true — Date도 Object의 인스턴스
+
+[] instanceof Array    // true
+[] instanceof Object   // true
+```
+
+주의: `instanceof`는 다른 iframe이나 realm에서 생성된 객체에는 동작하지 않습니다.
+
+### Object.prototype.toString
+
+가장 정확한 타입 확인 방법입니다. 내부 `[[Class]]` 태그를 반환합니다.
+
+```javascript
+Object.prototype.toString.call(42)        // "[object Number]"
+Object.prototype.toString.call("hi")      // "[object String]"
+Object.prototype.toString.call(null)      // "[object Null]"
+Object.prototype.toString.call(undefined) // "[object Undefined]"
+Object.prototype.toString.call([])        // "[object Array]"
+Object.prototype.toString.call(new Date)  // "[object Date]"
+Object.prototype.toString.call(/regex/)   // "[object RegExp]"
+```
+
+## Falsy와 Truthy
+
+JavaScript에서 boolean 컨텍스트 (if, &&, || 등) 에서 값은 truthy 또는 falsy로 평가됩니다. **정확히 8개의 falsy 값** 이 있고, 나머지는 모두 truthy입니다.
+
+```javascript
+// 8개의 falsy 값
+false
+0
+-0
+0n       // BigInt zero
+""       // 빈 문자열
+null
+undefined
+NaN
+```
+
+흔한 실수: 빈 배열 `[]`과 빈 객체 `{}`는 **truthy** 입니다. 객체는 항상 truthy입니다.
+
+<TypeCoercion preset="to-boolean" />
+
+## 다음 단계
+
+JavaScript의 타입을 이해했으니, 다음 글에서는 이 타입들 사이에서 일어나는 **암묵적 형변환** (implicit coercion) 을 살펴보겠습니다. `+` 연산자가 때로는 더하기, 때로는 문자열 결합이 되는 이유를 알게 됩니다.

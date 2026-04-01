@@ -1,0 +1,209 @@
+---
+title: "Map과 Set"
+description: "Object의 한계를 넘어서는 Map과 Set — 키 타입의 자유, 삽입 순서 보장, 프로토타입 안전성을 비교합니다"
+date: 2026-04-01
+tags: ["javascript", "map", "set", "data-structure"]
+series: "js-deep-dive"
+seriesOrder: 1
+draft: false
+---
+
+## 왜 Map이 필요한가
+
+JavaScript에서 키-값 쌍을 저장할 때 보통 Object를 사용합니다. 하지만 Object는 원래 "속성을 가진 엔티티"를 표현하기 위한 것이지, 범용 딕셔너리로 설계된 것이 아닙니다.
+
+```javascript
+const cache = {};
+const key = { id: 1 };
+
+cache[key] = "유저 데이터";
+console.log(Object.keys(cache)); // ["[object Object]"]
+// 객체 키가 문자열로 변환되었습니다!
+```
+
+Object의 키는 **문자열** 또는 **Symbol** 만 가능합니다. 객체를 키로 쓰면 자동으로 `toString()`이 호출되어 `"[object Object]"`로 변환됩니다. ES2015에서 도입된 **Map** 은 이 문제를 해결합니다.
+
+## Map
+
+Map은 **모든 값** 을 키로 사용할 수 있는 키-값 컬렉션입니다. 객체, 함수, 원시값, 심지어 `NaN`도 키가 됩니다.
+
+```javascript
+const map = new Map();
+
+// 다양한 타입의 키
+map.set("name", "Ray");           // 문자열
+map.set(42, "숫자 키");            // 숫자
+map.set(true, "불리언 키");        // 불리언
+
+const objKey = { id: 1 };
+map.set(objKey, "객체 키");        // 객체 참조가 키
+
+const fnKey = () => {};
+map.set(fnKey, "함수 키");         // 함수도 키
+
+// NaN도 키로 사용 가능 (NaN !== NaN이지만 Map은 같은 키로 취급)
+map.set(NaN, "NaN 키");
+map.get(NaN); // "NaN 키"
+```
+
+### 주요 메서드
+
+```javascript
+const users = new Map();
+
+// 추가 / 수정
+users.set("alice", { age: 30 });
+users.set("bob", { age: 25 });
+
+// 조회
+users.get("alice");     // { age: 30 }
+users.has("alice");     // true
+users.size;             // 2
+
+// 삭제
+users.delete("bob");    // true
+users.size;             // 1
+
+// 전체 삭제
+users.clear();
+users.size;             // 0
+```
+
+### 순서 보장과 이터레이션
+
+Map은 **삽입 순서** 를 유지합니다. `for...of`로 직접 순회할 수 있습니다.
+
+```javascript
+const map = new Map([
+  ["first", 1],
+  ["second", 2],
+  ["third", 3],
+]);
+
+// for...of — 삽입 순서대로 순회
+for (const [key, value] of map) {
+  console.log(`${key}: ${value}`);
+}
+// "first: 1"
+// "second: 2"
+// "third: 3"
+
+// 개별 이터레이터
+[...map.keys()];    // ["first", "second", "third"]
+[...map.values()];  // [1, 2, 3]
+[...map.entries()]; // [["first", 1], ["second", 2], ["third", 3]]
+```
+
+## Map vs Object
+
+Map과 Object를 언제 써야 할까요? 핵심 차이를 비교합니다.
+
+| 기준 | Map | Object |
+|------|-----|--------|
+| **키 타입** | 모든 값 | 문자열, Symbol |
+| **순서** | 삽입 순서 | 정수 키 오름차순 → 나머지 삽입 순서 |
+| **크기** | `.size` (O(1)) | `Object.keys().length` (O(n)) |
+| **이터러블** | 직접 `for...of` | `Object.entries()` 필요 |
+| **프로토타입** | 기본 키 없음 (안전) | `toString`, `constructor` 등 상속 |
+| **직렬화** | JSON 직접 변환 불가 | `JSON.stringify` 지원 |
+| **성능** | 빈번한 추가/삭제에 유리 | 정적 구조에 적합 |
+
+<MapVsObject />
+
+**실무 기준:**
+- 키가 문자열이고 구조가 고정적이면 → **Object** (리터럴 문법이 간편)
+- 키 타입이 다양하거나 빈번히 추가/삭제하면 → **Map**
+- 사용자 입력을 키로 쓰면 → **Map** (프로토타입 오염 방지)
+
+## Set
+
+**Set** 은 **중복 없는 값의 컬렉션** 입니다. 배열과 달리 같은 값을 두 번 추가해도 하나만 유지됩니다.
+
+```javascript
+const set = new Set();
+
+set.add(1);
+set.add(2);
+set.add(3);
+set.add(2); // 무시됨 — 이미 존재
+set.add(1); // 무시됨
+
+set.size;    // 3
+set.has(2);  // true
+set.delete(2);
+set.size;    // 2
+```
+
+### 배열 중복 제거
+
+Set의 가장 흔한 활용은 배열 중복 제거입니다.
+
+```javascript
+const numbers = [1, 2, 3, 2, 1, 4, 3, 5];
+const unique = [...new Set(numbers)];
+console.log(unique); // [1, 2, 3, 4, 5]
+```
+
+### Set 연산 메서드
+
+ES2025에서 수학적 집합 연산 메서드가 추가되었습니다.
+
+```javascript
+const a = new Set([1, 2, 3, 4]);
+const b = new Set([3, 4, 5, 6]);
+
+// 합집합 (union)
+a.union(b);               // Set {1, 2, 3, 4, 5, 6}
+
+// 교집합 (intersection)
+a.intersection(b);        // Set {3, 4}
+
+// 차집합 (difference)
+a.difference(b);          // Set {1, 2}
+
+// 대칭 차집합
+a.symmetricDifference(b); // Set {1, 2, 5, 6}
+
+// 부분집합 / 상위집합 / 서로소 확인
+new Set([3, 4]).isSubsetOf(a);     // true
+a.isSupersetOf(new Set([1, 2]));   // true
+a.isDisjointFrom(new Set([7, 8])); // true (공통 원소 없음)
+```
+
+이 메서드들은 2024년 6월부터 주요 브라우저에서 지원됩니다. 구형 환경에서는 폴리필이 필요합니다.
+
+### Set과 이터레이션
+
+Set도 Map처럼 삽입 순서를 유지하고, `for...of`로 직접 순회할 수 있습니다.
+
+```javascript
+const tags = new Set(["javascript", "typescript", "react"]);
+
+for (const tag of tags) {
+  console.log(tag);
+}
+
+// 배열로 변환
+const tagArray = [...tags];
+// 또는
+const tagArray2 = Array.from(tags);
+```
+
+## WeakRef 미리보기
+
+Map과 Set은 키와 값에 대한 **강한 참조** (strong reference) 를 유지합니다. 참조가 남아있는 한 가비지 컬렉터가 수거하지 않습니다.
+
+```javascript
+let user = { name: "Alice" };
+const map = new Map();
+map.set(user, "데이터");
+
+user = null; // 원래 참조를 끊어도
+// Map이 여전히 { name: "Alice" } 객체를 참조하므로 GC 대상이 아님
+```
+
+만약 키 객체가 더 이상 필요 없을 때 자동으로 정리되길 원한다면? 다음 글에서 **WeakMap** 과 **WeakSet** 을 살펴봅니다.
+
+## 다음 단계
+
+Map과 Set은 강한 참조를 유지하기 때문에 메모리 누수의 원인이 될 수 있습니다. 다음 글에서는 가비지 컬렉션과 친화적인 **WeakMap**, **WeakSet**, 그리고 ES2021의 **WeakRef** 를 살펴보겠습니다.

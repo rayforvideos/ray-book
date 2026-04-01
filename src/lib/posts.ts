@@ -33,10 +33,12 @@ export function getAllPostMetas(): PostMeta[] {
       return { slug, frontmatter };
     })
     .filter((post) => !post.frontmatter.draft)
-    .sort(
-      (a, b) =>
-        b.frontmatter.date.getTime() - a.frontmatter.date.getTime()
-    );
+    .sort((a, b) => {
+      const dateDiff = b.frontmatter.date.getTime() - a.frontmatter.date.getTime();
+      if (dateDiff !== 0) return dateDiff;
+      const seriesDiff = (b.frontmatter.seriesOrder ?? 0) - (a.frontmatter.seriesOrder ?? 0);
+      return seriesDiff;
+    });
 
   return postMetasCache;
 }

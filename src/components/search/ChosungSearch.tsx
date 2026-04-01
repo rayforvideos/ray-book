@@ -134,7 +134,7 @@ export function ChosungSearch() {
 
       {/* Hint */}
       {!query.trim() && (
-        <p className="mt-2 text-[0.75rem] text-muted/50">
+        <p className="mt-2 text-[0.75rem] text-muted/70">
           초성도 됩니다 — ㅇㅂㅌ → 이벤트, ㅋㄹㅈ → 클로저
         </p>
       )}
@@ -196,7 +196,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <span className="bg-accent/15 text-accent">{text.slice(idx, idx + q.length)}</span>
+      <span className="bg-accent/10 text-accent">{text.slice(idx, idx + q.length)}</span>
       {text.slice(idx + q.length)}
     </>
   );

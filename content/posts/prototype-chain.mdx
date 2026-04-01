@@ -1,0 +1,130 @@
+---
+title: "프로토타입 체인"
+description: "속성 탐색이 체인을 따라 올라가는 과정 — 프로토타입 체인의 동작, 종료 조건, Object.prototype을 시각화합니다"
+date: 2026-04-01
+tags: ["javascript", "prototype", "prototype-chain", "object"]
+series: "prototype-and-inheritance"
+seriesOrder: 2
+draft: false
+---
+
+## 체인이 연결되는 구조
+
+이전 글에서 객체가 [[Prototype]]으로 다른 객체와 연결되는 것을 봤습니다. 이 연결이 여러 단계로 이어진 것이 **프로토타입 체인** (prototype chain) 입니다.
+
+```javascript
+const base = { type: "animal" };
+const dog = { bark: true, __proto__: base };
+const puppy = { age: 1, __proto__: dog };
+```
+
+`puppy`에서 속성을 찾을 때, 엔진은 이 경로를 따릅니다:
+
+```
+puppy → dog → base → Object.prototype → null
+```
+
+<PrototypeChain preset="chain-lookup" />
+
+## 속성 탐색 알고리즘
+
+엔진이 `obj.prop`을 평가할 때:
+
+1. `obj` 자체에 `prop`이 있으면 반환
+2. 없으면 `obj.[[Prototype]]`에서 찾기
+3. 거기에도 없으면 `obj.[[Prototype]].[[Prototype]]`에서 찾기
+4. ...반복...
+5. `null`에 도달하면 `undefined` 반환
+
+```javascript
+puppy.age;   // 1         — puppy에서 발견 (1단계)
+puppy.bark;  // true      — dog에서 발견 (2단계)
+puppy.type;  // "animal"  — base에서 발견 (3단계)
+puppy.fly;   // undefined — null에 도달 (탐색 실패)
+```
+
+## Object.prototype — 체인의 끝
+
+거의 모든 객체의 체인 끝에는 `Object.prototype`이 있습니다. 우리가 모든 객체에서 쓸 수 있는 메서드들이 여기에 있습니다:
+
+```javascript
+const obj = { a: 1 };
+
+// 모두 Object.prototype에서 상속
+obj.toString();        // "[object Object]"
+obj.hasOwnProperty("a"); // true
+obj.valueOf();         // { a: 1 }
+```
+
+체인 구조:
+```
+obj → Object.prototype → null
+```
+
+`Object.prototype`의 [[Prototype]]은 `null`입니다. 여기가 체인의 진짜 끝입니다.
+
+### Object.prototype이 없는 객체
+
+```javascript
+const bare = Object.create(null);
+bare.toString; // undefined — Object.prototype도 없음
+```
+
+`Object.create(null)`은 [[Prototype]]이 `null`인 객체를 만듭니다. `toString` 같은 기본 메서드도 없는 "순수한 딕셔너리"입니다. Map 대신 쓰이기도 합니다.
+
+## 프로퍼티 섀도잉의 규칙
+
+### 데이터 프로퍼티
+
+프로토타입에 같은 이름의 속성이 있어도, 객체 자체에 쓰면 **자체 속성** 이 됩니다:
+
+```javascript
+const proto = { x: 10 };
+const obj = { __proto__: proto };
+
+obj.x; // 10 (proto에서 읽기)
+
+obj.x = 20; // obj에 자체 속성 생성
+
+obj.x;   // 20 (obj 자체)
+proto.x; // 10 (변하지 않음)
+```
+
+### getter/setter가 있는 경우
+
+프로토타입의 속성이 setter를 가지고 있으면, 쓰기도 프로토타입의 setter를 호출합니다:
+
+```javascript
+const proto = {
+  get value() { return this._value; },
+  set value(v) { this._value = v; }
+};
+
+const obj = { __proto__: proto };
+obj.value = 42;
+
+// obj._value는 42 (this가 obj이므로 obj에 저장)
+// obj.value는 42 (getter가 this._value 반환)
+```
+
+## 성능과 주의사항
+
+### 체인 길이
+
+체인이 길면 속성 탐색이 느려질 수 있습니다. 하지만 V8 엔진의 **인라인 캐시** (시리즈 1에서 다뤘습니다) 가 이를 최적화합니다. 실제로는 체인 길이보다 구조 변경이 성능에 더 큰 영향을 줍니다.
+
+### 런타임에 프로토타입 변경하지 마세요
+
+```javascript
+// 나쁜 패턴 — 성능 저하
+Object.setPrototypeOf(obj, newProto);
+
+// 좋은 패턴 — 생성 시 설정
+const obj = Object.create(newProto);
+```
+
+`Object.setPrototypeOf`는 V8의 최적화를 무효화합니다. 프로토타입은 객체 생성 시 한 번 설정하고 변경하지 않는 것이 좋습니다.
+
+## 다음 단계
+
+프로토타입 체인의 동작을 이해했습니다. 다음 글에서는 `new` 키워드와 생성자 함수가 이 체인을 어떻게 자동으로 설정하는지 살펴보겠습니다.

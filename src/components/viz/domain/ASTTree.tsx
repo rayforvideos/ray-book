@@ -299,7 +299,7 @@ function TreeNode({
     <div className={depth > 0 ? "ml-5 mt-1.5" : ""}>
       <div className="flex items-center gap-1.5">
         {depth > 0 && (
-          <span className="mr-0.5 text-[0.6875rem] text-border">
+          <span className="mr-0.5 text-[0.6875rem] text-muted/50">
             └
           </span>
         )}

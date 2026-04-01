@@ -92,7 +92,7 @@ export function BytecodeView({ preset = "let-hello" }: BytecodeViewProps) {
                   : ""
               }`}
             >
-              <span className="w-10 shrink-0 text-muted/40">
+              <span className="w-10 shrink-0 text-muted/50">
                 {inst.offset}
               </span>
               <span

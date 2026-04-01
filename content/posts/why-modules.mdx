@@ -1,0 +1,169 @@
+---
+title: "모듈이 필요한 이유"
+description: "전역 스코프 오염과 이름 충돌 문제를 해결하기 위해 모듈 시스템이 어떻게 발전해왔는지 살펴봅니다"
+date: 2026-04-01
+tags: ["javascript", "module", "iife", "scope"]
+series: "module-system"
+seriesOrder: 1
+draft: false
+---
+
+## 스크립트 태그의 시대
+
+초기 웹 개발에서는 JavaScript 파일을 `<script>` 태그로 HTML에 직접 삽입했습니다.
+
+```html
+<script src="utils.js"></script>
+<script src="validation.js"></script>
+<script src="app.js"></script>
+```
+
+이 방식의 핵심 문제는 **모든 변수가 전역 스코프를 공유한다는 것** 입니다.
+
+## 전역 스코프 오염
+
+파일이 분리되어 있어도, 실행 환경은 하나입니다.
+
+```javascript
+// utils.js
+var name = "유틸리티";
+function format(value) {
+  return value.toFixed(2);
+}
+
+// validation.js
+var name = "검증기"; // utils.js의 name을 덮어씀!
+function format(value) {
+  return value.trim(); // utils.js의 format도 덮어씀!
+}
+
+// app.js
+console.log(name);      // "검증기" — 의도한 값인가?
+console.log(format(42)); // 에러! — 숫자에 trim()은 없음
+```
+
+파일 수가 늘어날수록 이름 충돌의 위험은 기하급수적으로 증가합니다. 팀 규모가 커지면 누가 어떤 변수를 선언했는지 추적하기 어려워집니다.
+
+## 의존성 순서 문제
+
+스크립트 태그의 순서가 곧 로딩 순서입니다. 의존성을 개발자가 수동으로 관리해야 합니다.
+
+```html
+<!-- jquery를 먼저 로드해야 플러그인이 동작 -->
+<script src="jquery.js"></script>
+<script src="jquery.plugin.js"></script>
+
+<!-- 순서가 바뀌면? -->
+<script src="jquery.plugin.js"></script> <!-- 에러! jQuery is not defined -->
+<script src="jquery.js"></script>
+```
+
+프로젝트가 커질수록 수십 개의 스크립트 순서를 올바르게 유지하는 것은 점점 어려워집니다.
+
+## 해결 시도 1: 네임스페이스 패턴
+
+전역 변수 하나에 모든 것을 담아 충돌을 줄이는 방법입니다.
+
+```javascript
+// 전역 객체 하나로 묶기
+var MyApp = MyApp || {};
+
+MyApp.utils = {
+  format: function(value) {
+    return value.toFixed(2);
+  }
+};
+
+MyApp.validation = {
+  format: function(value) {
+    return value.trim();
+  }
+};
+
+// 사용
+MyApp.utils.format(42);      // "42.00"
+MyApp.validation.format(" hi "); // "hi"
+```
+
+충돌은 줄었지만, 여전히 `MyApp` 자체는 전역이고, 내부 프로퍼티에 누구든 접근하고 수정할 수 있습니다. **캡슐화가 없습니다.**
+
+## 해결 시도 2: IIFE
+
+**Immediately Invoked Function Expression** (즉시 실행 함수 표현식) 은 함수 스코프를 활용해 변수를 격리합니다.
+
+```javascript
+var MyModule = (function() {
+  // 이 안의 변수는 외부에서 접근 불가
+  var privateCount = 0;
+
+  function privateHelper() {
+    return privateCount++;
+  }
+
+  // 공개할 것만 반환
+  return {
+    increment: function() {
+      return privateHelper();
+    },
+    getCount: function() {
+      return privateCount;
+    }
+  };
+})();
+
+MyModule.increment();
+console.log(MyModule.getCount()); // 1
+console.log(MyModule.privateCount); // undefined — 접근 불가
+```
+
+드디어 캡슐화가 가능해졌습니다. 하지만 모듈 간의 의존성 선언이 명시적이지 않고, 여전히 전역에 `MyModule`이 노출됩니다.
+
+## 해결 시도 3: 노출 모듈 패턴
+
+IIFE를 발전시킨 형태로, 공개 인터페이스를 명확하게 정의합니다.
+
+```javascript
+var Calculator = (function() {
+  var history = [];
+
+  function add(a, b) {
+    var result = a + b;
+    history.push(result);
+    return result;
+  }
+
+  function getHistory() {
+    return [...history]; // 복사본 반환
+  }
+
+  // 공개 API 명시
+  return {
+    add: add,
+    getHistory: getHistory
+  };
+})();
+```
+
+가독성은 좋아졌지만, 근본적인 한계는 동일합니다:
+
+1. **의존성 관리가 수동** — 다른 모듈이 필요하면 전역에서 가져와야 합니다
+2. **비동기 로딩 불가** — 모든 스크립트가 순서대로 로드되어야 합니다
+3. **정적 분석 불가** — 어떤 모듈이 어떤 모듈에 의존하는지 도구가 파악할 수 없습니다
+
+## 진짜 모듈 시스템이 필요하다
+
+패턴으로 해결할 수 있는 한계에 도달했습니다. 필요한 것은:
+
+| 요구사항 | 패턴의 한계 |
+|----------|-----------|
+| **스코프 격리** | IIFE로 가능, 하지만 번거로움 |
+| **명시적 의존성** | 불가능 — 전역에서 암묵적으로 참조 |
+| **비동기 로딩** | 불가능 — 스크립트 태그 순서에 의존 |
+| **정적 분석** | 불가능 — 런타임에서만 확인 가능 |
+| **캡슐화** | 부분적 — 여전히 전역 노출 |
+
+이 문제를 언어나 런타임 수준에서 해결하기 위해 **CommonJS** 와 **ESM** (ES Modules) 이 등장했습니다.
+
+## 다음 단계
+
+다음 글에서는 Node.js의 **CommonJS** 와 브라우저 표준인 **ESM** 을 비교하며, 각각의 동작 방식과 차이점을 살펴보겠습니다.

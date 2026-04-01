@@ -2,16 +2,43 @@
   {
     "slug": "js-engine-internals",
     "title": "JavaScript 엔진의 내부",
-    "description": "코드가 문자열에서 실행 결과가 되기까지 — V8 엔진의 파이프라인을 따라가봅니다"
+    "description": "코드가 문자열에서 실행 결과가 되기까지 — V8 엔진의 파이프라인을 따라가봅니다",
+    "category": "JavaScript"
   },
   {
     "slug": "execution-context-and-scope",
     "title": "실행 컨텍스트와 스코프",
-    "description": "JavaScript가 코드를 실행할 때 만들어지는 환경 — 실행 컨텍스트, 스코프, 클로저, this를 시각화합니다"
+    "description": "JavaScript가 코드를 실행할 때 만들어지는 환경 — 실행 컨텍스트, 스코프, 클로저, this를 시각화합니다",
+    "category": "JavaScript"
   },
   {
     "slug": "async-javascript",
     "title": "비동기 JavaScript",
-    "description": "싱글 스레드에서 동시성을 구현하는 방법 — 이벤트 루프, Promise, async/await를 시각화합니다"
+    "description": "싱글 스레드에서 동시성을 구현하는 방법 — 이벤트 루프, Promise, async/await를 시각화합니다",
+    "category": "JavaScript"
+  },
+  {
+    "slug": "prototype-and-inheritance",
+    "title": "프로토타입과 상속",
+    "description": "JavaScript 객체의 근간 — 프로토타입 체인, 생성자 함수, class의 실체를 시각화합니다",
+    "category": "JavaScript"
+  },
+  {
+    "slug": "types-and-coercion",
+    "title": "타입과 형변환",
+    "description": "JavaScript의 7가지 원시 타입과 암묵적 형변환 — ==와 ===의 차이, Symbol, BigInt를 시각화합니다",
+    "category": "JavaScript"
+  },
+  {
+    "slug": "module-system",
+    "title": "모듈 시스템",
+    "description": "코드를 나누고 합치는 방법 — CommonJS, ESM, 번들링, tree-shaking을 시각화합니다",
+    "category": "JavaScript"
+  },
+  {
+    "slug": "js-deep-dive",
+    "title": "JavaScript Deep Dive",
+    "description": "한 단계 더 깊이 — Map, WeakMap, 이터레이터, Proxy 등 고급 기능과 자주 혼동하는 패턴을 시각화합니다",
+    "category": "JavaScript"
   }
 ]

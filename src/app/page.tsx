@@ -1,7 +1,7 @@
 import { getAllPostMetas } from "@/lib/posts";
 import { getSeriesWithPosts } from "@/lib/series";
-import { PostList } from "@/components/post/PostList";
-import Link from "next/link";
+import { ExpandablePostList } from "@/components/post/ExpandablePostList";
+import { ExpandableSeriesList } from "@/components/post/ExpandableSeriesList";
 
 export default function Home() {
   const posts = getAllPostMetas();
@@ -23,24 +23,8 @@ export default function Home() {
           <h2 className="text-[0.6875rem] font-medium uppercase tracking-[0.15em] text-muted">
             시리즈
           </h2>
-          <div className="mt-5 space-y-5">
-            {seriesWithPosts.map((series) => (
-              <Link
-                key={series.slug}
-                href={`/series/${series.slug}`}
-                className="group block"
-              >
-                <h3 className="font-serif text-lg tracking-tight group-hover:text-accent">
-                  {series.title}
-                </h3>
-                <p className="mt-1 text-[0.8125rem] text-muted">
-                  {series.description}
-                </p>
-                <span className="mt-1.5 block text-[0.75rem] text-muted/60">
-                  {series.posts.length}편
-                </span>
-              </Link>
-            ))}
+          <div className="mt-5">
+            <ExpandableSeriesList series={seriesWithPosts} />
           </div>
         </section>
       )}
@@ -50,7 +34,7 @@ export default function Home() {
           최신 글
         </h2>
         <div className="mt-5">
-          <PostList posts={posts} />
+          <ExpandablePostList posts={posts} />
         </div>
       </section>
     </main>

@@ -1,0 +1,221 @@
+---
+title: "CommonJS와 ESM"
+description: "Node.js의 CommonJS와 ES Modules의 동작 방식, 핵심 차이점, 그리고 상호 운용 방법을 비교합니다"
+date: 2026-04-01
+tags: ["javascript", "module", "commonjs", "esm", "node"]
+series: "module-system"
+seriesOrder: 2
+draft: false
+---
+
+## 두 개의 모듈 시스템
+
+JavaScript에는 두 가지 주요 모듈 시스템이 있습니다:
+
+1. **CommonJS** (CJS) — Node.js가 채택한 모듈 시스템 (2009)
+2. **ES Modules** (ESM) — ECMAScript 표준 모듈 시스템 (2015)
+
+각각의 동작 방식은 상당히 다릅니다.
+
+## CommonJS
+
+Node.js와 함께 탄생한 모듈 시스템입니다. `require()`로 모듈을 가져오고, `module.exports`로 내보냅니다.
+
+```javascript
+// math.js — 내보내기
+const add = (a, b) => a + b;
+const sub = (a, b) => a - b;
+
+module.exports = { add, sub };
+
+// app.js — 가져오기
+const { add, sub } = require('./math');
+console.log(add(1, 2)); // 3
+```
+
+### 동작 원리
+
+`require()`가 호출되면 Node.js는 다음 과정을 수행합니다:
+
+1. **경로 해석** — 파일 경로를 절대 경로로 변환
+2. **캐시 확인** — 이미 로드된 모듈이면 캐시에서 반환
+3. **파일 읽기** — 파일을 읽어서 함수로 감쌈
+4. **실행** — 감싼 함수를 실행하여 `module.exports`를 채움
+5. **캐시 저장** — 결과를 캐시에 저장
+
+```javascript
+// Node.js가 내부적으로 하는 일 (단순화)
+(function(exports, require, module, __filename, __dirname) {
+  // 여러분이 작성한 코드가 여기에 들어감
+  const add = (a, b) => a + b;
+  module.exports = { add };
+});
+```
+
+### 핵심 특징
+
+- **동기 로딩** — `require()`는 파일을 읽고 실행이 끝날 때까지 블로킹합니다
+- **런타임 해석** — 조건문 안에서 `require()`를 호출할 수 있습니다
+- **값 복사** — 내보낸 값의 복사본을 받습니다
+
+```javascript
+// 조건부 로딩 가능 (런타임 해석)
+if (process.env.NODE_ENV === 'production') {
+  const logger = require('./prod-logger');
+} else {
+  const logger = require('./dev-logger');
+}
+```
+
+## ES Modules
+
+ECMAScript 2015에서 도입된 언어 표준 모듈 시스템입니다. `import`/`export` 키워드를 사용합니다.
+
+```javascript
+// math.mjs — named export
+export const add = (a, b) => a + b;
+export const sub = (a, b) => a - b;
+
+// math.mjs — default export
+export default function multiply(a, b) {
+  return a * b;
+}
+
+// app.mjs — 가져오기
+import multiply, { add, sub } from './math.mjs';
+```
+
+### 동작 원리
+
+ESM은 세 단계로 로드됩니다:
+
+1. **구문 분석** (Parsing) — import/export 문을 정적으로 분석하여 의존성 그래프 구성
+2. **인스턴스화** (Instantiation) — 모듈의 export를 메모리에 연결 (아직 값은 없음)
+3. **평가** (Evaluation) — 코드를 실행하여 실제 값을 채움
+
+```javascript
+// ESM은 파일 최상위에서만 사용 가능
+import { add } from './math.mjs'; // OK
+
+// 조건부 import는 불가능
+if (condition) {
+  import { sub } from './math.mjs'; // SyntaxError!
+}
+
+// 동적 import는 가능 (Promise 반환)
+const module = await import('./math.mjs');
+```
+
+### 핵심 특징
+
+- **비동기 로딩** — 파일을 비동기로 가져옵니다
+- **정적 구조** — import/export는 최상위에서만 사용 가능, 빌드 타임에 분석 가능
+- **라이브 바인딩** — 원본의 참조를 공유합니다
+- **Strict Mode** — 항상 strict mode로 실행됩니다
+
+## 값 복사 vs 라이브 바인딩
+
+이것이 CJS와 ESM의 가장 중요한 차이입니다.
+
+```javascript
+// counter.js (CommonJS)
+let count = 0;
+function increment() { count++; }
+
+module.exports = { count, increment };
+
+// app.js
+const counter = require('./counter');
+counter.increment();
+console.log(counter.count); // 0 — 복사된 값이라 변하지 않음
+```
+
+```javascript
+// counter.mjs (ESM)
+export let count = 0;
+export function increment() { count++; }
+
+// app.mjs
+import { count, increment } from './counter.mjs';
+increment();
+console.log(count); // 1 — 라이브 바인딩이라 원본 변경이 반영됨
+```
+
+<ModuleCompare />
+
+## 주요 차이 정리
+
+| 항목 | CommonJS | ESM |
+|------|----------|-----|
+| **문법** | `require()` / `module.exports` | `import` / `export` |
+| **로딩** | 동기 | 비동기 |
+| **분석** | 런타임 | 정적 (빌드 타임) |
+| **바인딩** | 값 복사 | 라이브 바인딩 (참조) |
+| **this** | `module.exports` | `undefined` |
+| **확장자** | `.js` (기본) , `.cjs` | `.mjs` 또는 `"type": "module"` |
+| **조건부 로딩** | `require()` 어디서든 가능 | `import()` 동적 import만 가능 |
+| **Tree-shaking** | 어려움 | 가능 (정적 구조) |
+| **strict mode** | 선택 | 항상 적용 |
+
+## CJS와 ESM의 상호 운용
+
+실제 프로젝트에서는 두 시스템이 혼재합니다. 상호 운용 시 알아야 할 규칙이 있습니다.
+
+### ESM에서 CJS 가져오기
+
+```javascript
+// ESM에서 CJS 모듈을 import할 수 있음
+import cjsModule from './module.cjs';
+
+// named import는 Node.js가 정적 분석을 시도하지만
+// 항상 동작하지는 않음
+import { method } from './module.cjs'; // 실패할 수 있음
+
+// 안전한 방법
+import cjsModule from './module.cjs';
+const { method } = cjsModule;
+```
+
+### CJS에서 ESM 가져오기
+
+Node.js v22.12.0부터 **top-level await가 없는** 동기적 ESM 모듈은 `require()`로 가져올 수 있습니다:
+
+```javascript
+// Node.js v22.12.0+ — 동기적 ESM은 require() 가능
+const esm = require('./module.mjs'); // OK (top-level await 없을 때)
+
+// top-level await가 있는 ESM은 여전히 불가
+const asyncEsm = require('./async-module.mjs'); // ERR_REQUIRE_ASYNC_MODULE
+
+// 비동기 ESM은 동적 import 사용
+async function loadESM() {
+  const esm = await import('./async-module.mjs');
+  return esm;
+}
+```
+
+### package.json의 exports 필드
+
+라이브러리가 CJS와 ESM 모두를 지원하려면 **조건부 export** 를 사용합니다.
+
+```json
+{
+  "name": "my-lib",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  }
+}
+```
+
+## 어떤 것을 사용해야 할까
+
+- **새 프로젝트** — ESM을 사용하세요. 표준이고, 정적 분석과 tree-shaking이 가능합니다
+- **기존 Node.js 프로젝트** — 점진적으로 ESM으로 마이그레이션하세요
+- **라이브러리** — CJS와 ESM 모두 지원하는 것이 좋습니다 (dual package)
+
+## 다음 단계
+
+ESM의 정적 구조는 단순히 문법의 차이가 아닙니다. 이 특성 덕분에 **번들러가 사용하지 않는 코드를 제거** 할 수 있습니다. 다음 글에서는 번들링과 tree-shaking이 어떻게 동작하는지 살펴보겠습니다.

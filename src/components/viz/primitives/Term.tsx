@@ -213,7 +213,7 @@ export function Term({ id, children }: TermProps) {
                   transition={{ delay: 0.1 }}
                   className="mt-2.5 block border-t border-border pt-2.5"
                 >
-                  <span className="text-[0.625rem] uppercase tracking-wider text-muted/60">
+                  <span className="text-[0.625rem] uppercase tracking-wider text-muted">
                     비유하자면
                   </span>
                   <span className="mt-0.5 block text-[0.75rem] leading-relaxed text-text">

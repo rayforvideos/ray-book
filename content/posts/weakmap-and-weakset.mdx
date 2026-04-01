@@ -1,0 +1,264 @@
+---
+title: "WeakMap과 WeakSet"
+description: "가비지 컬렉션과 친화적인 WeakMap, WeakSet, 그리고 ES2021의 WeakRef — 메모리 누수 없는 객체 참조 패턴"
+date: 2026-04-01
+tags: ["javascript", "weakmap", "weakset", "weakref", "memory"]
+series: "js-deep-dive"
+seriesOrder: 2
+draft: false
+---
+
+## 약한 참조란
+
+이전 글에서 Map과 Set이 강한 참조를 유지한다는 것을 봤습니다. **강한 참조** (strong reference) 는 참조가 존재하는 한 가비지 컬렉터가 해당 객체를 수거하지 않습니다.
+
+```javascript
+let user = { name: "Alice" };
+const map = new Map();
+map.set(user, "메타데이터");
+
+user = null;
+// map에 키로 참조가 남아있으므로 { name: "Alice" }는 메모리에 유지됨
+```
+
+**약한 참조** (weak reference) 는 다릅니다. 약한 참조만 남아있다면 가비지 컬렉터가 해당 객체를 수거할 수 있습니다.
+
+## WeakMap
+
+**WeakMap** 은 키에 대해 약한 참조를 유지하는 Map입니다.
+
+### Map과의 핵심 차이
+
+| 특성 | Map | WeakMap |
+|------|-----|---------|
+| **키 타입** | 모든 값 | 객체 또는 미등록 Symbol만 |
+| **GC** | 키가 Map에 있으면 수거 안 됨 | 다른 참조가 없으면 수거 가능 |
+| **이터러블** | `for...of` 가능 | 불가능 |
+| **`.size`** | 있음 | 없음 |
+| **메서드** | `get`, `set`, `has`, `delete`, `clear`, `keys`, `values`, `entries`, `forEach` | `get`, `set`, `has`, `delete` 만 |
+
+왜 이터러블이 아닐까요? WeakMap의 키는 언제든 GC에 의해 사라질 수 있습니다. 키 목록을 열거하면 그 결과가 GC 타이밍에 따라 달라지므로, 비결정적인 동작을 방지하기 위해 이터레이션을 허용하지 않습니다.
+
+### 기본 사용법
+
+```javascript
+const wm = new WeakMap();
+
+let obj = { id: 1 };
+wm.set(obj, "비밀 데이터");
+
+wm.get(obj);  // "비밀 데이터"
+wm.has(obj);  // true
+
+obj = null;
+// 이제 { id: 1 }에 대한 강한 참조가 없으므로
+// GC가 이 객체를 수거할 수 있고, WeakMap의 항목도 자동 정리됨
+```
+
+### 패턴 1: 프라이빗 데이터
+
+클래스 외부에서 접근할 수 없는 프라이빗 데이터를 저장합니다.
+
+```javascript
+const privateData = new WeakMap();
+
+class User {
+  constructor(name, password) {
+    // 인스턴스를 키로, 비밀 데이터를 값으로
+    privateData.set(this, { password });
+    this.name = name;
+  }
+
+  checkPassword(input) {
+    return privateData.get(this).password === input;
+  }
+}
+
+const user = new User("Alice", "secret123");
+user.name;                    // "Alice" (공개)
+user.checkPassword("secret123"); // true
+// privateData에 직접 접근할 수 없음
+// user가 GC되면 비밀 데이터도 자동 정리됨
+```
+
+### 패턴 2: DOM 메타데이터 캐싱
+
+DOM 요소에 메타데이터를 붙이되, 요소가 제거되면 자동으로 정리합니다.
+
+```javascript
+const elementData = new WeakMap();
+
+function trackElement(element) {
+  elementData.set(element, {
+    clickCount: 0,
+    lastClicked: null,
+  });
+}
+
+function handleClick(element) {
+  const data = elementData.get(element);
+  if (data) {
+    data.clickCount++;
+    data.lastClicked = Date.now();
+  }
+}
+
+// DOM에서 요소가 제거되면
+// 해당 요소에 대한 강한 참조가 없어지고
+// WeakMap의 메타데이터도 자동 GC 대상이 됨
+```
+
+### 패턴 3: 메모이제이션
+
+객체 인자에 대한 계산 결과를 캐싱합니다.
+
+```javascript
+const cache = new WeakMap();
+
+function expensiveCompute(obj) {
+  if (cache.has(obj)) {
+    return cache.get(obj);
+  }
+
+  const result = /* 비용이 큰 계산 */ obj.data.reduce((a, b) => a + b, 0);
+  cache.set(obj, result);
+  return result;
+}
+
+let dataset = { data: [1, 2, 3, 4, 5] };
+expensiveCompute(dataset); // 계산 실행
+expensiveCompute(dataset); // 캐시 히트
+
+dataset = null;
+// dataset이 GC되면 캐시도 자동 정리 — 메모리 누수 없음
+```
+
+## WeakSet
+
+**WeakSet** 은 객체 또는 미등록 Symbol만 저장하고, 약한 참조를 유지하는 Set입니다. WeakMap과 마찬가지로 이터러블이 아니며 `.size`도 없습니다.
+
+사용 가능한 메서드는 `add`, `has`, `delete` 세 가지뿐입니다.
+
+### 패턴: 방문한 객체 추적
+
+재귀적으로 객체를 탐색할 때 순환 참조를 방지합니다.
+
+```javascript
+function deepClone(obj, visited = new WeakSet()) {
+  if (obj === null || typeof obj !== "object") {
+    return obj;
+  }
+
+  // 순환 참조 감지
+  if (visited.has(obj)) {
+    return undefined; // 또는 순환 참조 표시
+  }
+
+  visited.add(obj);
+
+  const clone = Array.isArray(obj) ? [] : {};
+  for (const key of Object.keys(obj)) {
+    clone[key] = deepClone(obj[key], visited);
+  }
+
+  return clone;
+}
+
+// 순환 참조가 있는 객체
+const a = { name: "a" };
+const b = { name: "b", ref: a };
+a.ref = b; // 순환!
+
+deepClone(a); // 무한 루프 없이 안전하게 복제
+```
+
+### 패턴: 일회성 처리 보장
+
+```javascript
+const processed = new WeakSet();
+
+function processOnce(obj) {
+  if (processed.has(obj)) {
+    return; // 이미 처리됨
+  }
+
+  processed.add(obj);
+  // ... 처리 로직
+  console.log("처리:", obj.id);
+}
+
+const item = { id: 1 };
+processOnce(item); // "처리: 1"
+processOnce(item); // 무시됨
+```
+
+## WeakRef와 FinalizationRegistry
+
+ES2021에서 더 세밀한 약한 참조 도구가 도입되었습니다.
+
+### WeakRef
+
+`WeakRef`는 객체에 대한 약한 참조를 직접 생성합니다. `deref()` 메서드로 원래 객체를 가져오되, GC가 수거했으면 `undefined`를 반환합니다.
+
+```javascript
+let target = { data: "중요한 데이터" };
+const ref = new WeakRef(target);
+
+// 나중에 참조 확인
+const obj = ref.deref();
+if (obj) {
+  console.log(obj.data); // "중요한 데이터"
+} else {
+  console.log("객체가 GC에 의해 수거됨");
+}
+```
+
+### FinalizationRegistry
+
+`FinalizationRegistry`는 객체가 GC에 의해 수거될 때 콜백을 실행합니다.
+
+```javascript
+const registry = new FinalizationRegistry((heldValue) => {
+  console.log(`${heldValue}가 GC됨 — 리소스 정리`);
+  // 파일 핸들 닫기, 네트워크 연결 해제 등
+});
+
+let resource = { handle: openFile("data.txt") };
+registry.register(resource, "data.txt 파일 핸들");
+
+resource = null;
+// GC가 resource를 수거하면 콜백이 실행됨
+// ⚠️ 타이밍은 보장되지 않음
+```
+
+### 주의사항
+
+WeakRef와 FinalizationRegistry는 **GC 타이밍에 의존** 합니다.
+
+```javascript
+// ⚠️ 이렇게 하지 마세요
+const ref = new WeakRef(someObject);
+// GC가 아직 안 됐을 수도, 이미 됐을 수도 있음
+if (ref.deref()) {
+  // 이 시점에서는 존재하지만
+  // 다음 줄에서는 이미 GC됐을 수도 있음
+}
+```
+
+MDN은 이렇게 경고합니다: "올바른 WeakRef 사용에는 신중한 설계가 필요하며, 가능하면 피하는 것이 좋습니다." 대부분의 경우 **WeakMap이나 WeakSet으로 충분** 합니다. WeakRef는 캐시, 대용량 객체 관리 등 특수한 경우에만 사용하세요.
+
+## 언제 무엇을 쓸까
+
+| 상황 | 선택 |
+|------|------|
+| 객체 키 + 자동 GC 정리 | **WeakMap** |
+| 객체 방문/처리 추적 | **WeakSet** |
+| 캐시 (GC 시 자동 무효화) | **WeakMap** |
+| 프라이빗 데이터 | **WeakMap** (또는 `#private` 필드) |
+| 세밀한 약한 참조 + 정리 콜백 | **WeakRef** + **FinalizationRegistry** |
+| 범용 키-값 저장 | **Map** |
+| 중복 없는 값 컬렉션 | **Set** |
+
+## 다음 단계
+
+Map, Set, WeakMap, WeakSet 모두 **이터러블** (iterable) 프로토콜을 따릅니다 (Weak 계열은 의도적으로 제외). 다음 글에서는 이 이터러블의 기반이 되는 **이터레이터 프로토콜** 과 **제너레이터** 를 살펴보겠습니다.

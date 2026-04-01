@@ -121,7 +121,7 @@ export function ICState({ preset = "property-access" }: ICStateProps) {
           {(["uninitialized", "monomorphic", "polymorphic", "megamorphic"] as const).map((s) => {
             const sStyle = stateStyles[s];
             return (
-              <div key={s} className={`flex-1 py-1 text-center text-[0.5625rem] transition-all ${s === step.state ? `${sStyle.bg} ${sStyle.text} font-semibold` : "bg-surface text-muted/40"}`}>
+              <div key={s} className={`flex-1 py-1 text-center text-[0.5625rem] transition-all ${s === step.state ? `${sStyle.bg} ${sStyle.text} font-semibold` : "bg-surface text-muted/50"}`}>
                 {sStyle.label}
               </div>
             );
