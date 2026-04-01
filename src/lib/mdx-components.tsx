@@ -36,6 +36,7 @@ import { ConfusingPatterns } from "@/components/viz/domain/ConfusingPatterns";
 import { WorkerThread } from "@/components/viz/domain/WorkerThread";
 import { TransferableCost } from "@/components/viz/domain/TransferableCost";
 import { SharedMemoryRace } from "@/components/viz/domain/SharedMemoryRace";
+import { RenderTreeLayout } from "@/components/viz/domain/RenderTreeLayout";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -75,6 +76,7 @@ export const mdxComponents: MDXComponents = {
   WorkerThread,
   TransferableCost,
   SharedMemoryRace,
+  RenderTreeLayout,
   Term,
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{
