@@ -59,7 +59,9 @@ async function longPoll() {
     const res = await fetch("/api/messages/subscribe?since=" + lastId);
     const data = await res.json();
     data.forEach(renderMessage);
-    lastId = data[data.length - 1].id;
+    if (data.length > 0) {
+      lastId = data[data.length - 1].id;
+    }
   }
 }
 ```

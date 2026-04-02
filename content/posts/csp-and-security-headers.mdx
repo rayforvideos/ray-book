@@ -66,7 +66,7 @@ Content-Security-Policy: img-src 'self' https://cdn.example.com data:
 Content-Security-Policy: connect-src 'self' https://api.example.com
 ```
 
-**frame-src** -- `<iframe>`으로 임베드할 수 있는 출처를 제한합니다. 클릭재킹 방어에도 도움이 됩니다.
+**frame-src** -- 내 페이지가 `<iframe>`으로 삽입할 수 있는 외부 출처를 제한합니다. 클릭재킹 방어는 `frame-ancestors` 디렉티브가 담당합니다.
 
 ```http
 Content-Security-Policy: frame-src 'self' https://www.youtube.com
@@ -158,8 +158,10 @@ Permissions-Policy: camera=(), microphone=(), geolocation=(self)
 처음부터 엄격한 CSP를 적용하면 기존 기능이 깨질 수 있습니다. 그래서 **Report-Only 모드**로 시작하는 것이 좋습니다.
 
 ```http
-Content-Security-Policy-Report-Only: default-src 'self'; report-uri /csp-report
+Content-Security-Policy-Report-Only: default-src 'self'; report-uri /csp-report; report-to csp-endpoint
 ```
+
+> `report-uri`는 deprecated된 디렉티브입니다. 현재 표준은 `report-to`이며, Reporting API와 함께 사용합니다. 다만 `report-to`를 아직 지원하지 않는 브라우저가 있으므로, 과도기적으로 두 디렉티브를 함께 선언하는 것이 권장됩니다.
 
 Report-Only 모드에서는 CSP 위반이 발생해도 리소스를 차단하지 않습니다. 대신 위반 내용을 지정된 URL로 보고합니다. 이렇게 하면 기존 서비스에 영향 없이 어떤 리소스가 위반되는지 파악할 수 있습니다.
 
@@ -172,7 +174,10 @@ Next.js에서는 `next.config.js`의 `headers` 설정으로 보안 헤더를 추
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: "default-src 'self'; script-src 'self' 'nonce-{nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.example.com; connect-src 'self' https://api.example.com",
+    // 주의: 정적 config에서는 nonce를 동적으로 생성할 수 없습니다.
+    // 'nonce-{nonce}'는 리터럴 문자열로 전달되어 실제로 작동하지 않습니다.
+    // nonce 기반 CSP는 middleware에서 매 요청마다 동적으로 생성해야 합니다.
+    value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.example.com; connect-src 'self' https://api.example.com",
   },
   {
     key: "Strict-Transport-Security",

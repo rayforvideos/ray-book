@@ -152,15 +152,15 @@ window.addEventListener("scroll", throttled);
 
 ```javascript
 // passive 없음: 브라우저는 핸들러 실행이 끝날 때까지 스크롤 대기
-window.addEventListener("scroll", handler);
+window.addEventListener("wheel", handler);
 
 // passive 선언: 브라우저는 핸들러와 스크롤을 동시에 처리
-window.addEventListener("scroll", handler, { passive: true });
+window.addEventListener("wheel", handler, { passive: true });
 ```
 
-왜 이것이 중요할까요? 스크롤 이벤트 핸들러는 `preventDefault()`로 스크롤 자체를 취소할 수 있습니다. 브라우저는 핸들러가 이를 호출할지 **미리 알 수 없으므로**, 핸들러 실행이 끝날 때까지 스크롤을 멈추고 기다립니다. `passive: true`로 선언하면 브라우저는 안심하고 핸들러 완료를 기다리지 않고 즉시 스크롤을 처리합니다.
+왜 이것이 중요할까요? `wheel`이나 `touchmove` 이벤트 핸들러는 `preventDefault()`로 스크롤 자체를 취소할 수 있습니다. 브라우저는 핸들러가 이를 호출할지 **미리 알 수 없으므로**, 핸들러 실행이 끝날 때까지 스크롤을 멈추고 기다립니다. `passive: true`로 선언하면 브라우저는 안심하고 핸들러 완료를 기다리지 않고 즉시 스크롤을 처리합니다. 참고로 `scroll` 이벤트는 `cancelable: false`이므로 passive 옵션과 무관합니다.
 
-터치 기반 디바이스에서 특히 효과가 큽니다. Chrome은 최상위 touch/wheel 이벤트에 대해 기본적으로 passive를 적용하지만, 명시적으로 선언하는 것이 좋습니다.
+터치 기반 디바이스에서 특히 효과가 큽니다. 대부분의 모던 브라우저는 (Safari 제외) 최상위 touch/wheel 이벤트에 대해 기본적으로 passive를 적용하지만, 명시적으로 선언하는 것이 좋습니다.
 
 ## CSS 힌트
 

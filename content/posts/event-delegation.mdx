@@ -60,7 +60,7 @@ ul.addEventListener("click", (e) => {
 
 ### stopPropagation
 
-`event.stopPropagation()`은 이벤트의 **상위 전파를 중단**합니다. 캡처 단계에서 호출하면 더 이상 내려가지 않고, 버블 단계에서 호출하면 더 이상 올라가지 않습니다.
+`event.stopPropagation()`은 이벤트의 **이후 전파를 중단**합니다. 캡처 단계에서 호출하면 더 이상 내려가지 않고, 버블 단계에서 호출하면 더 이상 올라가지 않습니다.
 
 ```javascript
 child.addEventListener("click", (e) => {
@@ -155,7 +155,7 @@ document.addEventListener("wheel", (e) => {
 }, { passive: true });
 ```
 
-Chrome은 `touchstart`, `touchmove`, `wheel` 이벤트에 대해 document-level 리스너의 `passive` 기본값을 `true`로 설정합니다. 스크롤을 막아야 한다면 명시적으로 `{ passive: false }`를 전달해야 합니다.
+대부분의 모던 브라우저는 (Safari 제외) `touchstart`, `touchmove`, `mousewheel`, `wheel` 이벤트에 대해 document-level 리스너의 `passive` 기본값을 `true`로 설정합니다. 스크롤을 막아야 한다면 명시적으로 `{ passive: false }`를 전달해야 합니다.
 
 ### signal (AbortSignal)
 
