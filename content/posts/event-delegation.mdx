@@ -1,0 +1,214 @@
+---
+title: "이벤트 위임과 실전 패턴"
+description: "버블링을 활용한 이벤트 위임 패턴, stopPropagation, preventDefault, 그리고 passive 리스너를 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "dom", "events", "delegation", "performance"]
+series: "dom-and-events"
+seriesOrder: 3
+draft: false
+---
+
+## 이벤트 위임이란
+
+2편에서 이벤트가 DOM 트리를 따라 캡처 -> 타겟 -> 버블 순서로 흐른다는 것을 살펴봤습니다. 특히 **버블링** 단계에서 이벤트는 target에서 window까지 모든 조상 노드를 거칩니다. 이벤트 위임(Event Delegation)은 이 버블링을 활용한 패턴입니다.
+
+핵심 아이디어는 간단합니다. 자식 요소 각각에 핸들러를 등록하는 대신, **공통 부모 하나에만 핸들러를 등록**하고, `event.target`을 확인하여 어떤 자식에서 이벤트가 발생했는지 판별합니다.
+
+이 패턴이 유용한 이유는 두 가지입니다. 첫째, 핸들러 수가 줄어들어 **메모리 사용량이 감소**합니다. 둘째, 나중에 동적으로 추가된 자식 요소도 별도 바인딩 없이 **자동으로 이벤트가 처리**됩니다.
+
+## 개별 바인딩 vs 이벤트 위임
+
+아래 시각화에서 두 가지 방식을 비교해 보세요. "개별 바인딩" 탭에서는 각 `<li>`에 핸들러가 붙어 있고, "이벤트 위임" 탭에서는 부모 `<ul>`에만 핸들러가 있습니다. 각 항목을 클릭하면 동작 차이를 확인할 수 있습니다. 특히 동적으로 추가된 네 번째 항목에 주목하세요.
+
+<EventDelegation />
+
+개별 바인딩 방식에서는 동적으로 추가된 항목에 핸들러가 없어 클릭해도 아무 반응이 없습니다. 반면 이벤트 위임 방식에서는 클릭 이벤트가 부모 `<ul>`까지 버블링되므로, 동적 요소든 기존 요소든 동일하게 처리됩니다.
+
+리스트, 테이블, 폼처럼 **같은 종류의 자식 요소가 반복**되는 구조에서 이벤트 위임은 거의 필수적인 패턴입니다.
+
+## e.target.closest() 패턴
+
+이벤트 위임을 구현할 때 가장 흔한 실수는 `e.target`을 직접 비교하는 것입니다. `<li>` 안에 `<span>`이나 `<img>` 같은 자식 요소가 있으면, `e.target`이 `<li>`가 아니라 그 자식 요소를 가리킬 수 있습니다.
+
+```javascript
+// 위험한 패턴
+ul.addEventListener("click", (e) => {
+  if (e.target.tagName === "LI") {
+    // <li> 안의 <span>을 클릭하면 이 조건을 통과하지 못함
+    handleClick(e.target);
+  }
+});
+```
+
+안전한 방법은 `closest()`를 사용하는 것입니다.
+
+```javascript
+// 안전한 패턴
+ul.addEventListener("click", (e) => {
+  const li = e.target.closest("li");
+  if (!li) return;              // li가 아닌 영역 클릭
+  if (!ul.contains(li)) return; // ul 바깥의 li 클릭 방지
+  handleClick(li);
+});
+```
+
+`closest(selector)`는 자기 자신부터 시작해서 조상을 따라 올라가며 selector에 매칭되는 **가장 가까운 요소**를 반환합니다. 매칭되는 요소가 없으면 `null`을 반환합니다.
+
+`ul.contains(li)` 검증은 중첩된 리스트 구조에서 바깥쪽 `<ul>`의 핸들러가 안쪽 `<li>`를 잘못 처리하는 상황을 방지합니다. 이 한 줄을 습관적으로 추가하면 디버깅하기 어려운 버그를 예방할 수 있습니다.
+
+## stopPropagation과 stopImmediatePropagation
+
+### stopPropagation
+
+`event.stopPropagation()`은 이벤트의 **상위 전파를 중단**합니다. 캡처 단계에서 호출하면 더 이상 내려가지 않고, 버블 단계에서 호출하면 더 이상 올라가지 않습니다.
+
+```javascript
+child.addEventListener("click", (e) => {
+  e.stopPropagation();
+  console.log("child");  // 실행됨
+});
+
+parent.addEventListener("click", () => {
+  console.log("parent"); // 실행되지 않음
+});
+```
+
+### stopImmediatePropagation
+
+`event.stopImmediatePropagation()`은 상위 전파뿐 아니라 **같은 요소에 등록된 나머지 핸들러의 실행도 중단**합니다.
+
+```javascript
+el.addEventListener("click", (e) => {
+  e.stopImmediatePropagation();
+  console.log("첫 번째"); // 실행됨
+});
+
+el.addEventListener("click", () => {
+  console.log("두 번째"); // 실행되지 않음
+});
+```
+
+### 언제 사용하고, 언제 피해야 하는가
+
+`stopPropagation`은 이벤트 위임 패턴과 충돌할 수 있습니다. 자식에서 전파를 중단하면 부모의 위임 핸들러가 이벤트를 받지 못합니다. 모달 바깥 클릭 감지, 드롭다운 닫기 같은 전역 핸들러도 동작하지 않을 수 있습니다.
+
+대부분의 경우 `stopPropagation` 대신 **핸들러 내부에서 조건 분기**하는 것이 더 안전합니다. 꼭 필요한 경우에만, 그리고 영향 범위를 정확히 이해한 상태에서만 사용하세요.
+
+## preventDefault
+
+`event.preventDefault()`는 이벤트의 **기본 동작을 취소**합니다. 전파(propagation)와는 별개의 개념입니다 -- 이벤트는 여전히 버블링됩니다.
+
+```javascript
+// 링크의 기본 네비게이션 취소
+link.addEventListener("click", (e) => {
+  e.preventDefault();
+  // 커스텀 네비게이션 로직
+});
+
+// 폼의 기본 제출 취소
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  // 비동기 제출 로직
+});
+
+// 특정 키 입력 차단
+input.addEventListener("keydown", (e) => {
+  if (!/\d/.test(e.key) && e.key !== "Backspace") {
+    e.preventDefault(); // 숫자와 Backspace만 허용
+  }
+});
+```
+
+모든 이벤트의 기본 동작을 취소할 수 있는 것은 아닙니다. `event.cancelable` 프로퍼티가 `true`인 이벤트만 `preventDefault()`가 동작합니다. 예를 들어, `scroll` 이벤트는 `cancelable: false`이므로 `preventDefault()`를 호출해도 스크롤이 멈추지 않습니다. 스크롤을 막으려면 `wheel`이나 `touchmove` 이벤트에서 처리해야 합니다.
+
+jQuery에서는 핸들러가 `return false`를 반환하면 `preventDefault()`와 `stopPropagation()`이 동시에 호출됩니다. 하지만 **네이티브 DOM 이벤트에서 `return false`는 아무 효과가 없습니다**. 이 차이를 모르면 jQuery에서 바닐라 JS로 전환할 때 버그가 발생할 수 있습니다.
+
+## addEventListener 옵션들
+
+`addEventListener`의 세 번째 인자로 옵션 객체를 전달할 수 있습니다. 2편에서 다룬 `capture` 외에도 유용한 옵션들이 있습니다.
+
+### capture
+
+이벤트를 버블링 단계가 아닌 **캡처링 단계**에서 감지합니다. 2편에서 자세히 다뤘으므로 여기서는 생략합니다.
+
+### once
+
+핸들러를 **한 번만 실행**하고 자동으로 제거합니다. 일회성 이벤트에 유용합니다.
+
+```javascript
+button.addEventListener("click", () => {
+  console.log("최초 클릭에만 실행");
+}, { once: true });
+```
+
+### passive
+
+핸들러가 `preventDefault()`를 **호출하지 않겠다**고 브라우저에 알립니다. 브라우저는 핸들러 실행을 기다리지 않고 즉시 기본 동작(스크롤 등)을 수행할 수 있어 **성능이 향상**됩니다.
+
+```javascript
+// 스크롤 성능 최적화
+document.addEventListener("touchmove", handleTouch, { passive: true });
+
+// passive: true인데 preventDefault()를 호출하면?
+document.addEventListener("wheel", (e) => {
+  e.preventDefault(); // 콘솔에 경고 출력, 무시됨
+}, { passive: true });
+```
+
+Chrome은 `touchstart`, `touchmove`, `wheel` 이벤트에 대해 document-level 리스너의 `passive` 기본값을 `true`로 설정합니다. 스크롤을 막아야 한다면 명시적으로 `{ passive: false }`를 전달해야 합니다.
+
+### signal (AbortSignal)
+
+`AbortController`의 signal을 전달하면, controller를 abort할 때 **리스너가 자동으로 제거**됩니다. 여러 리스너를 한 번에 정리할 때 유용합니다.
+
+```javascript
+const controller = new AbortController();
+
+element.addEventListener("click", handleClick, { signal: controller.signal });
+element.addEventListener("keydown", handleKey, { signal: controller.signal });
+window.addEventListener("resize", handleResize, { signal: controller.signal });
+
+// 세 리스너를 한 번에 제거
+controller.abort();
+```
+
+`removeEventListener`에서 핸들러 참조를 관리할 필요가 없으므로, 익명 함수나 인라인 화살표 함수로 등록한 리스너도 깔끔하게 정리할 수 있습니다.
+
+## 커스텀 이벤트
+
+DOM 이벤트 시스템은 브라우저 내장 이벤트에만 한정되지 않습니다. **커스텀 이벤트**를 생성하고 디스패치할 수 있습니다.
+
+```javascript
+// 커스텀 이벤트 생성
+const event = new CustomEvent("cart:add", {
+  detail: { productId: 42, quantity: 1 },
+  bubbles: true,
+  cancelable: true,
+});
+
+// 이벤트 발송
+productCard.dispatchEvent(event);
+
+// 부모에서 위임으로 수신
+container.addEventListener("cart:add", (e) => {
+  console.log(e.detail); // { productId: 42, quantity: 1 }
+  updateCartUI(e.detail);
+});
+```
+
+`bubbles: true`를 설정하면 커스텀 이벤트도 DOM 트리를 따라 버블링됩니다. 이벤트 위임 패턴과 결합하면, 컴포넌트 간 느슨한 결합(loose coupling)을 달성할 수 있습니다. 자식 컴포넌트는 부모가 누구인지 알 필요 없이 이벤트만 발송하고, 부모는 적절한 레벨에서 이벤트를 수신합니다.
+
+`cancelable: true`로 설정하면 수신 측에서 `preventDefault()`를 호출할 수 있고, 발송 측에서 `dispatchEvent`의 반환값으로 취소 여부를 확인할 수 있습니다.
+
+```javascript
+const allowed = productCard.dispatchEvent(event);
+if (!allowed) {
+  console.log("이벤트가 취소됨");
+}
+```
+
+## 다음 단계
+
+이벤트 흐름과 위임 패턴을 통해 DOM에서 "무언가가 일어났을 때" 반응하는 방법을 살펴봤습니다. 하지만 DOM 자체가 변할 때는 어떻게 감지할까요? 자식 노드가 추가되거나, 속성이 바뀌거나, 요소가 뷰포트에 들어오는 순간을 포착하는 것은 이벤트만으로는 한계가 있습니다.
+
+다음 글에서는 **MutationObserver**, **IntersectionObserver**, **ResizeObserver** 등 DOM 변화를 감지하는 Observer API를 다룹니다.

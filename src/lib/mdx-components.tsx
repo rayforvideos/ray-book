@@ -13,6 +13,7 @@ import { ScopeChain } from "@/components/viz/domain/ScopeChain";
 import { Closure } from "@/components/viz/domain/Closure";
 import { Hoisting } from "@/components/viz/domain/Hoisting";
 import { ThisBinding } from "@/components/viz/domain/ThisBinding";
+import { EventDelegation } from "@/components/viz/domain/EventDelegation";
 import { EventFlow } from "@/components/viz/domain/EventFlow";
 import { EventLoopFull } from "@/components/viz/domain/EventLoopFull";
 import { PromiseChain } from "@/components/viz/domain/PromiseChain";
@@ -59,6 +60,7 @@ export const mdxComponents: MDXComponents = {
   Closure,
   Hoisting,
   ThisBinding,
+  EventDelegation,
   EventFlow,
   EventLoopFull,
   PromiseChain,
