@@ -6,6 +6,7 @@ import { ASTTree } from "@/components/viz/domain/ASTTree";
 import { BytecodeView } from "@/components/viz/domain/BytecodeView";
 import { JITPipeline } from "@/components/viz/domain/JITPipeline";
 import { HiddenClass } from "@/components/viz/domain/HiddenClass";
+import { HttpRequestFlow } from "@/components/viz/domain/HttpRequestFlow";
 import { ICState } from "@/components/viz/domain/ICState";
 import { GCHeap } from "@/components/viz/domain/GCHeap";
 import { ExecutionContext } from "@/components/viz/domain/ExecutionContext";
@@ -55,6 +56,7 @@ export const mdxComponents: MDXComponents = {
   BytecodeView,
   JITPipeline,
   HiddenClass,
+  HttpRequestFlow,
   ICState,
   GCHeap,
   ExecutionContext,
