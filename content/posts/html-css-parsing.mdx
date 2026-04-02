@@ -82,12 +82,12 @@ p  { font-size: 16px; line-height: 1.6; }
 
 ```text
 StyleSheet
-├── Rule: h1
-│   ├── color: navy
-│   └── font-size: 24px
-└── Rule: p
-    ├── font-size: 16px
-    └── line-height: 1.6
+  Rule: h1
+    color: navy
+    font-size: 24px
+  Rule: p
+    font-size: 16px
+    line-height: 1.6
 ```
 
 CSSOM은 단순히 CSS 규칙을 나열한 것이 아닙니다. **캐스케이드 (cascade)** 와 **특이도 (specificity)** 규칙을 적용한 최종 계산 결과를 담고 있습니다.
@@ -134,16 +134,9 @@ HTML 파서가 `<script>` 태그를 만나면 상황이 달라집니다. <Term i
 세 방식의 타이밍 차이를 정리하면:
 
 ```text
-일반 script:
-  HTML 파싱 ──■■ 다운로드 ■■ 실행 ■■──── HTML 파싱 계속 ────
-
-async:
-  HTML 파싱 ─────────────────────── HTML 파싱 계속 ────
-                ■■ 다운로드 ■■ 실행 ■■  (완료 즉시 실행)
-
-defer:
-  HTML 파싱 ─────────────────────── HTML 파싱 완료 ─ 실행 ─
-                ■■ 다운로드 ■■          (DOMContentLoaded 전)
+<script>          : HTML 파싱 중단 -> 다운로드 -> 실행 -> 파싱 재개
+<script defer>    : HTML 파싱과 병렬 다운로드 -> 파싱 완료 후 실행
+<script async>    : HTML 파싱과 병렬 다운로드 -> 다운로드 완료 즉시 실행
 ```
 
 **실무 권장**: 대부분의 스크립트는 `defer`로 로드하세요. 실행 순서가 보장되며, DOM이 완전히 파싱된 후에 실행됩니다. `async`는 Google Analytics처럼 독립적이고 순서가 중요하지 않은 스크립트에 적합합니다.
@@ -160,9 +153,8 @@ defer:
 4. 메인 파서가 재개되면 이미 다운로드 중이거나 완료된 리소스를 즉시 사용
 
 ```text
-메인 파서:       파싱 ─── ■ script 블로킹 ■ ─── 파싱 재개 ───
-프리로드 스캐너:            ■ 나머지 HTML 스캔 ■
-네트워크:                   ■ img 요청 ■  ■ css 요청 ■
+메인 파서:     파싱 중 ... [script 블로킹] ... 파싱 재개
+프리로드 스캐너: (블로킹 중에도) 나머지 HTML 스캔 -> 리소스 사전 요청
 ```
 
 프리로드 스캐너 덕분에 파서 블로킹의 성능 영향이 크게 줄어듭니다. 하지만 프리로드 스캐너가 발견할 수 없는 리소스도 있습니다 — JavaScript로 동적 생성되는 요소나 CSS `background-image`가 그 예입니다.

@@ -19,12 +19,11 @@ draft: false
 3. 보이는 노드와 그 스타일을 렌더 트리에 추가합니다
 
 ```text
-DOM Tree          CSSOM Tree
-   │                 │
-   └──── 결합 ────────┘
-            │
-     Render Tree
-    (보이는 노드 + 계산된 스타일)
+DOM Tree + CSSOM Tree
+        |
+     결합 (Attachment)
+        |
+    Render Tree (보이는 노드 + 계산된 스타일)
 ```
 
 렌더 트리의 각 노드를 Blink 엔진에서는 `LayoutObject`, WebKit에서는 `RenderObject`로 부릅니다. 이름은 다르지만 역할은 동일합니다 — 화면에 그려질 요소와 그 스타일 정보를 담고 있습니다.
@@ -123,19 +122,19 @@ margin → border → padding → content
 
 ```text
 뷰포트: 1024px
-│
-├── body: width = 1024px (기본 width: auto → 부모 100%)
-│   │
-│   └── .container: width = 80% → 819px
-│       margin: 0 auto → 좌: 102px, 우: 103px
-│       │
-│       ├── h1: width = 819px (블록 요소 → 부모 100%)
-│       │   height = 33px (콘텐츠 기반)
-│       │   position: (102, 0)
-│       │
-│       └── p: width = 819px
-│           height = 40px (16px 폰트 × 1.5 줄높이 + 패딩)
-│           position: (102, 33)
+
+body: width = 1024px (기본 width: auto = 부모 100%)
+
+  .container: width = 80% = 819px
+    margin: 0 auto = 좌: 102px, 우: 103px
+
+    h1: width = 819px (블록 요소 = 부모 100%)
+        height = 33px (콘텐츠 기반)
+        position: (102, 0)
+
+    p: width = 819px
+       height = 40px (16px 폰트 x 1.5 줄높이 + 패딩)
+       position: (102, 33)
 ```
 
 ## Normal Flow

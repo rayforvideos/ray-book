@@ -27,14 +27,14 @@ draft: false
 
 ```text
 Document
-└── html (Element)
-    ├── head (Element)
-    │   └── ...
-    └── body (Element)
-        ├── h1 (Element)
-        │   └── "Hello" (Text)
-        └── p (Element)
-            └── "World" (Text)
+  html (Element)
+    head (Element)
+      ...
+    body (Element)
+      h1 (Element)
+        "Hello" (Text)
+      p (Element)
+        "World" (Text)
 ```
 
 중요한 점은 DOM이 HTML 소스 코드 그 자체가 아니라는 것입니다. DOM은 파싱된 결과이며, 잘못된 HTML도 브라우저가 보정한 뒤 올바른 트리로 만들어줍니다.
