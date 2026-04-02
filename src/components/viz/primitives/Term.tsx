@@ -210,6 +210,7 @@ interface TermProps {
 export function Term({ id, children }: TermProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<"above" | "below">("below");
+  const [offsetX, setOffsetX] = useState(0);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const popoverRef = useRef<HTMLSpanElement>(null);
   const openedByHoverRef = useRef(false);
@@ -221,6 +222,21 @@ export function Term({ id, children }: TermProps) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       setPosition(spaceBelow < 200 ? "above" : "below");
+
+      // Clamp popover within viewport on mobile
+      const popoverWidth = Math.min(288, window.innerWidth - 32);
+      const triggerCenter = rect.left + rect.width / 2;
+      const popoverLeft = triggerCenter - popoverWidth / 2;
+      const popoverRight = popoverLeft + popoverWidth;
+      const margin = 16;
+
+      if (popoverLeft < margin) {
+        setOffsetX(margin - popoverLeft);
+      } else if (popoverRight > window.innerWidth - margin) {
+        setOffsetX(window.innerWidth - margin - popoverRight);
+      } else {
+        setOffsetX(0);
+      }
     }
   }, [open]);
 
@@ -286,7 +302,8 @@ export function Term({ id, children }: TermProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className={`absolute left-1/2 z-50 block w-72 -translate-x-1/2 ${
+            style={{ marginLeft: offsetX }}
+            className={`absolute left-1/2 z-50 block w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 ${
               position === "below" ? "top-full mt-2" : "bottom-full mb-2"
             }`}
           >
