@@ -67,6 +67,7 @@ import { TcpUdpCompare } from "@/components/viz/domain/TcpUdpCompare";
 import { DnsResolution } from "@/components/viz/domain/DnsResolution";
 import { TlsHandshake } from "@/components/viz/domain/TlsHandshake";
 import { HttpEvolution } from "@/components/viz/domain/HttpEvolution";
+import { CdnLoadBalancer } from "@/components/viz/domain/CdnLoadBalancer";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -137,6 +138,7 @@ export const mdxComponents: MDXComponents = {
   DnsResolution,
   TlsHandshake,
   HttpEvolution,
+  CdnLoadBalancer,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">

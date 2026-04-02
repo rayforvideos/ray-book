@@ -1,0 +1,468 @@
+---
+title: "CDN과 로드밸런싱"
+description: "사용자와 서버 사이의 인프라 — CDN 에지 서버, Anycast, L4/L7 로드밸런서를 시각화합니다"
+date: 2026-04-03
+tags: ["cs", "network", "cdn", "load-balancing", "anycast", "reverse-proxy"]
+series: "network-fundamentals"
+seriesOrder: 6
+draft: false
+---
+
+## 사용자와 서버 사이의 인프라
+
+이전 글에서 HTTP/2와 HTTP/3의 프로토콜 수준 개선을 살펴봤습니다. 하지만 프로토콜이 아무리 빨라져도, 서울의 사용자가 미국 동부의 오리진 서버까지 왕복하면 물리적 거리만으로 100ms 이상의 지연이 발생합니다.
+
+이 글에서는 사용자와 오리진 서버 **사이에** 위치하는 인프라 — CDN, Anycast, 로드밸런서 — 를 다룹니다.
+
+## CDN이란
+
+<Term id="cdn">CDN</Term> (Content Delivery Network) 은 전 세계에 분산된 에지 서버 네트워크입니다. 사용자에게 물리적으로 가까운 서버에서 콘텐츠를 제공해 레이턴시를 줄입니다.
+
+CDN의 핵심 구성 요소는 다음과 같습니다.
+
+```javascript
+const cdnArchitecture = {
+  // POP (Point of Presence): 에지 서버가 배치된 물리적 위치
+  pops: ["Seoul", "Tokyo", "Singapore", "Frankfurt", "Ashburn", "..."],
+
+  // 에지 서버: 각 POP에 위치한 캐시 서버
+  edgeServer: {
+    role: "사용자에게 가장 가까운 응답 지점",
+    cache: "오리진 응답을 로컬에 저장",
+    ttl: "Cache-Control 헤더에 따라 캐시 유효 기간 결정",
+  },
+
+  // 오리진 서버: 실제 콘텐츠가 존재하는 원본 서버
+  originServer: {
+    role: "캐시 미스 시 콘텐츠를 제공",
+    location: "특정 리전 (예: us-east-1)",
+  },
+};
+```
+
+## Anycast 라우팅
+
+CDN이 사용자를 가장 가까운 POP으로 보내는 핵심 기술이 <Term id="anycast">Anycast</Term>입니다.
+
+일반적인 <Term id="unicast">Unicast</Term>에서는 하나의 IP 주소가 하나의 서버를 가리킵니다. Anycast에서는 **동일한 IP 주소**가 전 세계 여러 POP에서 동시에 광고됩니다.
+
+```javascript
+// Unicast vs Anycast
+const unicast = {
+  ip: "93.184.216.34",
+  location: "미국 동부 (단일 서버)",
+  routing: "모든 사용자가 이 서버로 접속",
+};
+
+const anycast = {
+  ip: "104.16.132.229", // Cloudflare 에지 서버
+  locations: [
+    "Seoul POP에서 이 IP를 BGP로 광고",
+    "Tokyo POP에서 이 IP를 BGP로 광고",
+    "Frankfurt POP에서 이 IP를 BGP로 광고",
+    // ... 300+ POP
+  ],
+  routing: "BGP가 네트워크 홉 수 기준으로 가장 가까운 POP을 선택",
+};
+
+// 서울 사용자: 104.16.132.229 -> Seoul POP
+// 베를린 사용자: 104.16.132.229 -> Frankfurt POP
+// 같은 IP, 다른 물리적 서버
+```
+
+Anycast의 또 다른 이점은 **DDoS 방어**입니다. 공격 트래픽이 특정 서버에 집중되지 않고 전 세계 POP에 자동으로 분산됩니다. 하나의 POP이 다운되어도 BGP가 자동으로 다음으로 가까운 POP으로 트래픽을 우회합니다.
+
+## 캐시 계층: Edge, Shield, Origin
+
+CDN은 단순히 에지 서버 하나만 있는 것이 아닙니다. 효율적인 캐싱을 위해 **다단계 캐시 계층**을 구성합니다.
+
+```javascript
+const cacheHierarchy = {
+  // 1. Edge Cache: 사용자에게 가장 가까운 POP
+  edge: {
+    count: "300+ POP",
+    hitRate: "대부분의 인기 콘텐츠는 여기서 해결",
+    problem: "POP이 너무 많으면 각 POP의 캐시 히트율이 낮아짐",
+  },
+
+  // 2. Shield (Mid-tier Cache): 리전별 중간 캐시
+  shield: {
+    count: "10~20개 리전",
+    role: "같은 리전의 에지 서버들이 오리진을 중복 호출하는 것을 방지",
+    // 서울, 부산, 오사카 POP이 모두 Tokyo Shield를 거쳐 오리진에 접근
+  },
+
+  // 3. Origin: 원본 서버
+  origin: {
+    role: "Shield에서도 캐시 미스일 때만 접근",
+    benefit: "에지 + 쉴드가 대부분의 트래픽을 흡수해 오리진 부하 최소화",
+  },
+};
+```
+
+Shield가 없으면 전 세계 300개 에지 서버가 동시에 오리진에 같은 리소스를 요청할 수 있습니다 (thundering herd). Shield는 이 요청을 하나로 합쳐서 오리진에 보냅니다. 이를 **request collapsing** 또는 **coalescing**이라 합니다.
+
+## 요청 경로 시각화: 캐시 미스
+
+아래 시각화에서 CDN 캐시에 리소스가 없을 때 (캐시 미스) 사용자 요청이 오리진까지 도달하는 전체 경로를 확인하세요.
+
+<CdnLoadBalancer preset="cache-miss" />
+
+## 요청 경로 시각화: 캐시 히트
+
+캐시에 리소스가 존재하면 에지 서버에서 바로 응답합니다. 오리진까지의 왕복이 생략되어 레이턴시가 크게 줄어듭니다.
+
+<CdnLoadBalancer preset="cache-hit" />
+
+## 로드밸런서: L4 vs L7
+
+로드밸런서는 트래픽을 여러 백엔드 서버에 분산합니다. 동작하는 OSI 계층에 따라 L4와 L7로 나뉩니다.
+
+### L4 로드밸런서 (전송 계층)
+
+L4 로드밸런서는 TCP/UDP 수준에서 동작합니다. IP 주소와 포트 번호만 보고 라우팅을 결정합니다.
+
+```javascript
+const l4LoadBalancer = {
+  layer: "Transport (TCP/UDP)",
+  decisionBasis: ["소스 IP", "소스 포트", "목적지 IP", "목적지 포트"],
+
+  // HTTP 헤더, URL, 쿠키 등은 볼 수 없음
+  cannotSee: ["URL 경로", "Host 헤더", "쿠키", "HTTP 메서드"],
+
+  pros: [
+    "매우 빠름 (패킷 수준에서 처리, TLS 복호화 불필요)",
+    "프로토콜에 무관하게 동작 (HTTP, WebSocket, gRPC, DB 등)",
+    "높은 처리량 (수백만 동시 연결 가능)",
+  ],
+
+  cons: [
+    "HTTP 내용 기반 라우팅 불가",
+    "세밀한 트래픽 분배 어려움",
+  ],
+
+  examples: ["AWS NLB", "HAProxy (TCP 모드)", "IPVS (Linux 커널)"],
+};
+```
+
+### L7 로드밸런서 (애플리케이션 계층)
+
+L7 로드밸런서는 HTTP 수준에서 동작합니다. URL 경로, 헤더, 쿠키 등 애플리케이션 데이터를 기반으로 라우팅합니다.
+
+```javascript
+const l7LoadBalancer = {
+  layer: "Application (HTTP/HTTPS)",
+  decisionBasis: [
+    "URL 경로 (/api/*, /static/*)",
+    "Host 헤더 (api.example.com vs www.example.com)",
+    "HTTP 메서드 (GET, POST)",
+    "쿠키, 인증 토큰",
+    "요청 본문 (content-based routing)",
+  ],
+
+  pros: [
+    "콘텐츠 기반 라우팅 (마이크로서비스에 필수)",
+    "URL 재작성, 헤더 조작 가능",
+    "캐싱, 압축, WAF 등 부가 기능",
+    "A/B 테스트, 카나리 배포 가능",
+  ],
+
+  cons: [
+    "L4보다 느림 (TLS 종료 + HTTP 파싱 필요)",
+    "HTTP/HTTPS 트래픽만 처리",
+  ],
+
+  examples: ["AWS ALB", "Nginx", "Envoy", "Cloudflare Workers"],
+};
+```
+
+### L4 vs L7 비교
+
+| 특성 | L4 로드밸런서 | L7 로드밸런서 |
+|------|---------------|---------------|
+| 동작 계층 | TCP/UDP | HTTP/HTTPS |
+| TLS 종료 | 통과 (passthrough) | 종료 후 재암호화 가능 |
+| 라우팅 기준 | IP + 포트 | URL, 헤더, 쿠키 등 |
+| 속도 | 매우 빠름 | 상대적으로 느림 |
+| 프로토콜 | 모든 TCP/UDP | HTTP만 |
+| 사용 사례 | DB, 게임 서버, TCP 서비스 | 웹 서비스, API 게이트웨이 |
+
+실무에서는 L4와 L7를 **함께** 사용하는 경우가 많습니다. L4 로드밸런서가 앞단에서 TCP 연결을 분산하고, 뒤에 L7 로드밸런서가 HTTP 라우팅을 처리합니다.
+
+## 로드밸런싱 알고리즘
+
+로드밸런서가 백엔드 서버를 선택하는 알고리즘에는 여러 가지가 있습니다.
+
+```javascript
+const algorithms = {
+  // 1. 라운드 로빈 (Round Robin)
+  roundRobin: {
+    method: "서버 목록을 순서대로 돌아가며 선택",
+    pros: "구현이 단순, 서버 성능이 균일할 때 효과적",
+    cons: "서버 성능이 다르면 느린 서버에 과부하",
+    example: "요청 1 -> A, 요청 2 -> B, 요청 3 -> C, 요청 4 -> A ...",
+  },
+
+  // 2. 가중치 라운드 로빈 (Weighted Round Robin)
+  weightedRoundRobin: {
+    method: "서버마다 가중치를 부여, 가중치 비율로 분배",
+    useCase: "서버 성능이 다를 때 (A: 4코어, B: 8코어)",
+    example: "A(weight=1): 33%, B(weight=2): 67%",
+  },
+
+  // 3. 최소 연결 (Least Connections)
+  leastConnections: {
+    method: "현재 활성 연결이 가장 적은 서버를 선택",
+    pros: "서버 부하를 동적으로 균형 배분",
+    useCase: "요청 처리 시간이 들쭉날쭉할 때",
+    example: "A(연결 5), B(연결 3), C(연결 7) -> B 선택",
+  },
+
+  // 4. IP 해시 (IP Hash)
+  ipHash: {
+    method: "클라이언트 IP의 해시값으로 서버를 결정",
+    pros: "같은 클라이언트는 항상 같은 서버로 (세션 유지)",
+    cons: "서버 추가/제거 시 대부분의 매핑이 변경됨",
+    example: "hash(192.168.1.10) % 3 = 1 -> 항상 서버 B",
+  },
+
+  // 5. 일관된 해싱 (Consistent Hashing)
+  consistentHashing: {
+    method: "해시 링 위에 서버와 요청을 배치, 시계 방향으로 가장 가까운 서버 선택",
+    pros: "서버 추가/제거 시 재배치되는 키가 최소 (1/N)",
+    useCase: "분산 캐시, CDN, 세션 스토어",
+  },
+};
+```
+
+## 리버스 프록시
+
+<Term id="reverse-proxy">리버스 프록시</Term>는 클라이언트와 백엔드 서버 사이에 위치해 클라이언트의 요청을 대리합니다. 로드밸런서, CDN, API 게이트웨이 모두 리버스 프록시의 한 형태입니다.
+
+```javascript
+// 포워드 프록시 vs 리버스 프록시
+const forwardProxy = {
+  position: "클라이언트 앞단",
+  role: "클라이언트를 대리해 외부 서버에 요청",
+  examples: ["기업 프록시 (인터넷 접근 제어)", "VPN"],
+  // 클라이언트 -> [프록시] -> 서버
+  // 서버는 프록시의 IP만 알고, 클라이언트 IP를 모름
+};
+
+const reverseProxy = {
+  position: "서버 앞단",
+  role: "서버를 대리해 클라이언트 요청을 처리",
+  features: [
+    "TLS 종료 (SSL offloading)",
+    "로드밸런싱",
+    "캐싱",
+    "압축 (gzip, brotli)",
+    "보안 (WAF, rate limiting, DDoS 방어)",
+  ],
+  examples: ["Nginx", "Caddy", "Envoy", "Cloudflare"],
+  // 클라이언트 -> [리버스 프록시] -> 서버
+  // 클라이언트는 리버스 프록시의 IP만 알고, 서버 IP를 모름
+};
+```
+
+## 헬스체크
+
+로드밸런서는 백엔드 서버가 정상인지 주기적으로 확인합니다. 비정상 서버를 자동으로 풀에서 제외하고, 복구되면 다시 추가합니다.
+
+```javascript
+const healthCheck = {
+  // 능동적 (Active) 헬스체크
+  active: {
+    method: "로드밸런서가 주기적으로 서버에 요청을 보내 확인",
+    interval: "5~30초마다",
+    endpoint: "/health 또는 /readyz",
+    threshold: "연속 3회 실패 시 비정상 판정",
+    // 서버가 200 OK를 응답하면 정상
+    // 타임아웃이나 5xx 응답이면 비정상
+  },
+
+  // 수동적 (Passive) 헬스체크
+  passive: {
+    method: "실제 트래픽의 응답을 모니터링",
+    trigger: "5xx 에러 비율이 임계값 초과 시 비정상 판정",
+    // 별도 요청 없이 실제 트래픽으로 판단
+  },
+};
+
+// AWS ALB 헬스체크 설정 예시
+// Target Group -> Health checks
+// Protocol: HTTP
+// Path: /health
+// Healthy threshold: 3 (연속 3회 성공 시 정상)
+// Unhealthy threshold: 3 (연속 3회 실패 시 비정상)
+// Timeout: 5초
+// Interval: 30초
+```
+
+## 실무 적용
+
+### Cloudflare
+
+Cloudflare는 CDN, DNS, DDoS 방어, WAF를 통합 제공하는 대표적인 서비스입니다.
+
+```javascript
+// Cloudflare 동작 흐름
+const cloudflareFlow = {
+  // 1. DNS: Cloudflare 네임서버 사용
+  dns: "ns1.cloudflare.com / ns2.cloudflare.com",
+
+  // 2. Anycast: 300+ POP에서 동일 IP 광고
+  anycast: "가장 가까운 POP으로 자동 라우팅",
+
+  // 3. 에지에서 처리
+  edgeProcessing: [
+    "DDoS 방어 (L3/L4/L7)",
+    "WAF (웹 애플리케이션 방화벽)",
+    "Bot 관리",
+    "TLS 종료",
+    "캐싱 (정적 리소스)",
+    "이미지 최적화 (Polish, Mirage)",
+    "Brotli 압축",
+  ],
+
+  // 4. 캐시 미스 시 오리진에 요청
+  originFetch: "Cloudflare -> 오리진 서버 (오리진 IP는 외부에 노출되지 않음)",
+
+  // 응답 헤더로 캐시 상태 확인
+  headers: {
+    "CF-Cache-Status": "HIT | MISS | EXPIRED | DYNAMIC",
+    "CF-Ray": "요청 추적 ID (디버깅용)",
+  },
+};
+```
+
+### Vercel
+
+Next.js를 배포하면 Vercel이 CDN과 서버리스 함수를 자동 구성합니다.
+
+```javascript
+// Vercel의 인프라 구조
+const vercelInfra = {
+  // 정적 리소스: 글로벌 에지 캐시
+  staticAssets: {
+    path: "/_next/static/**",
+    caching: "Cache-Control: public, max-age=31536000, immutable",
+    serving: "에지 서버에서 직접 응답 (오리진 접근 불필요)",
+  },
+
+  // ISR (Incremental Static Regeneration)
+  isr: {
+    firstRequest: "오리진에서 생성 후 에지에 캐시",
+    subsequentRequests: "에지 캐시에서 응답, 백그라운드에서 재검증",
+    header: "X-Vercel-Cache: HIT | STALE | MISS",
+  },
+
+  // 서버리스 함수 (API Routes, SSR)
+  serverless: {
+    region: "설정된 리전에서 실행",
+    // vercel.json에서 리전 지정 가능
+    config: '{ "regions": ["icn1"] }', // 서울 리전
+  },
+
+  // 미들웨어: 에지에서 실행
+  middleware: {
+    location: "CDN 에지",
+    useCase: ["A/B 테스트", "지역 기반 리다이렉트", "인증 체크"],
+    latency: "~0ms (사용자에게 가장 가까운 에지에서 실행)",
+  },
+};
+```
+
+### 캐시 무효화
+
+CDN에서 가장 어려운 문제 중 하나가 캐시 무효화입니다.
+
+```javascript
+const cacheInvalidation = {
+  // 1. TTL 기반: 시간이 지나면 자동 만료
+  ttl: {
+    header: "Cache-Control: public, max-age=3600",
+    pros: "설정이 간단",
+    cons: "TTL이 끝나기 전에는 업데이트 반영 불가",
+  },
+
+  // 2. 콘텐츠 해시 (가장 권장)
+  contentHash: {
+    example: "app.d8f3a2b1.js",
+    header: "Cache-Control: public, max-age=31536000, immutable",
+    // 파일 내용이 바뀌면 해시가 바뀌어 새 URL이 됨
+    // 이전 파일은 자연스럽게 만료
+    // Next.js가 기본적으로 이 방식을 사용
+  },
+
+  // 3. Purge API: 수동으로 캐시 삭제
+  purge: {
+    cloudflare: "API로 특정 URL 또는 전체 캐시 퍼지",
+    // POST https://api.cloudflare.com/client/v4/zones/{zone}/purge_cache
+    // { "files": ["https://example.com/logo.png"] }
+  },
+
+  // 4. stale-while-revalidate
+  swr: {
+    header: "Cache-Control: public, max-age=60, stale-while-revalidate=3600",
+    // max-age 동안: 캐시에서 바로 응답
+    // max-age 이후 ~ SWR 기간: 캐시된 (stale) 응답을 반환하면서 백그라운드에서 재검증
+    // SWR 기간 이후: 새 요청으로 오리진에서 가져옴
+  },
+};
+```
+
+### 프론트엔드 개발자 체크리스트
+
+```javascript
+const checklist = {
+  cdn: [
+    "정적 리소스에 콘텐츠 해시 적용 (Next.js는 기본 제공)",
+    "Cache-Control 헤더 적절히 설정",
+    "이미지 최적화 (WebP/AVIF, next/image 사용)",
+    "DevTools Network에서 X-Cache / CF-Cache-Status 확인",
+  ],
+
+  loadBalancer: [
+    "헬스체크 엔드포인트 (/health) 구현",
+    "세션이 필요하면 서버 외부 저장소 사용 (Redis 등)",
+    "Graceful shutdown 구현 (SIGTERM 핸들링)",
+  ],
+
+  debugging: [
+    "curl -I 로 캐시 헤더 확인",
+    "dig / nslookup 으로 DNS 확인",
+    "traceroute 로 네트워크 경로 확인",
+  ],
+};
+```
+
+## 전체 요청 흐름 정리
+
+사용자가 브라우저에 URL을 입력한 순간부터 응답을 받기까지의 전체 인프라 경로를 정리합니다.
+
+```javascript
+const fullRequestPath = [
+  "1. 브라우저 DNS 캐시 확인",
+  "2. OS DNS 캐시 확인",
+  "3. 재귀 리졸버에 DNS 질의 (Anycast)",
+  "4. DNS 응답: 가장 가까운 CDN POP IP",
+  "5. CDN 에지 서버에 TCP + TLS 연결",
+  "6. 에지 캐시 확인",
+  "   - HIT: 바로 응답 (여기서 끝)",
+  "   - MISS: 다음 단계로",
+  "7. Shield 캐시 확인",
+  "   - HIT: 에지에 캐시 후 응답",
+  "   - MISS: 다음 단계로",
+  "8. 로드밸런서가 오리진 서버 선택",
+  "9. 오리진 서버가 응답 생성",
+  "10. 응답이 Shield, Edge를 거치며 캐시됨",
+  "11. 사용자에게 최종 응답 전달",
+];
+```
+
+## 다음 단계
+
+이 글로 네트워크 기초 시리즈를 마칩니다. TCP/IP 계층에서 시작해 TCP와 UDP의 차이, DNS 해석, TLS 암호화, HTTP 프로토콜의 진화, 그리고 CDN과 로드밸런싱까지 살펴봤습니다.
+
+이 시리즈에서 다룬 각 계층의 지식은 서로 연결됩니다. CDN 에지 서버는 DNS Anycast로 사용자를 라우팅하고, TLS로 통신을 암호화하며, HTTP/2의 멀티플렉싱으로 리소스를 전달합니다. 하나의 계층을 이해하면 다른 계층을 이해하는 기반이 됩니다.
