@@ -52,5 +52,11 @@
     "title": "브라우저 렌더링 파이프라인",
     "description": "HTML이 픽셀이 되기까지 — 파싱, 레이아웃, 페인트, 합성, 그리고 성능 최적화를 시각화합니다",
     "category": "Browser"
+  },
+  {
+    "slug": "dom-and-events",
+    "title": "DOM과 이벤트 시스템",
+    "description": "브라우저가 만든 DOM을 JavaScript로 다루는 방법 — 트리 탐색, 이벤트 흐름, Observer 패턴을 시각화합니다",
+    "category": "Browser"
   }
 ]
