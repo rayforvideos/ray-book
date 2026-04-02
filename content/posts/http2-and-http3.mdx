@@ -1,0 +1,528 @@
+---
+title: "HTTP/2와 HTTP/3"
+description: "웹 프로토콜의 진화 — 멀티플렉싱, HPACK, 서버 푸시, QUIC를 시각화합니다"
+date: 2026-04-03
+tags: ["cs", "network", "http2", "http3", "quic", "multiplexing"]
+series: "network-fundamentals"
+seriesOrder: 5
+draft: false
+---
+
+## HTTP/1.1의 한계
+
+이전 글에서 TLS가 통신을 암호화하는 원리를 살펴봤습니다. 이제 그 위에서 동작하는 HTTP 프로토콜 자체의 진화를 다루겠습니다.
+
+HTTP/1.1은 1997년에 표준화된 이후 오랫동안 웹의 기반이었습니다. 하지만 웹 페이지가 복잡해지면서 근본적인 한계가 드러났습니다. 하나의 TCP 연결에서 **한 번에 하나의 요청-응답**만 처리할 수 있기 때문입니다.
+
+### Head-of-Line (HOL) Blocking
+
+<Term id="hol-blocking">HOL blocking</Term>은 HTTP/1.1의 가장 큰 문제입니다. 앞선 요청의 응답이 끝나야 다음 요청을 보낼 수 있으므로, 느린 응답 하나가 전체 연결을 막아버립니다.
+
+아래 시각화에서 HTTP/1.1의 순차적 요청 처리와 HOL blocking 문제를 확인하세요.
+
+<HttpEvolution preset="http1" />
+
+### HTTP/1.1의 우회 전략들
+
+브라우저와 개발자들은 이 한계를 다양한 방법으로 우회했습니다.
+
+```javascript
+// HTTP/1.1 시대의 성능 최적화 트릭들
+const http1Workarounds = {
+  // 1. 도메인 샤딩: 여러 도메인으로 리소스를 분산
+  domainSharding: [
+    "static1.example.com/style.css",
+    "static2.example.com/app.js",
+    "static3.example.com/hero.png",
+    // 도메인당 6개 연결 x 3 도메인 = 18개 병렬 연결
+  ],
+
+  // 2. 리소스 결합: 여러 파일을 하나로
+  concatenation: {
+    before: ["reset.css", "layout.css", "theme.css", "components.css"],
+    after: ["bundle.css"], // 하나의 요청으로 축소
+  },
+
+  // 3. 이미지 스프라이트: 작은 이미지를 하나로 결합
+  sprites: "icons-sprite.png + CSS background-position",
+
+  // 4. 인라이닝: 작은 리소스를 HTML에 직접 삽입
+  inlining: "data:image/png;base64,... 또는 <style> 태그 인라인",
+};
+// 이 모든 트릭은 HTTP/2에서 불필요해집니다
+```
+
+도메인 샤딩은 TCP 연결 수를 늘려 병렬성을 확보하지만, 각 연결마다 TCP + TLS 핸드셰이크 비용이 발생합니다. 리소스 결합은 캐시 효율을 떨어뜨립니다. 작은 CSS 하나가 바뀌어도 전체 번들을 다시 받아야 합니다.
+
+## HTTP/2: 멀티플렉싱
+
+HTTP/2 (RFC 7540, 2015) 는 HTTP/1.1의 근본 문제를 **프로토콜 수준**에서 해결합니다. 핵심은 **멀티플렉싱**입니다.
+
+<HttpEvolution preset="http2" />
+
+### 프레임과 스트림
+
+HTTP/2는 메시지를 **프레임** (frame) 이라는 작은 단위로 쪼개고, 각 프레임에 **스트림 ID**를 부여합니다. 하나의 TCP 연결 안에서 여러 스트림의 프레임이 섞여서 전송되지만, 수신 측에서 스트림 ID로 재조립할 수 있습니다.
+
+```javascript
+// HTTP/2 프레임 구조 (RFC 7540 Section 4.1)
+const frame = {
+  length: 16384,        // 페이로드 길이 (최대 16KB 기본, 설정 변경 가능)
+  type: "DATA",         // HEADERS, DATA, PRIORITY, RST_STREAM, SETTINGS...
+  flags: 0x01,          // END_STREAM, END_HEADERS, PADDED 등
+  streamId: 3,          // 스트림 식별자 (홀수: 클라이언트, 짝수: 서버)
+  payload: "...",       // 실제 데이터
+};
+
+// 하나의 TCP 연결에서 프레임이 인터리빙
+const wireOrder = [
+  { streamId: 1, type: "HEADERS", data: "GET /index.html" },
+  { streamId: 3, type: "HEADERS", data: "GET /style.css" },
+  { streamId: 1, type: "DATA",    data: "<!DOCTYPE html>..." },
+  { streamId: 5, type: "HEADERS", data: "GET /app.js" },
+  { streamId: 3, type: "DATA",    data: "body { margin: 0 }..." },
+  { streamId: 1, type: "DATA",    data: "... (END_STREAM)" },
+  { streamId: 5, type: "DATA",    data: "const app = ..." },
+  // 스트림 1, 3, 5가 동시에 진행
+];
+```
+
+### HPACK 헤더 압축
+
+HTTP/1.1에서 매 요청마다 `Host`, `User-Agent`, `Accept`, `Cookie` 같은 중복 헤더를 반복 전송합니다. 쿠키가 큰 경우 수 KB가 매번 낭비됩니다. HTTP/2의 **HPACK** (RFC 7541) 은 이를 해결합니다.
+
+```javascript
+// HPACK 압축 원리
+const hpack = {
+  // 1. 정적 테이블: 자주 쓰는 헤더 61개를 인덱스로 매핑
+  staticTable: {
+    1: { name: ":authority" },
+    2: { name: ":method", value: "GET" },
+    3: { name: ":method", value: "POST" },
+    4: { name: ":path", value: "/" },
+    // ... 61개
+  },
+
+  // 2. 동적 테이블: 연결 중 사용된 헤더를 캐시
+  dynamicTable: [
+    // 첫 번째 요청에서 추가됨
+    { name: "cookie", value: "session=abc123" },
+    { name: "custom-header", value: "my-value" },
+  ],
+
+  // 3. 허프만 인코딩: 문자열을 압축
+  // "www.example.com" -> 12바이트 (원래 15바이트)
+
+  // 압축 효과
+  firstRequest: "전체 헤더 전송 (약 800 bytes)",
+  secondRequest: "인덱스 참조만 전송 (약 20 bytes)", // 97.5% 절감
+};
+```
+
+HPACK은 **상태 기반** (stateful) 압축입니다. 양쪽이 동일한 동적 테이블을 유지해야 하므로, 중간에 프레임이 유실되면 테이블이 어긋납니다. 이것이 나중에 HTTP/3에서 **QPACK**으로 개선되는 이유입니다.
+
+### 서버 푸시 (Server Push)
+
+서버 푸시는 클라이언트가 요청하기 **전에** 서버가 리소스를 먼저 보내는 기능입니다. 브라우저가 HTML을 파싱해서 CSS, JS 요청을 보내기까지의 시간을 절약합니다.
+
+```javascript
+// 서버 푸시 흐름
+const serverPush = {
+  // 1. 클라이언트가 HTML 요청
+  clientRequest: "GET /index.html",
+
+  // 2. 서버가 HTML 응답 + 푸시 약속
+  serverResponse: {
+    headers: "200 OK",
+    pushPromise: [
+      "PUSH_PROMISE: /style.css (Stream 2)",
+      "PUSH_PROMISE: /app.js (Stream 4)",
+    ],
+    // 클라이언트가 요청하기 전에 푸시 시작
+  },
+
+  // 3. 클라이언트는 RST_STREAM으로 불필요한 푸시를 거부 가능
+  clientCancel: "RST_STREAM: Stream 4 (이미 캐시에 있음)",
+};
+
+// Nginx에서 서버 푸시 설정
+// location / {
+//   http2_push /style.css;
+//   http2_push /app.js;
+// }
+```
+
+서버 푸시는 이론적으로 유용하지만, 실제로는 **캐시와의 충돌** 문제가 있습니다. 브라우저가 이미 캐시에 리소스를 가지고 있어도 서버가 푸시를 보내면 대역폭이 낭비됩니다. 이 때문에 Chrome 106 (2022) 에서 서버 푸시 지원이 제거되었고, `103 Early Hints` 헤더가 대안으로 떠올랐습니다.
+
+```javascript
+// 103 Early Hints — 서버 푸시의 현대적 대안
+// 서버가 HTML을 준비하는 동안 먼저 힌트를 보냄
+
+// HTTP 응답 (Nginx/Next.js)
+// 103 Early Hints
+// Link: </style.css>; rel=preload; as=style
+// Link: </app.js>; rel=preload; as=script
+//
+// 200 OK
+// Content-Type: text/html
+// ... (HTML 본문)
+
+// 브라우저가 103을 받으면 즉시 리소스 페치 시작
+// -> HTML 파싱 전에 CSS, JS 다운로드 시작
+```
+
+### 스트림 우선순위
+
+HTTP/2는 클라이언트가 각 스트림의 **우선순위**를 지정할 수 있습니다. CSS와 JS를 이미지보다 먼저 전송하면 First Contentful Paint가 빨라집니다.
+
+```javascript
+// HTTP/2 스트림 우선순위 (RFC 7540 Section 5.3)
+const priorities = {
+  // 가중치 기반 (1~256)
+  streams: [
+    { id: 1, resource: "index.html", weight: 256 },  // 최우선
+    { id: 3, resource: "style.css",  weight: 256 },  // 최우선
+    { id: 5, resource: "app.js",     weight: 220 },  // 높음
+    { id: 7, resource: "font.woff2", weight: 180 },  // 보통
+    { id: 9, resource: "hero.png",   weight: 1 },    // 낮음
+  ],
+
+  // 의존성 트리: 부모-자식 관계 설정 가능
+  // Stream 5 (JS) 는 Stream 1 (HTML) 에 의존
+  // -> HTML이 먼저 완료되어야 JS 전송 시작
+};
+
+// 실제로는 브라우저마다 우선순위 구현이 달라 효과가 일관되지 않았음
+// HTTP/3에서 RFC 9218 (Extensible Priorities) 로 개선
+```
+
+## HTTP/2의 남은 문제: TCP HOL Blocking
+
+HTTP/2는 HTTP 수준의 HOL blocking을 해결했지만, **TCP 수준의 HOL blocking**은 여전히 존재합니다.
+
+```javascript
+// TCP HOL Blocking 문제
+const tcpHol = {
+  scenario: "HTTP/2의 모든 스트림이 하나의 TCP 연결을 공유",
+
+  // TCP 패킷 순서: [1] [2] [3] [4] [5]
+  // 패킷 3이 유실되면?
+  problem: {
+    packet3: "유실됨 (TCP 재전송 대기)",
+    packet4: "수신했지만 TCP가 순서대로 전달해야 하므로 대기",
+    packet5: "수신했지만 TCP가 순서대로 전달해야 하므로 대기",
+    // Stream 1의 패킷(3)이 유실되면 Stream 2, 3의 패킷(4, 5)도 막힘
+    // HTTP/2에서는 서로 독립적인 스트림인데, TCP가 이를 모름
+  },
+
+  impact: "패킷 유실률 2%에서 HTTP/2가 HTTP/1.1의 병렬 연결보다 느릴 수 있음",
+};
+```
+
+TCP는 **바이트 스트림**을 순서대로 전달하는 프로토콜입니다. TCP 입장에서 HTTP/2의 여러 스트림은 그냥 하나의 바이트 흐름이므로, 하나의 패킷이 유실되면 뒤따르는 모든 데이터가 대기합니다. 이것이 HTTP/3가 TCP를 버리고 **UDP 기반의 QUIC**를 선택한 이유입니다.
+
+## HTTP/3: QUIC
+
+HTTP/3 (RFC 9114, 2022) 는 전송 계층을 TCP에서 <Term id="quic">QUIC</Term> (RFC 9000) 로 교체합니다. QUIC는 UDP 위에 구현된 프로토콜로, TCP + TLS의 기능을 하나로 통합하면서 성능을 개선합니다.
+
+### QUIC의 핵심 특징
+
+```javascript
+// QUIC vs TCP 비교
+const quicVsTcp = {
+  // 1. 연결 수립
+  connectionSetup: {
+    tcp_tls13: "TCP 3-way handshake (1 RTT) + TLS 1.3 (1 RTT) = 2 RTT",
+    quic:      "QUIC handshake + TLS 1.3 통합 = 1 RTT",
+    quic_0rtt: "이전 연결 재개 시 = 0 RTT",
+  },
+
+  // 2. HOL Blocking 해결
+  holBlocking: {
+    http2_tcp: "TCP 패킷 유실 -> 모든 스트림 블로킹",
+    http3_quic: "스트림별 독립적 패킷 관리 -> 유실된 스트림만 영향",
+  },
+
+  // 3. 연결 마이그레이션
+  connectionMigration: {
+    tcp: "IP가 바뀌면 (Wi-Fi -> 셀룰러) 연결 끊김, 재수립 필요",
+    quic: "Connection ID 기반 -> IP가 바뀌어도 연결 유지",
+  },
+};
+```
+
+### 0-RTT 연결
+
+QUIC은 TLS 1.3을 프로토콜 내부에 통합했습니다. 첫 연결은 1-RTT, 재연결은 0-RTT로 가능합니다.
+
+```javascript
+// QUIC 연결 수립 과정
+const quicHandshake = {
+  // 첫 연결: 1 RTT
+  initialConnection: {
+    client: "Initial 패킷: CRYPTO (ClientHello + key_share)",
+    server: "Initial 패킷: CRYPTO (ServerHello + Certificate + Finished)",
+    // TCP 3-way handshake + TLS 1.3이 단 1 RTT로 통합
+    result: "바로 애플리케이션 데이터 전송 가능",
+  },
+
+  // 재연결: 0 RTT
+  resumption: {
+    client: "Initial 패킷: CRYPTO (ClientHello + PSK) + 0-RTT 데이터",
+    server: "Initial 패킷: CRYPTO (ServerHello) + 응답",
+    // 서버 응답을 기다리지 않고 바로 데이터 전송
+    caution: "TLS 1.3 0-RTT와 동일한 재전송 공격 위험 존재",
+  },
+};
+```
+
+### 스트림 독립성 (HOL Blocking 해결)
+
+QUIC의 가장 중요한 개선입니다. 각 스트림이 **독립적인 패킷 시퀀스**를 가지므로, 하나의 스트림에서 패킷이 유실되어도 다른 스트림에 영향을 주지 않습니다.
+
+```javascript
+// QUIC 스트림 독립성
+const quicStreams = {
+  // QUIC 패킷들 (각 스트림 독립)
+  stream1_packets: ["Pkt 1-A", "Pkt 1-B", "Pkt 1-C"],  // index.html
+  stream2_packets: ["Pkt 2-A", "Pkt 2-B"],              // style.css
+  stream3_packets: ["Pkt 3-A", "Pkt 3-B", "Pkt 3-C"],  // app.js
+
+  // Pkt 1-B가 유실되면?
+  whenPacketLost: {
+    stream1: "Pkt 1-B 재전송 대기 (이 스트림만 블로킹)",
+    stream2: "정상 진행 (영향 없음)",
+    stream3: "정상 진행 (영향 없음)",
+  },
+
+  // TCP와의 차이
+  // TCP: 모든 스트림이 하나의 바이트 스트림을 공유
+  // QUIC: 각 스트림이 독립적인 바이트 스트림
+};
+```
+
+### 연결 마이그레이션 (Connection Migration)
+
+TCP 연결은 `(소스 IP, 소스 포트, 목적지 IP, 목적지 포트)` 4-tuple로 식별됩니다. IP 주소가 바뀌면 연결이 끊깁니다. 모바일 환경에서 Wi-Fi와 셀룰러 네트워크를 전환할 때마다 모든 연결이 끊기고 재수립됩니다.
+
+QUIC는 **Connection ID**로 연결을 식별합니다. IP 주소가 바뀌어도 Connection ID가 같으면 연결이 유지됩니다.
+
+```javascript
+// 연결 마이그레이션 시나리오
+const migration = {
+  // 사용자가 카페에서 나가며 Wi-Fi -> 셀룰러 전환
+  before: {
+    ip: "192.168.1.10",     // Wi-Fi IP
+    connectionId: "0xABCD", // QUIC Connection ID
+    state: "동영상 스트리밍 중",
+  },
+
+  // 네트워크 전환 발생
+  networkChange: "Wi-Fi 해제 -> 셀룰러 활성화",
+
+  after: {
+    ip: "10.0.0.55",        // 셀룰러 IP
+    connectionId: "0xABCD", // 같은 Connection ID
+    state: "동영상 스트리밍 계속 (끊김 없음)",
+  },
+
+  // TCP였다면?
+  tcpResult: "연결 끊김 -> TCP 재수립 -> TLS 재핸드셰이크 -> 스트리밍 재시작",
+};
+```
+
+### QPACK (HTTP/3의 헤더 압축)
+
+HTTP/2의 HPACK은 헤더를 순서대로 처리해야 합니다. 앞선 헤더가 유실되면 뒤따르는 헤더도 처리할 수 없습니다. QPACK (RFC 9204) 은 이 문제를 해결합니다.
+
+```javascript
+// HPACK vs QPACK
+const headerCompression = {
+  hpack: {
+    protocol: "HTTP/2",
+    table: "단일 동적 테이블 (양방향 동기화 필요)",
+    ordering: "헤더를 순서대로 처리해야 함",
+    problem: "HEADERS 프레임 유실 시 뒤따르는 모든 HEADERS 블로킹",
+  },
+
+  qpack: {
+    protocol: "HTTP/3",
+    table: "인코더/디코더 스트림으로 테이블 업데이트 분리",
+    ordering: "각 요청이 테이블의 특정 시점을 참조 (Required Insert Count)",
+    solution: "참조하지 않는 엔트리가 유실되어도 다른 요청 처리 가능",
+    tradeoff: "HPACK보다 약간 낮은 압축률, 하지만 HOL blocking 없음",
+  },
+};
+```
+
+## 프로토콜 비교표
+
+| 특성 | HTTP/1.1 | HTTP/2 | HTTP/3 |
+|------|----------|--------|--------|
+| 표준 | RFC 2616 (1999) | RFC 7540 (2015) | RFC 9114 (2022) |
+| 전송 계층 | TCP | TCP | QUIC (UDP) |
+| 멀티플렉싱 | 불가 | 가능 (스트림) | 가능 (독립 스트림) |
+| 헤더 압축 | 없음 | HPACK | QPACK |
+| 서버 푸시 | 없음 | 지원 (deprecated) | 지원 (권장하지 않음) |
+| HOL blocking | HTTP + TCP | TCP만 | 없음 |
+| 연결 수립 | TCP 1 RTT + TLS 1 RTT | TCP 1 RTT + TLS 1 RTT | QUIC+TLS 1 RTT |
+| 0-RTT 재개 | 불가 | TLS 1.3으로 가능 | 기본 지원 |
+| 연결 마이그레이션 | 불가 | 불가 | 가능 (Connection ID) |
+| 암호화 | 선택 (HTTPS) | 사실상 필수 | 필수 (TLS 1.3 내장) |
+
+## 실무 적용
+
+### Next.js에서 HTTP/2
+
+Next.js는 Node.js 서버 위에서 동작합니다. `next start`는 기본적으로 HTTP/1.1을 사용하지만, 프로덕션에서는 보통 앞단에 리버스 프록시를 두어 HTTP/2를 처리합니다.
+
+```javascript
+// next.config.js — HTTP/2 서버 푸시 힌트 (실험적)
+// 현재는 103 Early Hints가 더 권장됨
+module.exports = {
+  // Vercel 배포 시 HTTP/2, HTTP/3 자동 지원
+  // 자체 호스팅 시 Nginx/Caddy 리버스 프록시 필요
+
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          // 103 Early Hints 대신 Link 헤더로 preload 힌트
+          {
+            key: "Link",
+            value: "</fonts/inter.woff2>; rel=preload; as=font; crossorigin",
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+### Nginx HTTP/2 설정
+
+```nginx
+# /etc/nginx/conf.d/example.conf
+
+server {
+    listen 443 ssl;
+    # Nginx 1.25.1+ 에서는 listen 지시어 대신 별도 설정
+    http2 on;
+
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # TLS 1.2, 1.3만 허용
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    # HSTS 헤더
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    # gzip은 HTTP/2에서도 유효 (HPACK은 헤더만 압축)
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Nginx HTTP/3 (QUIC) 설정
+
+```nginx
+# Nginx 1.25.0+ 에서 QUIC/HTTP/3 지원 (--with-http_v3_module)
+
+server {
+    # HTTP/3 (QUIC) — UDP 443
+    listen 443 quic reuseport;
+    # HTTP/2 — TCP 443
+    listen 443 ssl;
+    http2 on;
+
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # TLS 1.3 필수 (QUIC 요구사항)
+    ssl_protocols TLSv1.3;
+
+    # Alt-Svc 헤더로 HTTP/3 지원을 알림
+    add_header Alt-Svc 'h3=":443"; ma=86400' always;
+
+    # QUIC 관련 설정
+    ssl_early_data on;          # 0-RTT 지원
+    quic_retry on;              # 주소 검증 (DDoS 방어)
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+### 프론트엔드 개발자 체크리스트
+
+```javascript
+const http2Checklist = {
+  // HTTP/2 전환 시 해야 할 것
+  adopt: [
+    "도메인 샤딩 제거 (단일 도메인이 멀티플렉싱에 유리)",
+    "불필요한 리소스 결합 제거 (개별 파일이 캐시 효율적)",
+    "이미지 스프라이트 -> 개별 파일 또는 SVG",
+    "103 Early Hints 활용 (서버 푸시 대체)",
+  ],
+
+  // HTTP/2에서도 여전히 유효한 최적화
+  stillValid: [
+    "리소스 압축 (gzip/brotli)",
+    "이미지 최적화 (WebP/AVIF, 적절한 크기)",
+    "코드 분할 (code splitting, lazy loading)",
+    "캐싱 전략 (Cache-Control, ETag)",
+    "CDN 사용",
+  ],
+
+  // HTTP/3 확인
+  http3: [
+    "Alt-Svc 헤더가 설정되었는지 확인",
+    "UDP 443 포트가 열려있는지 확인",
+    "Chrome DevTools > Network > Protocol 컬럼으로 h3 확인",
+  ],
+};
+```
+
+### DevTools로 프로토콜 확인하기
+
+```javascript
+// Chrome DevTools에서 HTTP 버전 확인
+// 1. Network 탭 열기
+// 2. 컬럼 헤더 우클릭 -> Protocol 체크
+// 3. 각 요청의 프로토콜 확인:
+//    - "h1" = HTTP/1.1
+//    - "h2" = HTTP/2
+//    - "h3" = HTTP/3
+
+// curl로 확인
+// curl -I --http2 https://example.com
+// curl --http3 https://example.com  (curl 7.66+, HTTP/3 빌드 필요)
+
+// Node.js에서 확인
+// const https = require('https');
+// https.get('https://example.com', (res) => {
+//   console.log(res.httpVersion); // "2" (HTTP/2)
+// });
+```
+
+## 다음 단계
+
+이 글에서는 HTTP/1.1의 HOL blocking 문제에서 출발해, HTTP/2의 멀티플렉싱과 HPACK, 그리고 HTTP/3의 QUIC 기반 독립 스트림까지 살펴봤습니다. 웹 프로토콜은 계속 진화하고 있으며, 각 버전이 이전의 어떤 문제를 해결하는지 이해하면 성능 최적화 전략을 세우는 데 큰 도움이 됩니다.
