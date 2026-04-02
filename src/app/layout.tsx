@@ -42,6 +42,14 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  },
+};
+
+export const viewport = {
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({

@@ -33,17 +33,22 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
           onClick={() => goTo(0)}
           disabled={currentStep === 0}
           aria-label="처음으로"
-          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
+          className="p-1.5 text-muted hover:text-text disabled:opacity-20"
         >
-          ⏮
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="4" x2="3" y2="12" />
+            <polyline points="12,4 6,8 12,12" />
+          </svg>
         </button>
         <button
           onClick={() => goTo(currentStep - 1)}
           disabled={currentStep === 0}
           aria-label="이전"
-          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
+          className="p-1.5 text-muted hover:text-text disabled:opacity-20"
         >
-          ◀
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="11,4 5,8 11,12" />
+          </svg>
         </button>
 
         <div className="flex items-center gap-1 px-3">
@@ -67,17 +72,22 @@ export function StepPlayer({ steps, onStepChange }: StepPlayerProps) {
           onClick={() => goTo(currentStep + 1)}
           disabled={currentStep === totalSteps - 1}
           aria-label="다음"
-          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
+          className="p-1.5 text-muted hover:text-text disabled:opacity-20"
         >
-          ▶
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="5,4 11,8 5,12" />
+          </svg>
         </button>
         <button
           onClick={() => goTo(totalSteps - 1)}
           disabled={currentStep === totalSteps - 1}
           aria-label="마지막으로"
-          className="px-2 py-1.5 text-[0.75rem] text-muted hover:text-text disabled:opacity-20"
+          className="p-1.5 text-muted hover:text-text disabled:opacity-20"
         >
-          ⏭
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="4,4 10,8 4,12" />
+            <line x1="13" y1="4" x2="13" y2="12" />
+          </svg>
         </button>
       </div>
     </div>
