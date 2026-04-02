@@ -223,12 +223,12 @@ export function Term({ id, children }: TermProps) {
       const spaceBelow = window.innerHeight - rect.bottom;
       setPosition(spaceBelow < 200 ? "above" : "below");
 
-      // Clamp popover within viewport on mobile
-      const popoverWidth = Math.min(288, window.innerWidth - 32);
+      // Clamp popover within viewport (match page px-6 = 24px)
+      const margin = 24;
+      const popoverWidth = Math.min(288, window.innerWidth - margin * 2);
       const triggerCenter = rect.left + rect.width / 2;
       const popoverLeft = triggerCenter - popoverWidth / 2;
       const popoverRight = popoverLeft + popoverWidth;
-      const margin = 16;
 
       if (popoverLeft < margin) {
         setOffsetX(margin - popoverLeft);
@@ -303,7 +303,7 @@ export function Term({ id, children }: TermProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             style={{ marginLeft: offsetX }}
-            className={`absolute left-1/2 z-50 block w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 ${
+            className={`absolute left-1/2 z-50 block w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 ${
               position === "below" ? "top-full mt-2" : "bottom-full mb-2"
             }`}
           >
