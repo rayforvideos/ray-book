@@ -118,7 +118,7 @@ export function DomTreeTraversal() {
                 &lt;{node.tag}&gt;
               </span>
               {node.depth > 0 && (
-                <span className="ml-1 text-[0.5rem] text-muted/30">─</span>
+                <span className="ml-1 w-2 border-b border-muted/30" />
               )}
             </div>
           );
