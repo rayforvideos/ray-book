@@ -60,6 +60,7 @@ import { ArrayVsLinkedList } from "@/components/viz/domain/ArrayVsLinkedList";
 import { StackAndQueue } from "@/components/viz/domain/StackAndQueue";
 import { HashMapInternal } from "@/components/viz/domain/HashMapInternal";
 import { BSTOperations } from "@/components/viz/domain/BSTOperations";
+import { GraphTraversal } from "@/components/viz/domain/GraphTraversal";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -123,6 +124,7 @@ export const mdxComponents: MDXComponents = {
   StackAndQueue,
   HashMapInternal,
   BSTOperations,
+  GraphTraversal,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
