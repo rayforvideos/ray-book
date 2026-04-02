@@ -56,6 +56,7 @@ import { CorsFlow } from "@/components/viz/domain/CorsFlow";
 import { CspPolicy } from "@/components/viz/domain/CspPolicy";
 import { CsrfAttackFlow } from "@/components/viz/domain/CsrfAttackFlow";
 import { XssAttackFlow } from "@/components/viz/domain/XssAttackFlow";
+import { ArrayVsLinkedList } from "@/components/viz/domain/ArrayVsLinkedList";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -115,6 +116,7 @@ export const mdxComponents: MDXComponents = {
   CspPolicy,
   CsrfAttackFlow,
   XssAttackFlow,
+  ArrayVsLinkedList,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
