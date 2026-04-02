@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 type ParserStatus = "idle" | "tokenizing" | "building" | "blocked" | "done";
@@ -298,29 +299,69 @@ function TreePane({
             아직 노드 없음
           </div>
         ) : (
-          <div className="font-mono text-[0.6875rem] leading-relaxed">
+          <div className="font-mono text-[0.6875rem]">
             {nodes.map((node, i) => {
               const isActive = node.active;
               const isText = node.type === "text";
               const isCss = node.type === "css";
 
-              // 트리 커넥터 생성
-              let connector = "";
-              if (node.depth > 0) {
-                const last = isLastAtDepth(i, node.depth);
-                connector = last ? "└─ " : "├─ ";
-              }
+              const isLast = node.depth > 0 && isLastAtDepth(i, node.depth);
 
-              // 들여쓰기 (부모 레벨의 │ 라인 포함)
-              let indent = "";
+              // Build indent segments as styled spans
+              const indentSegments: React.ReactNode[] = [];
               for (let d = 1; d < node.depth; d++) {
-                // 해당 depth에 아직 형제가 남아있으면 │, 아니면 공백
                 let hasSibling = false;
                 for (let j = i + 1; j < nodes.length; j++) {
                   if (nodes[j].depth < d) break;
                   if (nodes[j].depth === d) { hasSibling = true; break; }
                 }
-                indent += hasSibling ? "│  " : "   ";
+                indentSegments.push(
+                  <span
+                    key={`i${d}`}
+                    className="inline-block select-none"
+                    style={{ width: 16, height: '100%' }}
+                  >
+                    {hasSibling && (
+                      <span
+                        className="inline-block border-l border-current opacity-25"
+                        style={{ width: 0, height: '100%', marginLeft: 2 }}
+                      />
+                    )}
+                  </span>
+                );
+              }
+
+              // Build connector segment
+              let connectorNode: React.ReactNode = null;
+              if (node.depth > 0) {
+                connectorNode = (
+                  <span
+                    key="conn"
+                    className="inline-flex select-none"
+                    style={{ width: 16, height: '1.375em', verticalAlign: 'top' }}
+                  >
+                    {/* vertical line: full height for ├, half height for └ */}
+                    <span
+                      className="inline-block border-l border-current opacity-25"
+                      style={{
+                        width: 0,
+                        height: isLast ? '50%' : '100%',
+                        marginLeft: 2,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {/* horizontal line */}
+                    <span
+                      className="inline-block border-b border-current opacity-25"
+                      style={{
+                        width: 8,
+                        height: '50%',
+                        flexShrink: 0,
+                        marginLeft: 0,
+                      }}
+                    />
+                  </span>
+                );
               }
 
               const label = isCss
@@ -332,12 +373,14 @@ function TreePane({
               return (
                 <div
                   key={i}
-                  className={`whitespace-pre transition-colors duration-150 ${
+                  className={`flex items-stretch transition-colors duration-150 ${
                     isActive ? "text-text" : "text-muted/40"
                   } ${isText ? "italic" : ""}`}
+                  style={{ lineHeight: '1.375em', minHeight: '1.375em' }}
                 >
-                  <span className="text-muted/30 select-none">{indent}{connector}</span>
-                  <span className={isActive ? (color === "sky" ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400") : ""}>
+                  {indentSegments}
+                  {connectorNode}
+                  <span className={`whitespace-nowrap py-px ${isActive ? (color === "sky" ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400") : ""}`}>
                     {label}
                   </span>
                 </div>
