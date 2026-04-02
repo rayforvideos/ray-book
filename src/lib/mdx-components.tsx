@@ -43,6 +43,7 @@ import { RealtimeCompare } from "@/components/viz/domain/RealtimeCompare";
 import { ConfusingPatterns } from "@/components/viz/domain/ConfusingPatterns";
 import { WorkerThread } from "@/components/viz/domain/WorkerThread";
 import { TransferableCost } from "@/components/viz/domain/TransferableCost";
+import { SecurityModel } from "@/components/viz/domain/SecurityModel";
 import { SharedMemoryRace } from "@/components/viz/domain/SharedMemoryRace";
 import { RenderTreeLayout } from "@/components/viz/domain/RenderTreeLayout";
 import { PaintRasterize } from "@/components/viz/domain/PaintRasterize";
@@ -97,6 +98,7 @@ export const mdxComponents: MDXComponents = {
   ConfusingPatterns,
   WorkerThread,
   TransferableCost,
+  SecurityModel,
   SharedMemoryRace,
   RenderTreeLayout,
   PaintRasterize,
