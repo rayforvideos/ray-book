@@ -36,6 +36,7 @@ import { EqualityCompare } from "@/components/viz/domain/EqualityCompare";
 import { MapVsObject } from "@/components/viz/domain/MapVsObject";
 import { IteratorFlow } from "@/components/viz/domain/IteratorFlow";
 import { ProxyTrap } from "@/components/viz/domain/ProxyTrap";
+import { RafTimeline } from "@/components/viz/domain/RafTimeline";
 import { ConfusingPatterns } from "@/components/viz/domain/ConfusingPatterns";
 import { WorkerThread } from "@/components/viz/domain/WorkerThread";
 import { TransferableCost } from "@/components/viz/domain/TransferableCost";
@@ -84,6 +85,7 @@ export const mdxComponents: MDXComponents = {
   MapVsObject,
   IteratorFlow,
   ProxyTrap,
+  RafTimeline,
   ConfusingPatterns,
   WorkerThread,
   TransferableCost,
