@@ -48,6 +48,7 @@ import { PaintRasterize } from "@/components/viz/domain/PaintRasterize";
 import { CompositorLayers } from "@/components/viz/domain/CompositorLayers";
 import { PipelineTrigger } from "@/components/viz/domain/PipelineTrigger";
 import { PipelineMetrics } from "@/components/viz/domain/PipelineMetrics";
+import { CorsFlow } from "@/components/viz/domain/CorsFlow";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -99,6 +100,7 @@ export const mdxComponents: MDXComponents = {
   CompositorLayers,
   PipelineTrigger,
   PipelineMetrics,
+  CorsFlow,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">

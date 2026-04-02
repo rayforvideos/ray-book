@@ -1,0 +1,208 @@
+---
+title: "CORS의 동작 원리"
+description: "왜 다른 도메인 요청이 차단될까 — Same-Origin Policy와 CORS preflight를 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "network", "cors", "security", "preflight"]
+series: "network-and-communication"
+seriesOrder: 3
+draft: false
+---
+
+## Same-Origin Policy
+
+브라우저에는 **Same-Origin Policy**(동일 출처 정책)라는 보안 규칙이 있습니다. 이 규칙은 JavaScript가 **다른 출처**의 리소스에 접근하는 것을 차단합니다.
+
+출처(Origin)는 세 가지 요소로 결정됩니다:
+
+```text
+https://my-app.com:443/page
+└─────┘ └──────────┘ └──┘
+프로토콜     도메인      포트
+```
+
+이 세 가지가 모두 일치해야 같은 출처입니다. 하나라도 다르면 교차 출처(cross-origin)로 판단합니다.
+
+| URL | 같은 출처? | 이유 |
+|-----|----------|------|
+| `https://my-app.com/other` | O | 경로만 다름 |
+| `http://my-app.com` | X | 프로토콜 다름 |
+| `https://api.my-app.com` | X | 도메인 다름 (서브도메인도 다른 출처) |
+| `https://my-app.com:8080` | X | 포트 다름 |
+
+왜 이런 제한이 필요할까요? Same-Origin Policy가 없다면, 악의적인 사이트가 JavaScript로 사용자의 은행 사이트에 요청을 보내고 응답을 읽을 수 있습니다. 사용자가 은행에 로그인된 상태라면 쿠키가 자동으로 전송되므로, 공격자가 계좌 정보를 탈취할 수 있습니다.
+
+중요한 점은, 브라우저가 요청 **자체를 차단하는 것이 아니라** 응답을 JavaScript에 **전달하지 않는 것**입니다. 요청은 서버에 도달합니다. 서버도 응답을 보냅니다. 하지만 브라우저가 중간에서 JavaScript의 응답 접근을 막습니다.
+
+## CORS란
+
+**CORS**(Cross-Origin Resource Sharing)는 Same-Origin Policy의 제한을 **안전하게 완화**하는 메커니즘입니다. 서버가 HTTP 헤더를 통해 "이 출처에서 오는 요청은 허용한다"고 브라우저에 알려주는 방식입니다.
+
+흐름을 요약하면 이렇습니다:
+
+```text
+1. JavaScript가 다른 출처에 fetch 요청
+2. 브라우저가 요청에 Origin 헤더를 자동 추가
+3. 서버가 Access-Control-Allow-Origin 헤더로 응답
+4. 브라우저가 Origin과 Allow-Origin을 비교
+5. 일치하면 JavaScript에 응답 전달, 아니면 차단
+```
+
+CORS는 서버가 주도하는 메커니즘입니다. 클라이언트 코드에서는 CORS를 "해결"할 수 없습니다. 서버가 올바른 헤더를 응답해야 합니다.
+
+## 단순 요청 vs Preflight
+
+브라우저는 교차 출처 요청을 두 가지로 분류합니다. **단순 요청**(Simple Request)과 **Preflight가 필요한 요청**입니다.
+
+아래 시각화에서 탭을 전환하며 두 흐름을 비교해 보세요.
+
+<CorsFlow />
+
+단순 요청의 조건은 엄격합니다. 메서드가 GET, HEAD, POST 중 하나이고, 헤더가 Accept, Accept-Language, Content-Language, Content-Type(text/plain, multipart/form-data, application/x-www-form-urlencoded만 허용) 같은 **CORS 안전 헤더**만 포함해야 합니다.
+
+실제 프로젝트에서 이 조건을 만족하기는 어렵습니다. `Content-Type: application/json`만 사용해도 단순 요청이 아닙니다. `Authorization` 헤더를 추가해도 마찬가지입니다. 따라서 대부분의 API 호출은 preflight를 거칩니다.
+
+## CORS 요청 헤더
+
+브라우저가 교차 출처 요청에 자동으로 추가하는 헤더들입니다.
+
+**Origin** -- 요청을 보내는 페이지의 출처입니다. 브라우저가 자동으로 추가하며, JavaScript에서 변조할 수 없습니다.
+
+```http
+Origin: https://my-app.com
+```
+
+**Access-Control-Request-Method** -- preflight에서만 사용됩니다. 실제 요청에서 사용할 HTTP 메서드를 서버에 알려줍니다.
+
+```http
+Access-Control-Request-Method: DELETE
+```
+
+**Access-Control-Request-Headers** -- preflight에서만 사용됩니다. 실제 요청에서 사용할 커스텀 헤더 목록을 서버에 알려줍니다.
+
+```http
+Access-Control-Request-Headers: Content-Type, Authorization
+```
+
+이 헤더들은 모두 브라우저가 관리합니다. 개발자가 직접 설정할 필요가 없고, 설정하더라도 브라우저가 덮어씁니다.
+
+## CORS 응답 헤더
+
+서버가 CORS를 허용하기 위해 응답에 포함하는 헤더들입니다.
+
+**Access-Control-Allow-Origin** -- 허용하는 출처를 지정합니다. 가장 핵심적인 헤더입니다.
+
+```http
+Access-Control-Allow-Origin: https://my-app.com
+```
+
+와일드카드(`*`)를 사용하면 모든 출처를 허용합니다. 하지만 credentials를 사용하는 요청에서는 와일드카드를 사용할 수 없습니다.
+
+**Access-Control-Allow-Methods** -- preflight 응답에서 허용하는 HTTP 메서드를 나열합니다.
+
+```http
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+```
+
+**Access-Control-Allow-Headers** -- preflight 응답에서 허용하는 요청 헤더를 나열합니다.
+
+```http
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Custom-Header
+```
+
+**Access-Control-Max-Age** -- preflight 응답을 캐시하는 시간(초)입니다. 이 시간 동안 같은 조건의 요청은 preflight를 건너뜁니다.
+
+```http
+Access-Control-Max-Age: 86400
+```
+
+브라우저마다 Max-Age의 상한이 다릅니다. Chrome은 7200초(2시간), Firefox는 86400초(24시간)가 최대입니다.
+
+**Access-Control-Expose-Headers** -- 기본적으로 JavaScript는 응답의 **CORS 안전 응답 헤더**(Cache-Control, Content-Language, Content-Type, Expires, Last-Modified, Pragma)만 읽을 수 있습니다. 다른 헤더를 노출하려면 이 헤더로 명시해야 합니다.
+
+```http
+Access-Control-Expose-Headers: X-Total-Count, X-Request-Id
+```
+
+## credentials와 쿠키
+
+기본적으로 교차 출처 요청에는 쿠키가 포함되지 않습니다. 쿠키를 포함하려면 클라이언트와 서버 양쪽에서 설정이 필요합니다.
+
+클라이언트에서는 `credentials: "include"`를 설정합니다:
+
+```javascript
+fetch("https://api.example.com/data", {
+  credentials: "include",
+});
+```
+
+서버는 두 가지를 응답해야 합니다:
+
+```http
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Origin: https://my-app.com
+```
+
+credentials를 사용할 때는 중요한 제약이 있습니다. `Access-Control-Allow-Origin`에 와일드카드(`*`)를 사용할 수 없습니다. 반드시 구체적인 출처를 지정해야 합니다. Allow-Methods와 Allow-Headers도 마찬가지로 와일드카드가 금지됩니다.
+
+이 제약의 이유는 보안입니다. 와일드카드와 credentials를 함께 허용하면, 어떤 사이트든 사용자의 쿠키를 포함해서 요청을 보내고 응답을 읽을 수 있게 됩니다. Same-Origin Policy가 보호하려던 것과 정확히 같은 위험입니다.
+
+여러 출처를 허용해야 한다면, 서버에서 요청의 Origin 헤더를 확인하고 허용 목록에 포함된 경우에만 해당 Origin을 `Access-Control-Allow-Origin`에 동적으로 설정하는 방식을 사용합니다.
+
+```javascript
+// Express 예시
+app.use((req, res, next) => {
+  const allowed = ["https://my-app.com", "https://admin.my-app.com"];
+  const origin = req.headers.origin;
+
+  if (allowed.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+
+  next();
+});
+```
+
+## 흔한 CORS 에러와 해결
+
+브라우저 콘솔에서 가장 자주 보는 CORS 에러 메시지를 하나씩 살펴봅니다.
+
+**"has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header"** -- 서버가 `Access-Control-Allow-Origin` 헤더를 응답하지 않았습니다. 서버 설정을 추가해야 합니다.
+
+**"The value of the 'Access-Control-Allow-Origin' header must not be the wildcard '*' when credentials mode is 'include'"** -- credentials를 사용하면서 와일드카드를 설정한 경우입니다. 구체적인 출처로 변경해야 합니다.
+
+**"Method DELETE is not allowed by Access-Control-Allow-Methods"** -- preflight 응답의 Allow-Methods에 해당 메서드가 포함되지 않았습니다. 서버에서 허용 메서드 목록에 추가해야 합니다.
+
+**"Request header field Authorization is not allowed by Access-Control-Allow-Headers"** -- preflight 응답의 Allow-Headers에 해당 헤더가 포함되지 않았습니다.
+
+해결 방법을 정리하면 이렇습니다:
+
+| 상황 | 해결 |
+|------|------|
+| 서버를 제어할 수 있음 | CORS 응답 헤더를 올바르게 설정 |
+| 서버를 제어할 수 없음 | 프록시 서버를 통해 우회 |
+| 개발 환경 | Vite/Webpack dev server의 proxy 설정 사용 |
+
+개발 중에 가장 간편한 방법은 개발 서버의 프록시 기능입니다. 프록시는 서버 간 통신이므로 CORS가 적용되지 않습니다. 브라우저의 Same-Origin Policy는 브라우저에서만 동작하는 규칙이기 때문입니다.
+
+```javascript
+// vite.config.js
+export default {
+  server: {
+    proxy: {
+      "/api": {
+        target: "https://api.example.com",
+        changeOrigin: true,
+      },
+    },
+  },
+};
+```
+
+이렇게 설정하면 `fetch("/api/data")`가 같은 출처의 개발 서버를 거쳐 `https://api.example.com/api/data`로 전달됩니다. 브라우저 입장에서는 같은 출처 요청이므로 CORS가 발생하지 않습니다.
+
+## 다음 단계
+
+CORS를 이해하면 네트워크 요청의 보안 모델이 명확해집니다. 브라우저가 왜 특정 요청을 차단하는지, 서버에서 무엇을 설정해야 하는지를 알 수 있습니다.
+
+다음 글에서는 네트워크 요청 자체를 줄이는 방법, 즉 **캐싱 전략**을 다룹니다. Cache-Control 헤더, ETag, Service Worker 캐시 등 브라우저가 리소스를 효율적으로 재사용하는 메커니즘을 살펴봅니다.
