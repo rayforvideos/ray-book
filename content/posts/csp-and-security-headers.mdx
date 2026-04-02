@@ -1,0 +1,215 @@
+---
+title: "CSP와 보안 헤더"
+description: "Content-Security-Policy로 리소스 로딩을 제어하고, 보안 헤더로 브라우저를 강화하는 방법을 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "security", "csp", "headers", "https"]
+series: "web-security"
+seriesOrder: 4
+draft: false
+---
+
+## 방어의 마지막 벽
+
+[이전 글](/posts/csrf)에서 CSRF와 인증 보안을 다뤘습니다. [XSS 글](/posts/xss)에서는 입력 검증과 출력 이스케이프가 핵심 방어라는 것도 확인했습니다. 하지만 현실에서는 실수가 일어납니다. 수천 개의 입력 지점 중 하나에서 이스케이프가 빠지면 XSS가 발생합니다.
+
+Content Security Policy(CSP)는 이런 상황을 위한 **최후의 방어선**입니다. XSS 코드가 주입되더라도, CSP가 해당 스크립트의 실행 자체를 차단할 수 있습니다. 이것이 심층 방어(Defense in Depth)의 핵심입니다. 한 계층이 뚫리더라도 다음 계층이 피해를 막습니다.
+
+CSP는 HTTP 응답 헤더로 전달됩니다. 서버가 "이 페이지에서는 이런 리소스만 허용한다"고 브라우저에게 명시적으로 알려주는 방식입니다.
+
+```http
+Content-Security-Policy: script-src 'self'; style-src 'self'; img-src 'self' https://cdn.example.com
+```
+
+이 한 줄이 XSS의 피해를 극적으로 줄여줍니다.
+
+## Content-Security-Policy
+
+CSP는 리소스 유형별로 허용할 출처를 지정합니다. 브라우저는 페이지를 렌더링하면서 각 리소스가 CSP 규칙에 부합하는지 확인하고, 부합하지 않으면 로드를 차단합니다.
+
+아래 시각화에서 다양한 CSP 규칙이 리소스를 어떻게 허용하거나 차단하는지 확인해 보세요. 탭을 전환하면 허용 시나리오와 차단 시나리오를 분리해서 볼 수 있습니다.
+
+<CspPolicy />
+
+핵심을 정리하면 이렇습니다. 같은 출처의 외부 파일은 허용하되, 인라인 코드와 허용 목록에 없는 외부 출처는 차단합니다. 인라인 스크립트를 차단하는 것만으로도 대부분의 XSS 공격을 무력화할 수 있습니다.
+
+## 주요 CSP 디렉티브
+
+CSP는 리소스 유형별로 디렉티브를 제공합니다. 각 디렉티브는 해당 유형의 리소스가 어디에서 로드될 수 있는지를 정의합니다.
+
+**default-src** -- 다른 디렉티브가 명시되지 않았을 때의 기본값입니다. 가장 먼저 설정해야 하는 디렉티브입니다.
+
+```http
+Content-Security-Policy: default-src 'self'
+```
+
+**script-src** -- JavaScript 파일과 인라인 스크립트의 허용 출처입니다. XSS 방어의 핵심 디렉티브입니다.
+
+```http
+Content-Security-Policy: script-src 'self' https://cdn.example.com
+```
+
+**style-src** -- CSS 파일과 인라인 스타일의 허용 출처입니다.
+
+```http
+Content-Security-Policy: style-src 'self' 'unsafe-inline'
+```
+
+**img-src** -- 이미지 리소스의 허용 출처입니다. CDN을 사용한다면 해당 도메인을 추가해야 합니다.
+
+```http
+Content-Security-Policy: img-src 'self' https://cdn.example.com data:
+```
+
+**connect-src** -- `fetch`, `XMLHttpRequest`, WebSocket 등 네트워크 요청의 허용 출처입니다.
+
+```http
+Content-Security-Policy: connect-src 'self' https://api.example.com
+```
+
+**frame-src** -- `<iframe>`으로 임베드할 수 있는 출처를 제한합니다. 클릭재킹 방어에도 도움이 됩니다.
+
+```http
+Content-Security-Policy: frame-src 'self' https://www.youtube.com
+```
+
+**font-src** -- 웹 폰트의 허용 출처입니다. Google Fonts 같은 외부 폰트 서비스를 사용한다면 설정이 필요합니다.
+
+```http
+Content-Security-Policy: font-src 'self' https://fonts.gstatic.com
+```
+
+각 디렉티브가 설정되지 않으면 `default-src`의 값을 따릅니다. 따라서 `default-src 'self'`를 기본으로 설정하고, 필요한 디렉티브만 추가하는 것이 좋은 패턴입니다.
+
+## CSP 값 키워드
+
+디렉티브의 값으로 도메인 외에 특별한 키워드를 사용할 수 있습니다. 키워드는 반드시 작은따옴표로 감싸야 합니다.
+
+| 키워드 | 의미 |
+|--------|------|
+| `'self'` | 현재 페이지와 같은 출처만 허용 |
+| `'none'` | 해당 유형의 리소스를 완전히 차단 |
+| `'unsafe-inline'` | 인라인 스크립트/스타일 허용 -- CSP의 보호를 크게 약화시킴 |
+| `'unsafe-eval'` | `eval()`, `Function()` 등 동적 코드 실행 허용 |
+| `'nonce-<value>'` | 특정 nonce 값을 가진 인라인 스크립트만 허용 |
+| `'strict-dynamic'` | nonce로 허용된 스크립트가 로드하는 추가 스크립트도 허용 |
+
+`'unsafe-inline'`은 이름 그대로 안전하지 않습니다. 이것을 허용하면 CSP로 인라인 XSS를 막을 수 없습니다. 대신 **nonce 기반 CSP**를 사용하는 것이 현대적인 접근법입니다.
+
+nonce는 매 요청마다 서버가 생성하는 일회용 랜덤 값입니다. 서버가 알고 있는 nonce를 가진 스크립트만 실행을 허용합니다.
+
+```http
+Content-Security-Policy: script-src 'nonce-abc123' 'strict-dynamic'
+```
+
+```html
+<!-- 서버가 생성한 nonce를 가진 스크립트 — 허용 -->
+<script nonce="abc123">
+  // 이 스크립트는 실행됨
+</script>
+
+<!-- nonce가 없는 인라인 스크립트 — 차단 -->
+<script>
+  alert('xss'); // 차단됨
+</script>
+```
+
+`'strict-dynamic'`은 nonce로 허용된 스크립트가 동적으로 추가하는 하위 스크립트도 자동으로 허용합니다. 이렇게 하면 서드파티 라이브러리가 내부적으로 스크립트를 로드하는 경우에도 대응할 수 있습니다.
+
+## 기타 보안 헤더
+
+CSP 외에도 브라우저 보안을 강화하는 HTTP 헤더들이 있습니다. 각각 다른 공격 벡터를 차단합니다.
+
+**Strict-Transport-Security (HSTS)** -- 브라우저에게 이 사이트는 반드시 HTTPS로만 접속하라고 지시합니다. HTTP로 접속을 시도해도 브라우저가 자동으로 HTTPS로 전환합니다.
+
+```http
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+```
+
+`max-age`는 초 단위로, 31536000은 1년입니다. `includeSubDomains`는 서브도메인에도 HSTS를 적용합니다. `preload`는 브라우저의 HSTS preload 목록에 등록을 요청합니다.
+
+**X-Content-Type-Options** -- MIME 타입 스니핑을 방지합니다. 브라우저가 Content-Type 헤더를 무시하고 내용을 추측해서 실행하는 것을 막습니다.
+
+```http
+X-Content-Type-Options: nosniff
+```
+
+**X-Frame-Options** -- 페이지가 `<iframe>`에 임베드되는 것을 제어합니다. 클릭재킹 방어에 사용됩니다. CSP의 `frame-ancestors` 디렉티브가 더 유연한 대안이지만, 하위 호환성을 위해 함께 설정하는 경우가 많습니다.
+
+```http
+X-Frame-Options: DENY
+```
+
+**Referrer-Policy** -- 다른 페이지로 이동할 때 Referer 헤더에 어떤 정보를 포함할지 제어합니다. URL에 민감한 정보(토큰, 세션 ID 등)가 포함된 경우 유출을 방지합니다.
+
+```http
+Referrer-Policy: strict-origin-when-cross-origin
+```
+
+**Permissions-Policy** -- 브라우저 기능(카메라, 마이크, 위치 정보 등)의 사용을 제어합니다. 임베드된 서드파티 콘텐츠가 사용자의 민감한 기능에 접근하는 것을 차단합니다.
+
+```http
+Permissions-Policy: camera=(), microphone=(), geolocation=(self)
+```
+
+`camera=()`는 카메라 접근을 완전히 차단하고, `geolocation=(self)`는 같은 출처에서만 위치 정보를 허용합니다.
+
+## 실전 CSP 설정
+
+처음부터 엄격한 CSP를 적용하면 기존 기능이 깨질 수 있습니다. 그래서 **Report-Only 모드**로 시작하는 것이 좋습니다.
+
+```http
+Content-Security-Policy-Report-Only: default-src 'self'; report-uri /csp-report
+```
+
+Report-Only 모드에서는 CSP 위반이 발생해도 리소스를 차단하지 않습니다. 대신 위반 내용을 지정된 URL로 보고합니다. 이렇게 하면 기존 서비스에 영향 없이 어떤 리소스가 위반되는지 파악할 수 있습니다.
+
+위반 보고서를 분석해서 필요한 출처를 허용 목록에 추가한 뒤, 충분히 검증되면 `Content-Security-Policy`로 전환합니다.
+
+Next.js에서는 `next.config.js`의 `headers` 설정으로 보안 헤더를 추가할 수 있습니다.
+
+```javascript
+// next.config.js
+const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value: "default-src 'self'; script-src 'self' 'nonce-{nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.example.com; connect-src 'self' https://api.example.com",
+  },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=31536000; includeSubDomains",
+  },
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+];
+
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: securityHeaders,
+      },
+    ];
+  },
+};
+```
+
+Next.js의 미들웨어에서 nonce를 동적으로 생성하고, CSP 헤더에 주입하는 방식도 가능합니다. 이 경우 매 요청마다 고유한 nonce가 생성되어 인라인 스크립트를 안전하게 허용할 수 있습니다.
+
+보안 헤더가 제대로 설정되었는지 확인하려면 브라우저 개발자 도구의 Network 탭에서 응답 헤더를 확인하세요. [securityheaders.com](https://securityheaders.com) 같은 도구로 전체 헤더를 한번에 점검할 수도 있습니다.
+
+## 다음 단계
+
+CSP는 리소스 로딩을 출처 기반으로 제어하는 강력한 방어 메커니즘입니다. XSS 코드가 주입되더라도 실행 자체를 차단할 수 있고, nonce 기반 CSP를 사용하면 인라인 스크립트도 안전하게 관리할 수 있습니다. HSTS, X-Content-Type-Options 같은 보안 헤더들은 적은 노력으로 큰 보안 향상을 가져다줍니다.
+
+다음 글에서는 **브라우저 스토리지의 보안**을 다룹니다. Cookie, localStorage, sessionStorage, IndexedDB 각각의 특성과 보안 고려사항을 살펴봅니다. 어떤 데이터를 어떤 스토리지에 저장해야 안전한지, 각 스토리지가 XSS와 CSRF에 어떻게 노출되는지 비교합니다.

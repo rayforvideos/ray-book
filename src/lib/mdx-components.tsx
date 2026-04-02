@@ -52,6 +52,7 @@ import { PipelineTrigger } from "@/components/viz/domain/PipelineTrigger";
 import { PipelineMetrics } from "@/components/viz/domain/PipelineMetrics";
 import { CacheStrategy } from "@/components/viz/domain/CacheStrategy";
 import { CorsFlow } from "@/components/viz/domain/CorsFlow";
+import { CspPolicy } from "@/components/viz/domain/CspPolicy";
 import { CsrfAttackFlow } from "@/components/viz/domain/CsrfAttackFlow";
 import { XssAttackFlow } from "@/components/viz/domain/XssAttackFlow";
 import { Term } from "@/components/viz/primitives/Term";
@@ -109,6 +110,7 @@ export const mdxComponents: MDXComponents = {
   PipelineMetrics,
   CacheStrategy,
   CorsFlow,
+  CspPolicy,
   CsrfAttackFlow,
   XssAttackFlow,
   Term,
