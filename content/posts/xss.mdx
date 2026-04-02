@@ -10,7 +10,7 @@ draft: false
 
 ## XSS란
 
-Cross-Site Scripting(XSS)은 공격자가 다른 사용자의 브라우저에서 악성 스크립트를 실행시키는 공격입니다. 이름에 "Cross-Site"가 들어가지만, 실제로는 같은 출처 안에서 동작합니다. 공격자가 신뢰할 수 있는 사이트에 스크립트를 주입하면, 브라우저는 그 스크립트가 해당 사이트의 정상적인 코드인지 주입된 코드인지 구별할 수 없습니다.
+Cross-Site Scripting(<Term id="xss">XSS</Term>)은 공격자가 다른 사용자의 브라우저에서 악성 스크립트를 실행시키는 공격입니다. 이름에 "Cross-Site"가 들어가지만, 실제로는 같은 출처 안에서 동작합니다. 공격자가 신뢰할 수 있는 사이트에 스크립트를 주입하면, 브라우저는 그 스크립트가 해당 사이트의 정상적인 코드인지 주입된 코드인지 구별할 수 없습니다.
 
 [이전 글](/posts/web-security-basics)에서 살펴본 Same-Origin Policy는 다른 출처 간의 접근을 차단합니다. 하지만 XSS는 SOP를 우회하는 것이 아니라, 아예 같은 출처 안에서 실행됩니다. 공격자의 코드가 `bank.com`의 페이지에 삽입되면, 브라우저 입장에서 그 코드의 출처는 `bank.com`입니다. 따라서 `bank.com`의 쿠키, DOM, localStorage에 자유롭게 접근할 수 있습니다.
 
@@ -107,7 +107,7 @@ function escapeHtml(str) {
 Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.trusted.com
 ```
 
-이 설정은 인라인 스크립트의 실행을 차단합니다. XSS로 `<script>alert(1)</script>`가 주입되더라도 CSP가 실행을 막습니다. 물론 CSP만으로 모든 XSS를 막을 수 있는 것은 아닙니다. CSP는 최후의 방어선이지, 출력 인코딩을 대체하는 것은 아닙니다.
+이 설정은 인라인 스크립트의 실행을 차단합니다. XSS로 `<script>alert(1)</script>`가 주입되더라도 <Term id="csp">CSP</Term>가 실행을 막습니다. 물론 CSP만으로 모든 XSS를 막을 수 있는 것은 아닙니다. CSP는 최후의 방어선이지, 출력 인코딩을 대체하는 것은 아닙니다.
 
 **HttpOnly 쿠키** -- 세션 쿠키에 `HttpOnly` 플래그를 설정하면 JavaScript에서 `document.cookie`로 접근할 수 없습니다.
 

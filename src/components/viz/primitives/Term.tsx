@@ -200,6 +200,71 @@ const terms: Record<string, TermDef> = {
     emoji: "📊",
     description: "Google이 정의한 웹 페이지 사용자 경험 핵심 지표. LCP(로딩), INP(상호작용), CLS(시각적 안정성) 세 가지로 구성됩니다.",
   },
+  "event-bubbling": {
+    title: "이벤트 버블링",
+    emoji: "🫧",
+    description: "이벤트가 발생한 요소에서 시작해 DOM 트리를 따라 상위 요소로 전파되는 현상. 대부분의 DOM 이벤트는 버블링됩니다.",
+    analogy: "수면 아래에서 올라오는 거품과 비슷합니다 — 가장 깊은 곳에서 시작해 위로 올라갑니다.",
+  },
+  "event-delegation": {
+    title: "이벤트 위임",
+    emoji: "📋",
+    description: "개별 자식 요소에 이벤트 핸들러를 붙이는 대신, 공통 부모에 하나의 핸들러를 등록하고 event.target으로 실제 대상을 판별하는 패턴.",
+    analogy: "회사 대표 전화번호와 비슷합니다 — 각 직원에게 직접 전화하지 않고, 대표번호로 걸면 내선으로 연결됩니다.",
+  },
+  "intersection-observer": {
+    title: "IntersectionObserver",
+    emoji: "👁️",
+    description: "대상 요소가 뷰포트나 특정 조상 요소와 교차하는 비율을 비동기적으로 관찰하는 API. 무한 스크롤, 지연 로딩에 활용됩니다.",
+  },
+  "mutation-observer": {
+    title: "MutationObserver",
+    emoji: "🔬",
+    description: "DOM 트리의 변경(자식 추가/제거, 속성 변경, 텍스트 변경)을 비동기적으로 감지하는 API. 마이크로태스크로 배치 처리됩니다.",
+  },
+  "dns": {
+    title: "DNS",
+    emoji: "📖",
+    description: "Domain Name System. 도메인 이름(example.com)을 IP 주소(93.184.216.34)로 변환하는 분산 네이밍 시스템.",
+    analogy: "전화번호부와 비슷합니다 — 이름으로 검색하면 전화번호(IP)를 알려줍니다.",
+  },
+  "cors": {
+    title: "CORS",
+    emoji: "🔓",
+    description: "Cross-Origin Resource Sharing. 브라우저가 다른 출처의 리소스에 접근할 수 있도록 서버가 허용하는 HTTP 헤더 기반 메커니즘.",
+  },
+  "preflight": {
+    title: "프리플라이트 요청",
+    emoji: "✈️",
+    description: "실제 요청 전에 브라우저가 보내는 OPTIONS 메서드의 사전 확인 요청. 서버가 해당 출처와 메서드를 허용하는지 확인합니다.",
+    analogy: "비행기 이륙 전 관제탑에 허가를 구하는 것과 비슷합니다.",
+  },
+  "websocket": {
+    title: "WebSocket",
+    emoji: "🔌",
+    description: "HTTP 핸드셰이크로 시작해 TCP 위에서 전이중(full-duplex) 통신을 제공하는 프로토콜. 실시간 양방향 데이터 전송에 사용됩니다.",
+  },
+  "same-origin-policy": {
+    title: "동일 출처 정책",
+    emoji: "🏠",
+    description: "Same-Origin Policy. 프로토콜, 호스트, 포트가 모두 같은 출처끼리만 리소스에 접근할 수 있도록 브라우저가 강제하는 보안 정책.",
+    analogy: "아파트 동 출입문과 비슷합니다 — 같은 동 주민만 출입할 수 있고, 다른 동은 별도 허가가 필요합니다.",
+  },
+  "xss": {
+    title: "XSS",
+    emoji: "💉",
+    description: "Cross-Site Scripting. 공격자가 웹 페이지에 악성 스크립트를 삽입해 다른 사용자의 브라우저에서 실행시키는 공격. Stored, Reflected, DOM-based 세 유형이 있습니다.",
+  },
+  "csrf": {
+    title: "CSRF",
+    emoji: "🎭",
+    description: "Cross-Site Request Forgery. 사용자가 인증된 상태에서 공격자가 만든 페이지를 방문하면, 사용자 모르게 요청이 전송되는 공격.",
+  },
+  "csp": {
+    title: "CSP",
+    emoji: "📜",
+    description: "Content Security Policy. 브라우저에게 어떤 출처의 리소스만 로드/실행할 수 있는지 지시하는 HTTP 헤더 기반 보안 정책. XSS 방어의 핵심 수단입니다.",
+  },
 };
 
 interface TermProps {
