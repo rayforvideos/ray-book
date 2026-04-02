@@ -71,6 +71,7 @@ import { CdnLoadBalancer } from "@/components/viz/domain/CdnLoadBalancer";
 import { ProcessThread } from "@/components/viz/domain/ProcessThread";
 import { CpuScheduler } from "@/components/viz/domain/CpuScheduler";
 import { DeadlockDemo } from "@/components/viz/domain/DeadlockDemo";
+import { VirtualMemory } from "@/components/viz/domain/VirtualMemory";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -145,6 +146,7 @@ export const mdxComponents: MDXComponents = {
   ProcessThread,
   CpuScheduler,
   DeadlockDemo,
+  VirtualMemory,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
