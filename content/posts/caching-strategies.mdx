@@ -1,0 +1,234 @@
+---
+title: "캐싱 전략"
+description: "Cache-Control, ETag, Service Worker — 네트워크 요청을 줄이는 브라우저 캐싱 메커니즘을 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "network", "cache", "performance", "service-worker"]
+series: "network-and-communication"
+seriesOrder: 4
+draft: false
+---
+
+## 왜 캐싱인가
+
+웹 페이지 하나를 로드하면 수십 개의 리소스를 다운로드합니다. HTML, CSS, JavaScript, 이미지, 폰트. 페이지를 이동할 때마다, 새로고침할 때마다 같은 파일을 반복해서 받는 것은 낭비입니다.
+
+캐싱은 이 문제를 해결합니다. 한 번 받은 리소스를 로컬에 저장해두고, 다음 요청 때 저장된 복사본을 사용합니다. 네트워크 요청이 줄어들면 세 가지가 개선됩니다.
+
+**성능** -- 네트워크 왕복이 사라지므로 응답 시간이 0ms에 가까워집니다. 특히 모바일 환경에서 체감 차이가 큽니다.
+
+**비용** -- 서버 트래픽과 CDN 대역폭이 줄어듭니다. 트래픽이 많은 서비스에서는 직접적인 비용 절감으로 이어집니다.
+
+**사용자 경험** -- 페이지가 빠르게 렌더링됩니다. 오프라인 상태에서도 캐시된 리소스로 일부 기능을 제공할 수 있습니다.
+
+브라우저 캐싱의 핵심은 HTTP 헤더입니다. 서버가 응답에 포함하는 헤더가 캐시 동작을 결정합니다. 브라우저는 이 헤더를 읽고 리소스를 저장할지, 얼마나 오래 유효한지, 만료 후 어떻게 처리할지를 판단합니다.
+
+## HTTP 캐시 흐름
+
+브라우저가 리소스를 요청할 때 캐시를 어떻게 활용하는지, 전체 흐름을 단계별로 살펴봅니다. 캐시가 신선한 경우와 만료된 경우, 그리고 서버 검증 결과에 따라 경로가 달라집니다.
+
+<CacheStrategy />
+
+흐름을 정리하면 세 가지 경로가 있습니다. 첫째, 캐시가 신선하면 네트워크 요청 없이 즉시 응답합니다. 둘째, 캐시가 만료되었지만 서버에서 변경되지 않았다면 304 응답으로 캐시를 재사용합니다. 셋째, 리소스가 실제로 변경되었다면 200 응답과 함께 새 데이터를 받아 캐시를 갱신합니다.
+
+첫 번째 경로가 가장 빠르고, 두 번째 경로는 바디 전송을 생략해서 대역폭을 절약합니다. 세 번째 경로만 전체 응답을 다시 받습니다.
+
+## Cache-Control 헤더
+
+`Cache-Control`은 캐시 동작을 제어하는 가장 중요한 헤더입니다. 여러 디렉티브를 조합해서 사용합니다.
+
+**max-age** -- 리소스가 신선한 상태로 유지되는 시간(초)입니다. 이 시간 동안 브라우저는 서버에 확인하지 않고 캐시를 사용합니다.
+
+```http
+Cache-Control: max-age=3600
+```
+
+3600초, 즉 1시간 동안 캐시가 유효합니다.
+
+**no-cache** -- 이름이 혼란스럽지만, 캐시를 하지 않는 것이 아닙니다. 캐시에 저장은 하되, 사용하기 전에 반드시 서버에 유효성을 확인합니다. 매번 조건부 요청을 보내는 것입니다.
+
+```http
+Cache-Control: no-cache
+```
+
+**no-store** -- 이것이 진짜 "캐시하지 않음"입니다. 응답을 어디에도 저장하지 않습니다. 민감한 데이터(개인 정보, 결제 정보)에 사용합니다.
+
+```http
+Cache-Control: no-store
+```
+
+**public** -- CDN 같은 공유 캐시에도 저장을 허용합니다. 인증이 필요 없는 공개 리소스에 적합합니다.
+
+```http
+Cache-Control: public, max-age=86400
+```
+
+**private** -- 브라우저 캐시에만 저장을 허용합니다. CDN이나 프록시 캐시에는 저장되지 않습니다. 사용자별로 다른 응답에 사용합니다.
+
+```http
+Cache-Control: private, max-age=600
+```
+
+**immutable** -- 리소스가 절대 변경되지 않음을 선언합니다. max-age 기간 내에 사용자가 새로고침을 해도 조건부 요청을 보내지 않습니다.
+
+```http
+Cache-Control: public, max-age=31536000, immutable
+```
+
+일반적으로 브라우저는 새로고침 시 max-age가 남아있어도 조건부 요청을 보냅니다. `immutable`은 이 동작을 억제합니다. 파일명에 해시가 포함된 정적 자산에 적합합니다.
+
+## ETag와 조건부 요청
+
+캐시가 만료되었을 때 리소스 전체를 다시 받는 대신, 변경 여부만 확인하는 방법이 있습니다. 이것이 조건부 요청입니다.
+
+**ETag** -- 서버가 리소스의 특정 버전을 식별하는 토큰입니다. 파일 내용의 해시값이나 버전 번호가 될 수 있습니다.
+
+```http
+HTTP/1.1 200 OK
+ETag: "abc123"
+Cache-Control: max-age=3600
+
+(응답 바디)
+```
+
+브라우저는 이 ETag를 캐시와 함께 저장합니다. 캐시가 만료되면 `If-None-Match` 헤더에 저장된 ETag를 넣어 서버에 보냅니다.
+
+```http
+GET /style.css HTTP/1.1
+If-None-Match: "abc123"
+```
+
+서버는 현재 리소스의 ETag와 비교합니다. 일치하면 리소스가 변경되지 않은 것이므로 304를 응답합니다. 바디가 없으므로 전송량이 극히 적습니다.
+
+```http
+HTTP/1.1 304 Not Modified
+ETag: "abc123"
+```
+
+ETag가 다르면 리소스가 변경된 것이므로 200과 함께 새 데이터를 응답합니다.
+
+**Last-Modified / If-Modified-Since** -- ETag와 비슷한 역할을 하는 시간 기반 검증입니다. 서버가 `Last-Modified` 헤더로 마지막 수정 시각을 알려주고, 브라우저는 `If-Modified-Since`로 해당 시각 이후에 변경이 있었는지 묻습니다.
+
+```http
+Last-Modified: Wed, 01 Apr 2026 10:00:00 GMT
+```
+
+```http
+GET /style.css HTTP/1.1
+If-Modified-Since: Wed, 01 Apr 2026 10:00:00 GMT
+```
+
+ETag가 더 정확합니다. 시간 기반 검증은 1초 이내의 변경을 감지하지 못하고, 내용이 같아도 수정 시각이 다르면 불필요한 재전송이 발생합니다. 대부분의 서버는 ETag와 Last-Modified를 함께 응답하고, ETag가 우선순위를 가집니다.
+
+## 캐시 전략 패턴
+
+리소스의 성격에 따라 최적의 캐시 전략이 다릅니다. 실무에서 자주 사용하는 세 가지 패턴을 살펴봅니다.
+
+**정적 자산 (JS, CSS, 이미지)** -- 빌드 도구가 파일명에 콘텐츠 해시를 포함합니다. `app.a1b2c3.js`처럼 내용이 바뀌면 파일명도 바뀝니다. 파일명이 곧 버전이므로 아주 긴 max-age와 immutable을 사용합니다.
+
+```http
+Cache-Control: public, max-age=31536000, immutable
+```
+
+1년(31536000초) 동안 캐시합니다. 파일이 변경되면 새 해시가 포함된 다른 URL로 요청하므로 캐시 무효화 문제가 없습니다.
+
+**HTML 문서** -- HTML은 정적 자산의 URL을 참조합니다. HTML이 오래된 캐시를 사용하면 새 버전의 JS/CSS URL을 모르므로, HTML은 항상 최신 상태를 확인해야 합니다.
+
+```http
+Cache-Control: no-cache
+```
+
+매번 서버에 확인하되, 변경이 없으면 304로 빠르게 응답받습니다. HTML 자체는 용량이 작으므로 조건부 요청의 오버헤드가 미미합니다.
+
+**API 응답** -- API 응답은 데이터의 특성에 따라 전략이 달라집니다. 자주 변경되는 데이터는 캐시하지 않고, 변경 빈도가 낮은 데이터는 짧은 max-age를 사용합니다.
+
+```http
+Cache-Control: no-store
+```
+
+사용자별 데이터나 실시간성이 중요한 데이터에 적합합니다.
+
+```http
+Cache-Control: private, max-age=60
+```
+
+사용자별이지만 1분 정도는 캐시해도 괜찮은 데이터에 사용합니다. 예를 들어 사용자 프로필 정보가 해당합니다.
+
+이 세 가지 패턴을 조합하면 대부분의 웹 애플리케이션에서 효과적인 캐시 전략을 구성할 수 있습니다.
+
+## Service Worker Cache API
+
+HTTP 캐시는 브라우저가 자동으로 관리합니다. 개발자가 세밀하게 제어할 수 없습니다. Service Worker의 Cache API는 이 한계를 넘어서는 프로그래밍 가능한 캐시입니다.
+
+Service Worker는 브라우저와 네트워크 사이에 위치하는 프록시입니다. 모든 네트워크 요청을 가로채서 캐시된 응답을 반환하거나, 네트워크 요청을 보내거나, 둘을 조합할 수 있습니다.
+
+**캐시에 저장하기** -- `cache.put`으로 요청-응답 쌍을 직접 저장합니다.
+
+```javascript
+// Service Worker 내부
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    fetch(event.request).then((response) => {
+      const clone = response.clone();
+      caches.open("v1").then((cache) => {
+        cache.put(event.request, clone);
+      });
+      return response;
+    })
+  );
+});
+```
+
+응답은 한 번만 읽을 수 있으므로 `clone()`으로 복사본을 만들어 캐시에 저장합니다.
+
+**캐시에서 읽기** -- `cache.match`로 저장된 응답을 조회합니다.
+
+```javascript
+caches.match(event.request).then((cached) => {
+  if (cached) return cached;
+  return fetch(event.request);
+});
+```
+
+이 두 가지를 조합하면 다양한 캐시 전략을 구현할 수 있습니다.
+
+**캐시 우선 (Cache First)** -- 캐시에 있으면 캐시를 반환하고, 없을 때만 네트워크를 사용합니다. 자주 변경되지 않는 정적 자산에 적합합니다.
+
+```javascript
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((response) => {
+        const clone = response.clone();
+        caches.open("v1").then((c) => c.put(event.request, clone));
+        return response;
+      });
+    })
+  );
+});
+```
+
+**네트워크 우선 (Network First)** -- 네트워크를 먼저 시도하고, 실패하면 캐시를 반환합니다. 최신 데이터가 중요하지만 오프라인 폴백이 필요한 경우에 사용합니다.
+
+```javascript
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open("v1").then((c) => c.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
+});
+```
+
+네트워크가 불안정하거나 오프라인일 때 캐시된 이전 응답을 제공하므로 사용자 경험이 크게 개선됩니다.
+
+HTTP 캐시와 Service Worker 캐시는 별개의 계층입니다. 요청이 Service Worker를 먼저 거치고, Service Worker가 네트워크를 요청하면 그때 HTTP 캐시가 동작합니다. 두 계층을 함께 설계하면 더 정교한 캐시 전략을 구현할 수 있습니다.
+
+## 다음 단계
+
+캐싱은 네트워크 요청의 효율을 높이는 전략이지만, 여전히 HTTP의 요청-응답 모델 안에서 동작합니다. 클라이언트가 요청해야 서버가 응답하는 구조입니다.
+
+다음 글에서는 이 구조를 넘어서는 실시간 통신을 다룹니다. 서버가 클라이언트에게 먼저 데이터를 보내는 **WebSocket**과 **Server-Sent Events**의 동작 원리를 살펴봅니다.
