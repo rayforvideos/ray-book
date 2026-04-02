@@ -44,12 +44,16 @@ export const metadata: Metadata = {
   },
   other: {
     "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-status-bar-style": "default",
   },
 };
 
 export const viewport = {
   viewportFit: "cover" as const,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
+    { media: "(prefers-color-scheme: dark)", color: "#141210" },
+  ],
 };
 
 export default function RootLayout({

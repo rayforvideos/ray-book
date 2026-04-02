@@ -6,7 +6,6 @@ import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   const [hidden, setHidden] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const lastScrollY = useRef(0);
   const accumulatedDelta = useRef(0);
   const ticking = useRef(false);
@@ -22,8 +21,6 @@ export function Header() {
         const currentY = window.scrollY;
         const isMobile = window.innerWidth < 640;
         const delta = currentY - lastScrollY.current;
-
-        setScrolled(currentY > 10);
 
         if (isMobile && currentY > 60) {
           if (Math.sign(delta) === Math.sign(accumulatedDelta.current)) {
@@ -53,11 +50,7 @@ export function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-50 pt-8 pb-6 ${
-        scrolled
-          ? "bg-bg/80 backdrop-blur-md"
-          : "bg-bg"
-      }`}
+      className="sticky top-0 z-50 bg-bg pt-8 pb-6"
       style={{
         transform: hidden ? "translateY(-100%)" : "translateY(0)",
         opacity: hidden ? 0 : 1,
