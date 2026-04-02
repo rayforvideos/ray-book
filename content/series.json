@@ -64,5 +64,11 @@
     "title": "네트워크와 브라우저 통신",
     "description": "URL 입력부터 응답까지 — HTTP, fetch, CORS, 캐싱, WebSocket을 시각화합니다",
     "category": "Browser"
+  },
+  {
+    "slug": "web-security",
+    "title": "웹 보안",
+    "description": "브라우저가 당신을 지키는 방법 — XSS, CSRF, CSP, 스토리지 보안을 시각화합니다",
+    "category": "Browser"
   }
 ]
