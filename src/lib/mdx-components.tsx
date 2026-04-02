@@ -45,6 +45,7 @@ import { WorkerThread } from "@/components/viz/domain/WorkerThread";
 import { TransferableCost } from "@/components/viz/domain/TransferableCost";
 import { SecurityModel } from "@/components/viz/domain/SecurityModel";
 import { SharedMemoryRace } from "@/components/viz/domain/SharedMemoryRace";
+import { StorageCompare } from "@/components/viz/domain/StorageCompare";
 import { RenderTreeLayout } from "@/components/viz/domain/RenderTreeLayout";
 import { PaintRasterize } from "@/components/viz/domain/PaintRasterize";
 import { CompositorLayers } from "@/components/viz/domain/CompositorLayers";
@@ -103,6 +104,7 @@ export const mdxComponents: MDXComponents = {
   TransferableCost,
   SecurityModel,
   SharedMemoryRace,
+  StorageCompare,
   RenderTreeLayout,
   PaintRasterize,
   CompositorLayers,
