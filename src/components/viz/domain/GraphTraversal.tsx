@@ -138,17 +138,20 @@ function GraphViz({ nodes, edges, label }: { nodes: GraphNode[]; edges: Edge[]; 
           return (
             <g key={node.id}>
               <foreignObject
-                x={node.x - R}
-                y={node.y - R}
-                width={R * 2}
-                height={R * 2}
+                x={node.x - R - 4}
+                y={node.y - R - 4}
+                width={(R + 4) * 2}
+                height={(R + 4) * 2}
               >
-                <div
-                  className={`flex h-full w-full items-center justify-center rounded-full ${hl.bg} ${hl.ring}`}
-                >
-                  <span className={`font-mono text-sm font-bold ${hl.text}`}>
-                    {node.id}
-                  </span>
+                <div className="flex h-full w-full items-center justify-center">
+                  <div
+                    className={`flex items-center justify-center rounded-full ${hl.bg} ${hl.ring}`}
+                    style={{ width: R * 2, height: R * 2 }}
+                  >
+                    <span className={`font-mono text-sm font-bold ${hl.text}`}>
+                      {node.id}
+                    </span>
+                  </div>
                 </div>
               </foreignObject>
             </g>

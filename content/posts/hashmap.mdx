@@ -204,7 +204,9 @@ class HashMap {
   }
 
   has(key) {
-    return this.get(key) !== undefined;
+    const idx = this.#hash(key);
+    const bucket = this.#buckets[idx];
+    return bucket ? bucket.some(([k]) => k === key) : false;
   }
 
   get size() {

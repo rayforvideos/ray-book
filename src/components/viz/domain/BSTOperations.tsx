@@ -119,10 +119,15 @@ function BSTViz({ nodes, label }: { nodes: BSTNode[]; label?: string }) {
 
   const pad = 32;
   const R = 20;
-  const svgW = maxX - minX + pad * 2 + R * 2;
-  const svgH = maxY + pad * 2 + R * 2;
-  const offX = -minX + pad + R;
-  const offY = pad;
+  // 최소 크기를 보장해서 노드 1~2개일 때 거대하게 스케일링되지 않도록
+  const MIN_W = 320;
+  const MIN_H = 200;
+  const rawW = maxX - minX + pad * 2 + R * 2;
+  const rawH = maxY + pad * 2 + R * 2;
+  const svgW = Math.max(rawW, MIN_W);
+  const svgH = Math.max(rawH, MIN_H);
+  const offX = -minX + pad + R + (svgW - rawW) / 2;
+  const offY = pad + (svgH - rawH) / 2;
 
   return (
     <div className="flex flex-col items-center">
@@ -165,30 +170,23 @@ function BSTViz({ nodes, label }: { nodes: BSTNode[]; label?: string }) {
           const pos = positions.get(idx);
           if (!pos) return null;
           const hl = node.highlight ? highlightStyles[node.highlight] : defaultNode;
+          const P = 4; // ring overflow padding
           return (
-            <g key={idx}>
-              <circle
-                cx={pos.x + offX}
-                cy={pos.y + offY}
-                r={R}
-                className={`${hl.bg} ${hl.ring} fill-current stroke-current`}
-                style={{ strokeWidth: node.highlight ? 2.5 : 1.5 }}
-                fill="currentColor"
-              />
-              {/* Use foreignObject for Tailwind classes */}
-              <foreignObject
-                x={pos.x + offX - R}
-                y={pos.y + offY - R}
-                width={R * 2}
-                height={R * 2}
-              >
-                <div className={`flex h-full w-full items-center justify-center rounded-full ${hl.bg} ${hl.ring}`}>
+            <foreignObject
+              key={idx}
+              x={pos.x + offX - R - P}
+              y={pos.y + offY - R - P}
+              width={(R + P) * 2}
+              height={(R + P) * 2}
+            >
+              <div className="flex h-full w-full items-center justify-center">
+                <div className={`flex items-center justify-center rounded-full ${hl.bg} ${hl.ring}`} style={{ width: R * 2, height: R * 2 }}>
                   <span className={`font-mono text-sm font-bold ${hl.text}`}>
                     {node.value}
                   </span>
                 </div>
-              </foreignObject>
-            </g>
+              </div>
+            </foreignObject>
           );
         })}
       </svg>
