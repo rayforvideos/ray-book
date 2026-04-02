@@ -1,0 +1,207 @@
+---
+title: "DNS: 도메인에서 IP까지"
+description: "도메인 이름이 IP 주소가 되는 과정 — 재귀 질의, DNS 캐싱 계층, 레코드 타입을 시각화합니다"
+date: 2026-04-03
+tags: ["cs", "network", "dns", "domain", "ip"]
+series: "network-fundamentals"
+seriesOrder: 3
+draft: false
+---
+
+## 도메인 이름이 필요한 이유
+
+이전 글에서 TCP와 UDP를 살펴봤습니다. 브라우저가 서버와 TCP 연결을 맺으려면 **IP 주소**가 필요합니다. 하지만 사람은 `93.184.216.34` 같은 숫자 대신 `example.com` 같은 이름을 기억합니다.
+
+<Term id="dns">DNS</Term> (Domain Name System) 는 도메인 이름을 IP 주소로 변환하는 분산 데이터베이스입니다. 인터넷의 전화번호부라고 할 수 있습니다.
+
+## DNS 질의의 두 가지 방식
+
+DNS 질의에는 **재귀 질의** (Recursive Query) 와 **반복 질의** (Iterative Query) 가 있습니다.
+
+**재귀 질의**는 클라이언트가 재귀 리졸버에 "최종 답을 찾아와"라고 맡기는 방식입니다. 리졸버가 대신 여러 서버를 돌아다니며 최종 IP를 찾아옵니다. 브라우저가 사용하는 방식이 이것입니다.
+
+**반복 질의**는 "여기선 모르지만, 저쪽 서버에 물어봐"라고 다음 서버를 안내하는 방식입니다. 재귀 리졸버가 루트 서버, TLD 서버, 권한 있는 네임서버를 순차적으로 방문할 때 이 방식을 사용합니다.
+
+```javascript
+// 재귀 질의 vs 반복 질의 개념
+const recursiveQuery = {
+  client: "example.com의 IP 알려줘",
+  resolver: "내가 다 알아볼게. 기다려.",
+  result: "93.184.216.34", // 최종 답만 돌려줌
+};
+
+const iterativeQuery = {
+  resolver: "example.com의 IP는?",
+  rootServer: "모르겠지만, .com은 이 TLD 서버에 물어봐",
+  tldServer: "모르겠지만, example.com은 이 NS에 물어봐",
+  authNS: "93.184.216.34야",
+};
+```
+
+## DNS 캐싱 계층
+
+매번 루트 서버까지 올라가면 느리고 비효율적입니다. DNS는 여러 단계에 캐시를 두어 반복 질의를 줄입니다.
+
+1. **브라우저 캐시**: 최근 방문한 도메인의 IP를 브라우저가 기억합니다. Chrome에서는 `chrome://net-internals/#dns`로 확인할 수 있습니다.
+2. **OS 캐시**: 운영체제 레벨 DNS 캐시와 `/etc/hosts` 파일을 확인합니다.
+3. **재귀 리졸버 캐시**: ISP나 공개 DNS 서버가 이전 질의 결과를 캐시합니다. 대부분의 질의가 여기서 해결됩니다.
+
+각 캐시 항목에는 TTL (Time To Live) 이 있어, 지정된 시간이 지나면 만료되고 다시 질의합니다.
+
+## DNS 질의 흐름 시각화
+
+아래 시각화에서 `example.com`의 IP 주소를 찾는 전체 과정을 단계별로 확인하세요. 브라우저 캐시에서 시작해 권한 있는 네임서버까지 올라갔다가, 응답이 돌아오는 과정을 보여줍니다.
+
+<DnsResolution preset="basic" />
+
+## DNS 레코드 타입
+
+DNS 서버는 단순히 IP 주소만 저장하지 않습니다. 다양한 **레코드 타입**으로 여러 종류의 정보를 관리합니다.
+
+| 레코드 | 용도 | 값 예시 |
+|--------|------|---------|
+| A | 도메인을 IPv4 주소에 매핑 | 93.184.216.34 |
+| AAAA | 도메인을 IPv6 주소에 매핑 | 2606:2800:220:1:248:1893:25c8:1946 |
+| CNAME | 도메인을 다른 도메인에 매핑 (별칭) | www.example.com -> example.com |
+| MX | 메일 서버 지정 | mail.example.com (우선순위 10) |
+| TXT | 텍스트 정보 저장 | "v=spf1 include:_spf.google.com ~all" |
+| NS | 네임서버 지정 | ns1.example.com |
+| SOA | 도메인의 권한 정보 | 주 네임서버, 관리자 이메일, 시리얼 번호 |
+
+각 레코드 타입이 어떤 상황에서 쓰이는지 정리합니다.
+
+**A / AAAA 레코드**: 가장 기본적인 레코드입니다. 브라우저가 도메인에 접속할 때 질의하는 것이 바로 이 레코드입니다. A는 IPv4, AAAA는 IPv6 주소를 반환합니다.
+
+**CNAME 레코드**: 도메인의 별칭을 만듭니다. `www.example.com`이 `example.com`을 가리키도록 설정하면, `www` 서브도메인 접속 시 `example.com`의 A 레코드를 다시 질의합니다.
+
+```javascript
+// CNAME 질의 과정
+const cnameResolution = {
+  query: "www.example.com A 레코드?",
+  step1: "CNAME: www.example.com -> example.com",
+  step2: "example.com의 A 레코드 질의",
+  result: "93.184.216.34",
+  // CNAME은 추가 질의가 필요해 A 레코드보다 느릴 수 있음
+};
+```
+
+**MX 레코드**: 메일 전송에 사용됩니다. `user@example.com`으로 메일을 보내면, 발신 서버가 `example.com`의 MX 레코드를 질의해 메일 서버 주소를 알아냅니다.
+
+**TXT 레코드**: 도메인 소유권 인증, SPF (발신 메일 서버 검증), DKIM (메일 서명), DMARC (메일 인증 정책) 등에 사용됩니다. Google Search Console이나 SSL 인증서 발급 시 "DNS에 TXT 레코드를 추가하세요"라는 안내를 본 적이 있을 것입니다.
+
+## TTL: 캐시 유효 기간
+
+TTL (Time To Live) 은 DNS 레코드가 캐시에 머무를 수 있는 시간 (초 단위) 입니다.
+
+```javascript
+// DNS 레코드의 TTL
+const record = {
+  name: "example.com",
+  type: "A",
+  value: "93.184.216.34",
+  ttl: 3600, // 3600초 = 1시간
+};
+
+// TTL이 높으면: 캐시 히트율 높음, DNS 질의 감소, 변경 반영 느림
+// TTL이 낮으면: 변경 반영 빠름, DNS 질의 증가, 약간의 지연 추가
+```
+
+**TTL 설정 전략:**
+
+- **일반적인 웹 서비스**: 300~3600초. 적당한 캐시 효율과 변경 반영 속도를 균형 잡습니다.
+- **서버 마이그레이션 전**: TTL을 60초 이하로 낮춥니다. IP가 바뀌었을 때 빠르게 전파되도록 합니다. 마이그레이션이 안정되면 다시 올립니다.
+- **CDN**: 보통 짧은 TTL을 사용합니다. 트래픽 분산과 장애 대응을 위해 빠른 전환이 필요합니다.
+- **잘 변하지 않는 레코드**: 86400초 (24시간) 이상. MX나 NS 레코드처럼 자주 바뀌지 않는 경우입니다.
+
+## DNS over HTTPS (DoH)
+
+전통적인 DNS 질의는 UDP 포트 53을 통해 **평문**으로 전송됩니다. 이는 두 가지 보안 문제가 있습니다.
+
+1. **도청**: 네트워크상의 누구든 사용자가 어떤 도메인에 접속하는지 볼 수 있습니다.
+2. **변조**: 중간자가 DNS 응답을 조작해 다른 IP로 유도할 수 있습니다 (DNS 스푸핑).
+
+**DNS over HTTPS** (DoH) 는 DNS 질의를 HTTPS로 암호화합니다. 일반적인 HTTPS 트래픽과 구별할 수 없어 도청과 변조를 방지합니다.
+
+```javascript
+// 전통적 DNS vs DoH
+const traditionalDns = {
+  protocol: "UDP",
+  port: 53,
+  encryption: "없음",
+  privacy: "질의 내용이 평문으로 노출",
+};
+
+const dnsOverHttps = {
+  protocol: "HTTPS",
+  port: 443,
+  encryption: "TLS",
+  privacy: "질의 내용 암호화",
+  endpoint: "https://dns.google/dns-query",
+  // 또는 https://cloudflare-dns.com/dns-query
+};
+
+// fetch API로 DoH 질의 (RFC 8484)
+async function dohQuery(domain) {
+  const res = await fetch(
+    `https://dns.google/resolve?name=${domain}&type=A`,
+    { headers: { Accept: "application/dns-json" } }
+  );
+  const data = await res.json();
+  return data.Answer?.[0]?.data; // "93.184.216.34"
+}
+```
+
+비슷한 방식으로 DNS over TLS (DoT) 도 있습니다. DoT는 전용 포트 853을 사용해 DNS 트래픽을 TLS로 암호화합니다. DoH와 달리 HTTPS 트래픽과 섞이지 않아, 네트워크 관리자가 DNS 트래픽을 식별할 수 있다는 차이가 있습니다.
+
+## 코드로 보는 DNS 질의
+
+브라우저의 DNS 질의 과정을 개념적으로 코드로 표현하면 다음과 같습니다.
+
+```javascript
+// DNS 리졸버의 동작을 의사 코드로 표현
+async function resolve(domain) {
+  // 1단계: 캐시 확인
+  const cached = cache.get(domain);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.ip;
+  }
+
+  // 2단계: 루트 서버에 질의
+  const tldServer = await query(ROOT_SERVER, domain);
+
+  // 3단계: TLD 서버에 질의
+  const authNS = await query(tldServer, domain);
+
+  // 4단계: 권한 있는 네임서버에 질의
+  const record = await query(authNS, domain);
+
+  // 5단계: 캐시에 저장
+  cache.set(domain, {
+    ip: record.value,
+    expiry: Date.now() + record.ttl * 1000,
+  });
+
+  return record.value;
+}
+```
+
+실제로는 CNAME 체이닝, 글루 레코드 (NS의 IP를 미리 알려주는 추가 레코드), DNSSEC 검증 등 더 많은 처리가 있지만, 핵심 흐름은 이와 같습니다.
+
+## 실무에서의 DNS
+
+**프론트엔드 개발자가 DNS를 이해해야 하는 이유:**
+
+- **성능 최적화**: `dns-prefetch` 힌트로 브라우저가 미리 DNS를 해석하게 할 수 있습니다. 외부 도메인의 리소스를 로드하기 전에 DNS 지연을 제거합니다.
+
+```html
+<link rel="dns-prefetch" href="//fonts.googleapis.com" />
+<link rel="dns-prefetch" href="//cdn.example.com" />
+```
+
+- **도메인 전략**: 리소스를 여러 도메인에 분산하면 HTTP/1.1에서 동시 연결 수를 늘릴 수 있지만, 각 도메인마다 DNS 질의가 추가됩니다. HTTP/2에서는 멀티플렉싱이 있어 도메인 분산의 이점이 줄어듭니다.
+- **배포와 마이그레이션**: 서버 이전, CDN 교체, 로드밸런서 변경 시 DNS 레코드를 수정합니다. TTL을 이해하지 못하면 "DNS를 바꿨는데 왜 안 바뀌지?"라는 상황에 빠집니다.
+- **이메일 설정**: 커스텀 도메인으로 메일을 보내려면 MX, SPF (TXT), DKIM (TXT), DMARC (TXT) 레코드를 설정해야 합니다.
+
+## 다음 단계
+
+이 글에서는 도메인 이름이 IP 주소로 변환되는 DNS의 동작 원리를 살펴봤습니다. 다음 글에서는 TCP 연결 위에서 데이터를 암호화하는 **TLS 핸드셰이크와 HTTPS**를 다루겠습니다.

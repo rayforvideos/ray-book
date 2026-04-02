@@ -64,6 +64,7 @@ import { GraphTraversal } from "@/components/viz/domain/GraphTraversal";
 import { SortingCompare } from "@/components/viz/domain/SortingCompare";
 import { TcpIpLayers } from "@/components/viz/domain/TcpIpLayers";
 import { TcpUdpCompare } from "@/components/viz/domain/TcpUdpCompare";
+import { DnsResolution } from "@/components/viz/domain/DnsResolution";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -131,6 +132,7 @@ export const mdxComponents: MDXComponents = {
   SortingCompare,
   TcpIpLayers,
   TcpUdpCompare,
+  DnsResolution,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
