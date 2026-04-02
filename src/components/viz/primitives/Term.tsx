@@ -305,33 +305,39 @@ interface TermProps {
 export function Term({ id, children }: TermProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<"above" | "below">("below");
-  const [offsetX, setOffsetX] = useState(0);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const popoverRef = useRef<HTMLSpanElement>(null);
   const openedByHoverRef = useRef(false);
 
   const def = terms[id];
 
+  const [popStyle, setPopStyle] = useState<React.CSSProperties>({});
+
   useEffect(() => {
     if (open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      setPosition(spaceBelow < 200 ? "above" : "below");
+      const pos = spaceBelow < 200 ? "above" : "below";
+      setPosition(pos);
 
-      // Clamp popover within viewport (match page px-6 = 24px)
-      const margin = 24;
+      const margin = 16;
       const popoverWidth = Math.min(288, window.innerWidth - margin * 2);
       const triggerCenter = rect.left + rect.width / 2;
-      const popoverLeft = triggerCenter - popoverWidth / 2;
-      const popoverRight = popoverLeft + popoverWidth;
+      let left = triggerCenter - popoverWidth / 2;
 
-      if (popoverLeft < margin) {
-        setOffsetX(margin - popoverLeft);
-      } else if (popoverRight > window.innerWidth - margin) {
-        setOffsetX(window.innerWidth - margin - popoverRight);
-      } else {
-        setOffsetX(0);
+      // 뷰포트 내로 클램핑
+      if (left < margin) left = margin;
+      if (left + popoverWidth > window.innerWidth - margin) {
+        left = window.innerWidth - margin - popoverWidth;
       }
+
+      setPopStyle({
+        position: "fixed" as const,
+        left,
+        width: popoverWidth,
+        top: pos === "below" ? rect.bottom + 8 : undefined,
+        bottom: pos === "above" ? window.innerHeight - rect.top + 8 : undefined,
+      });
     }
   }, [open]);
 
@@ -397,10 +403,8 @@ export function Term({ id, children }: TermProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            style={{ marginLeft: offsetX }}
-            className={`absolute left-1/2 z-50 block w-72 max-w-[calc(100vw-3rem)] -translate-x-1/2 ${
-              position === "below" ? "top-full mt-2" : "bottom-full mb-2"
-            }`}
+            style={popStyle}
+            className="z-50 block"
           >
             <span className="block border border-border bg-bg p-4 shadow-lg">
               {/* Header */}

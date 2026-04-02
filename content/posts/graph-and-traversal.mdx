@@ -21,8 +21,7 @@ draft: false
 ```text
 방향 그래프:           무방향 그래프:
 A --> B               A --- B
-|     |               |     |
-v     v               |     |
+      |                     |
 C --> D               C --- D
 ```
 
@@ -32,11 +31,10 @@ C --> D               C --- D
 
 ```text
 가중 그래프:
+
 A --5-- B
-|       |
-3       2
-|       |
-C --4-- D
+        |
+A --3-- C --4-- D --2-- B
 ```
 
 ### 핵심 용어
@@ -313,12 +311,12 @@ console.log(dfsRecursive(graph, "A"));
 
 ```text
 my-app
-├── react (B)
-│   ├── loose-envify (D)
-│   └── scheduler (E)
-└── next (C)
-    ├── react (B) ← 이미 방문! 중복 설치 방지
-    └── postcss (F)
+  react (B)
+    loose-envify (D)
+    scheduler (E)
+  next (C)
+    react (B)    <-- 이미 방문! 중복 설치 방지
+    postcss (F)
 ```
 
 npm은 BFS/DFS를 사용해 모든 의존성을 탐색하고, 중복을 감지해 `node_modules`를 최적화합니다. `npm ls` 명령어로 이 그래프를 직접 확인할 수 있습니다.
