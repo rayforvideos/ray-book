@@ -1,0 +1,233 @@
+---
+title: "실시간 통신: WebSocket과 SSE"
+description: "Polling, Server-Sent Events, WebSocket — 세 가지 실시간 통신 방식을 비교하고 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "network", "websocket", "sse", "realtime"]
+series: "network-and-communication"
+seriesOrder: 5
+draft: false
+---
+
+## HTTP의 한계
+
+HTTP는 요청-응답 모델입니다. 클라이언트가 요청을 보내면 서버가 응답합니다. 항상 클라이언트가 먼저 말을 걸어야 합니다. 서버는 혼자서 클라이언트에게 데이터를 보낼 수 없습니다.
+
+이 모델은 대부분의 웹 페이지에서 잘 동작합니다. 사용자가 링크를 클릭하면 HTML을 요청하고, 이미지를 표시할 때 이미지를 요청합니다. 사용자의 행동이 요청을 트리거합니다.
+
+하지만 실시간 데이터가 필요한 상황에서는 이 모델이 맞지 않습니다. 채팅 메시지가 도착했을 때, 주식 가격이 변했을 때, 다른 사용자가 문서를 편집했을 때 -- 서버에서 클라이언트로 즉시 데이터를 보내야 합니다. 클라이언트가 "새 데이터 있어?"라고 물어보기 전에 말입니다.
+
+이 문제를 해결하기 위해 세 가지 방식이 발전해 왔습니다. Polling, Server-Sent Events, WebSocket. 각각 다른 트레이드오프를 가지고 있고, 상황에 따라 최선의 선택이 달라집니다.
+
+## 세 가지 방식 비교
+
+아래 시각화에서 탭을 전환하며 세 가지 통신 방식의 차이를 단계별로 비교해 보세요. 클라이언트와 서버 사이에서 어떤 메시지가 오가는지, 연결이 어떻게 관리되는지 주목하세요.
+
+<RealtimeCompare />
+
+Polling은 클라이언트가 반복적으로 물어보는 방식이고, SSE는 서버가 일방적으로 보내는 방식이며, WebSocket은 양쪽이 자유롭게 주고받는 방식입니다. 하나씩 자세히 살펴봅니다.
+
+## Polling
+
+가장 단순한 접근입니다. 일정 간격으로 서버에 요청을 보내서 새 데이터가 있는지 확인합니다. 특별한 API가 필요 없습니다. 기존 HTTP 요청을 반복할 뿐입니다.
+
+```javascript
+// 단순 폴링
+function startPolling() {
+  setInterval(async () => {
+    const res = await fetch("/api/messages?since=" + lastId);
+    const data = await res.json();
+    if (data.length > 0) {
+      data.forEach(renderMessage);
+      lastId = data[data.length - 1].id;
+    }
+  }, 3000);
+}
+```
+
+구현이 간단하다는 것이 최대 장점입니다. 서버 측 변경이 거의 없고, 어떤 환경에서든 동작합니다. 하지만 두 가지 문제가 있습니다.
+
+첫째, 불필요한 요청입니다. 데이터가 변하지 않았어도 매번 요청을 보냅니다. 간격이 3초이고 사용자가 1000명이면, 서버는 초당 333개의 빈 응답을 처리합니다.
+
+둘째, 지연입니다. 간격이 3초이면 최대 3초의 지연이 발생합니다. 간격을 줄이면 지연은 줄지만 서버 부하가 늘어납니다. 이 둘 사이에서 타협점을 찾아야 합니다.
+
+**Long Polling**은 이 문제를 완화하는 변형입니다. 서버가 즉시 응답하지 않고, 새 데이터가 생길 때까지 응답을 보류합니다. 클라이언트는 응답을 받으면 즉시 다음 요청을 보냅니다.
+
+```javascript
+// Long Polling
+async function longPoll() {
+  while (true) {
+    const res = await fetch("/api/messages/subscribe?since=" + lastId);
+    const data = await res.json();
+    data.forEach(renderMessage);
+    lastId = data[data.length - 1].id;
+  }
+}
+```
+
+Long Polling은 불필요한 요청을 줄이고 지연도 개선하지만, 여전히 매 메시지마다 새 HTTP 연결을 맺는 오버헤드가 있습니다. 더 나은 방법이 필요합니다.
+
+## Server-Sent Events
+
+SSE는 서버에서 클라이언트로 단방향 스트림을 제공합니다. HTTP 연결을 유지한 채로 서버가 이벤트를 푸시합니다. 브라우저의 `EventSource` API로 간단하게 사용할 수 있습니다.
+
+```javascript
+// 클라이언트
+const source = new EventSource("/api/stream");
+
+source.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  renderMessage(data);
+};
+
+source.onerror = () => {
+  // 브라우저가 자동으로 재연결을 시도합니다
+  console.log("연결이 끊겼습니다. 재연결 중...");
+};
+```
+
+서버는 `text/event-stream` 형식으로 응답합니다. 각 이벤트는 `data:` 접두사와 빈 줄로 구분됩니다.
+
+```javascript
+// Node.js 서버
+app.get("/api/stream", (req, res) => {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+  });
+
+  const sendEvent = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // 새 메시지가 생기면 이벤트 전송
+  messageEmitter.on("new", sendEvent);
+
+  req.on("close", () => {
+    messageEmitter.off("new", sendEvent);
+  });
+});
+```
+
+SSE의 핵심 장점은 세 가지입니다.
+
+**자동 재연결** -- 네트워크가 끊기면 브라우저가 자동으로 재연결을 시도합니다. `retry:` 필드로 재연결 간격을 서버가 제어할 수 있습니다. 개발자가 별도로 재연결 로직을 구현할 필요가 없습니다.
+
+**이벤트 ID** -- 서버가 각 이벤트에 `id:` 필드를 포함하면, 재연결 시 브라우저가 `Last-Event-ID` 헤더로 마지막 수신 ID를 전송합니다. 서버는 이를 기반으로 놓친 이벤트만 보낼 수 있습니다.
+
+```text
+id: 101
+data: {"text": "안녕"}
+
+id: 102
+data: {"text": "반가워"}
+```
+
+**HTTP 기반** -- 일반 HTTP 위에서 동작하므로 CORS, 인증, 프록시, 로드 밸런서 등 기존 인프라와 호환됩니다. 별도의 프로토콜 지원이 필요 없습니다.
+
+단점은 명확합니다. 단방향이라는 것입니다. 서버에서 클라이언트로만 데이터를 보낼 수 있습니다. 클라이언트가 서버에 데이터를 보내려면 별도의 HTTP 요청을 사용해야 합니다. 알림, 피드 업데이트, 대시보드 실시간 갱신 같은 시나리오에 적합합니다.
+
+## WebSocket
+
+WebSocket은 HTTP를 넘어서는 별도의 프로토콜입니다. 하나의 TCP 연결 위에서 클라이언트와 서버가 양방향으로 자유롭게 메시지를 주고받습니다.
+
+연결은 HTTP 핸드셰이크로 시작합니다. 클라이언트가 `Upgrade: websocket` 헤더를 포함한 HTTP 요청을 보내면, 서버가 `101 Switching Protocols`로 응답하며 프로토콜을 전환합니다. 이후로는 HTTP가 아닌 WebSocket 프레임으로 통신합니다.
+
+```javascript
+// 클라이언트
+const ws = new WebSocket("wss://example.com/ws");
+
+ws.onopen = () => {
+  console.log("연결됨");
+  ws.send(JSON.stringify({ type: "join", room: "general" }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  switch (data.type) {
+    case "chat":
+      renderMessage(data);
+      break;
+    case "typing":
+      showTypingIndicator(data.user);
+      break;
+  }
+};
+
+ws.onclose = (event) => {
+  console.log(`연결 종료: ${event.code} ${event.reason}`);
+  // 재연결 로직을 직접 구현해야 합니다
+  setTimeout(connect, 1000);
+};
+
+ws.onerror = (error) => {
+  console.error("WebSocket 에러:", error);
+};
+```
+
+`onopen`은 연결이 수립되면 호출됩니다. `onmessage`는 서버에서 메시지가 도착할 때마다 호출됩니다. `send`로 서버에 메시지를 보냅니다. `onclose`와 `onerror`로 연결 종료와 에러를 처리합니다.
+
+서버 측도 살펴봅니다.
+
+```javascript
+// Node.js + ws 라이브러리
+const WebSocket = require("ws");
+const wss = new WebSocket.Server({ port: 8080 });
+
+wss.on("connection", (ws) => {
+  ws.on("message", (raw) => {
+    const data = JSON.parse(raw);
+
+    if (data.type === "chat") {
+      // 모든 클라이언트에게 브로드캐스트
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "chat",
+            text: data.text,
+            from: data.user,
+          }));
+        }
+      });
+    }
+  });
+
+  ws.on("close", () => {
+    console.log("클라이언트 연결 종료");
+  });
+});
+```
+
+WebSocket의 강점은 양방향 통신과 낮은 오버헤드입니다. HTTP 헤더 없이 가벼운 프레임으로 메시지를 전송하므로, 빈번한 메시지 교환에 효율적입니다.
+
+하지만 SSE에 비해 고려할 점이 많습니다. 자동 재연결이 없으므로 직접 구현해야 합니다. HTTP가 아니므로 프록시나 로드 밸런서의 추가 설정이 필요할 수 있습니다. 연결 상태 관리, 하트비트(ping/pong), 인증 처리 등 구현 복잡도가 높습니다.
+
+## 언제 무엇을 쓸까
+
+세 가지 방식을 표로 정리합니다.
+
+| | Polling | SSE | WebSocket |
+|---|---------|-----|-----------|
+| 방향 | 클라이언트 → 서버 | 서버 → 클라이언트 | 양방향 |
+| 프로토콜 | HTTP | HTTP | WS (업그레이드) |
+| 구현 복잡도 | 낮음 | 중간 | 높음 |
+| 자동 재연결 | 직접 구현 | 내장 | 직접 구현 |
+| 실시간성 | 낮음 (간격 의존) | 높음 | 높음 |
+| 서버 부하 | 높음 (빈 요청) | 낮음 | 낮음 |
+| 적합한 사례 | 간단한 대시보드 | 알림, 피드, 실시간 로그 | 채팅, 게임, 실시간 협업 |
+
+선택 기준은 이렇게 정리할 수 있습니다.
+
+**서버에서 클라이언트로만 데이터를 보내면 됩니까?** SSE를 사용하세요. 구현이 간단하고, 자동 재연결이 내장되어 있으며, 기존 HTTP 인프라와 완벽하게 호환됩니다. 알림 시스템, 실시간 피드, 대시보드 업데이트에 적합합니다.
+
+**클라이언트와 서버가 양방향으로 빈번하게 메시지를 교환합니까?** WebSocket을 사용하세요. 채팅, 멀티플레이어 게임, 실시간 협업 편집기처럼 양쪽 모두 자유롭게 메시지를 보내야 하는 경우입니다.
+
+**실시간성이 중요하지 않고, 간단하게 구현하고 싶습니까?** Polling으로 충분합니다. 분 단위로 갱신되는 대시보드나, 사용자가 적은 관리 도구에서는 Polling의 단순함이 장점입니다.
+
+현실에서는 하나만 쓰는 것이 아니라 조합하기도 합니다. 채팅은 WebSocket으로, 시스템 알림은 SSE로, 비활성 탭에서는 Long Polling으로 폴백하는 구조를 가진 서비스도 있습니다. 중요한 것은 각 방식의 특성을 이해하고 상황에 맞게 선택하는 것입니다.
+
+## 다음 단계
+
+이 글로 네트워크와 통신 시리즈를 마무리합니다. URL 입력부터 시작해서 HTTP 요청 흐름, Fetch API, CORS, 캐싱 전략, 그리고 실시간 통신까지 -- 브라우저가 네트워크를 통해 데이터를 주고받는 전체 그림을 살펴봤습니다.
+
+첫 번째 글에서 다뤘던 HTTP 요청의 기본 흐름을 기억하세요. DNS 조회, TCP 연결, TLS 핸드셰이크, 그리고 HTTP 요청과 응답. 이 과정 위에 CORS가 보안을 더하고, 캐싱이 효율을 높이고, SSE와 WebSocket이 실시간성을 더합니다. 각각의 메커니즘이 독립적으로 동작하는 것이 아니라, 서로 위에 쌓이며 웹의 통신 체계를 완성합니다.

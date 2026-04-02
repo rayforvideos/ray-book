@@ -39,6 +39,7 @@ import { MapVsObject } from "@/components/viz/domain/MapVsObject";
 import { IteratorFlow } from "@/components/viz/domain/IteratorFlow";
 import { ProxyTrap } from "@/components/viz/domain/ProxyTrap";
 import { RafTimeline } from "@/components/viz/domain/RafTimeline";
+import { RealtimeCompare } from "@/components/viz/domain/RealtimeCompare";
 import { ConfusingPatterns } from "@/components/viz/domain/ConfusingPatterns";
 import { WorkerThread } from "@/components/viz/domain/WorkerThread";
 import { TransferableCost } from "@/components/viz/domain/TransferableCost";
@@ -92,6 +93,7 @@ export const mdxComponents: MDXComponents = {
   IteratorFlow,
   ProxyTrap,
   RafTimeline,
+  RealtimeCompare,
   ConfusingPatterns,
   WorkerThread,
   TransferableCost,
