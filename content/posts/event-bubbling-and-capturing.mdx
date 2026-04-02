@@ -1,0 +1,171 @@
+---
+title: "이벤트의 흐름: 캡처링과 버블링"
+description: "DOM 이벤트가 트리를 따라 흐르는 3단계 — 캡처, 타겟, 버블을 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "dom", "events", "bubbling", "capturing"]
+series: "dom-and-events"
+seriesOrder: 2
+draft: false
+---
+
+## 이벤트는 어디서 시작될까?
+
+`<li>` 요소를 클릭하면, 이벤트는 그 `<li>`에서 시작될까요? 직관적으로는 그렇게 느껴지지만, 실제로는 다릅니다.
+
+DOM 이벤트 스펙에 따르면, 클릭 이벤트는 **window 객체에서 출발**하여 DOM 트리를 타고 내려가 target에 도달하고, 다시 window까지 올라갑니다. 1편에서 살펴본 DOM 트리 구조가 바로 이 이벤트의 여행 경로가 됩니다.
+
+이 전체 흐름은 세 단계로 나뉩니다:
+
+1. **캡처링 단계 (Capturing Phase)** — window에서 target의 부모까지 내려가는 구간
+2. **타겟 단계 (Target Phase)** — 이벤트가 실제 target 요소에 도달하는 순간
+3. **버블링 단계 (Bubbling Phase)** — target에서 다시 window까지 올라가는 구간
+
+대부분의 개발자가 일상적으로 사용하는 `addEventListener`의 기본 동작은 버블링 단계에서 핸들러를 실행합니다. 하지만 캡처링 단계의 존재를 모르면, 이벤트가 예상과 다르게 동작하는 상황에서 원인을 찾기 어렵습니다.
+
+## 이벤트 흐름 시각화
+
+아래 시각화에서 `<li>`를 클릭했을 때 이벤트가 DOM 트리를 따라 흐르는 과정을 단계별로 확인하세요. 캡처 단계(보라색)에서 내려가고, 타겟 단계(빨간색)를 거쳐, 버블 단계(파란색)에서 올라가는 흐름을 볼 수 있습니다.
+
+<EventFlow />
+
+시각화에서 본 것처럼, 하나의 클릭 이벤트가 총 12개의 노드를 거칩니다. window에서 출발해 target까지 6단계를 내려가고, 다시 6단계를 올라갑니다. 이벤트 객체는 이 여정 내내 동일한 객체입니다 — 생성될 때 한 번 만들어져서 전체 흐름을 따라 이동합니다.
+
+## addEventListener의 세 번째 인자
+
+`addEventListener`의 세 번째 인자가 이벤트의 어느 단계에서 핸들러를 실행할지 결정합니다.
+
+```javascript
+// 버블링 단계에서 실행 (기본값)
+el.addEventListener("click", handler);
+el.addEventListener("click", handler, false);
+
+// 캡처링 단계에서 실행
+el.addEventListener("click", handler, true);
+el.addEventListener("click", handler, { capture: true });
+```
+
+세 번째 인자를 생략하거나 `false`를 전달하면 **버블링 단계**에서 핸들러가 실행됩니다. `true` 또는 `{ capture: true }`를 전달하면 **캡처링 단계**에서 실행됩니다.
+
+같은 요소에 캡처와 버블 핸들러를 모두 등록하면 어떻게 될까요?
+
+```javascript
+const ul = document.querySelector("ul");
+
+ul.addEventListener("click", () => {
+  console.log("ul — 캡처");
+}, true);
+
+ul.addEventListener("click", () => {
+  console.log("ul — 버블");
+}, false);
+
+// <li>를 클릭하면:
+// "ul — 캡처"  (캡처 단계에서 먼저 실행)
+// "ul — 버블"  (버블 단계에서 나중에 실행)
+```
+
+캡처 핸들러가 항상 먼저 실행됩니다. 이벤트가 내려갈 때 캡처 핸들러를 만나고, 올라올 때 버블 핸들러를 만나기 때문입니다.
+
+단, **target 요소 자체**에서는 캡처/버블 구분이 없고 **등록 순서**대로 실행됩니다. 이 점은 종종 혼동을 일으키는 부분입니다.
+
+## event.target vs event.currentTarget
+
+이벤트 흐름을 이해하면, `event.target`과 `event.currentTarget`의 차이가 명확해집니다.
+
+- **`event.target`** — 이벤트가 실제로 발생한 요소. 전체 흐름에서 변하지 않습니다.
+- **`event.currentTarget`** — 현재 핸들러가 실행 중인 요소. 단계마다 달라집니다.
+
+```javascript
+document.body.addEventListener("click", (e) => {
+  console.log(e.target);        // <li> — 실제 클릭된 요소
+  console.log(e.currentTarget); // <body> — 핸들러가 등록된 요소
+  console.log(e.target === e.currentTarget); // false
+});
+
+const li = document.querySelector("li");
+li.addEventListener("click", (e) => {
+  console.log(e.target);        // <li>
+  console.log(e.currentTarget); // <li>
+  console.log(e.target === e.currentTarget); // true (타겟 단계)
+});
+```
+
+`event.target`은 이벤트 객체가 생성될 때 고정되고, `event.currentTarget`은 이벤트가 각 노드를 지날 때마다 해당 노드로 업데이트됩니다. 핸들러 함수 안에서 `this` 키워드는 `event.currentTarget`과 같은 값을 가리킵니다 (화살표 함수 제외).
+
+## event.eventPhase
+
+이벤트 객체의 `eventPhase` 프로퍼티를 통해 현재 어느 단계인지 확인할 수 있습니다.
+
+| 값 | 상수 | 의미 |
+|---|---|---|
+| 0 | `Event.NONE` | 이벤트가 전파되지 않는 상태 |
+| 1 | `Event.CAPTURING_PHASE` | 캡처링 단계 |
+| 2 | `Event.AT_TARGET` | 타겟 단계 |
+| 3 | `Event.BUBBLING_PHASE` | 버블링 단계 |
+
+```javascript
+document.querySelectorAll("*").forEach((el) => {
+  el.addEventListener("click", (e) => {
+    const phases = ["NONE", "CAPTURING", "AT_TARGET", "BUBBLING"];
+    console.log(`${el.tagName} — ${phases[e.eventPhase]}`);
+  }, true);
+
+  el.addEventListener("click", (e) => {
+    const phases = ["NONE", "CAPTURING", "AT_TARGET", "BUBBLING"];
+    console.log(`${el.tagName} — ${phases[e.eventPhase]}`);
+  });
+});
+
+// <li> 클릭 시 출력:
+// HTML — CAPTURING
+// BODY — CAPTURING
+// UL — CAPTURING
+// LI — AT_TARGET (캡처 핸들러이지만 타겟에서는 AT_TARGET)
+// LI — AT_TARGET (버블 핸들러도 마찬가지)
+// UL — BUBBLING
+// BODY — BUBBLING
+// HTML — BUBBLING
+```
+
+주목할 점은 target 요소(`<li>`)에서 캡처 핸들러를 실행해도 `eventPhase`는 `AT_TARGET (2)`입니다. 캡처와 버블의 구분은 target이 아닌 **조상 노드**에서만 의미가 있습니다.
+
+## 버블링되지 않는 이벤트
+
+모든 이벤트가 버블링되는 것은 아닙니다. 다음 이벤트들은 **버블링 단계 없이** 캡처와 타겟 단계만 거칩니다.
+
+| 이벤트 | 버블링 여부 | 버블링되는 대안 |
+|---|---|---|
+| `focus` | X | `focusin` |
+| `blur` | X | `focusout` |
+| `mouseenter` | X | `mouseover` |
+| `mouseleave` | X | `mouseout` |
+| `load` | X | -- |
+| `unload` | X | -- |
+
+이벤트의 `bubbles` 프로퍼티를 확인하면 버블링 여부를 알 수 있습니다.
+
+```javascript
+document.querySelector("input").addEventListener("focus", (e) => {
+  console.log(e.bubbles); // false
+});
+
+document.querySelector("input").addEventListener("focusin", (e) => {
+  console.log(e.bubbles); // true
+});
+```
+
+`focus`와 `blur`는 버블링되지 않기 때문에, 부모 요소에서 자식의 포커스 이벤트를 감지하려면 캡처 단계를 사용하거나 `focusin`/`focusout`을 사용해야 합니다.
+
+```javascript
+// 방법 1: 캡처 단계에서 감지
+form.addEventListener("focus", handler, true);
+
+// 방법 2: 버블링되는 대안 이벤트 사용
+form.addEventListener("focusin", handler);
+```
+
+## 다음 단계
+
+이벤트가 DOM 트리를 따라 캡처 → 타겟 → 버블 순서로 흐른다는 것을 살펴봤습니다. 이 흐름에서 특히 **버블링**은 강력한 패턴의 기반이 됩니다.
+
+다음 글에서는 버블링을 활용한 **이벤트 위임 (Event Delegation)** 패턴을 다룹니다. 수백 개의 자식 요소에 일일이 이벤트 리스너를 등록하는 대신, 부모 하나에만 등록하여 효율적으로 이벤트를 처리하는 방법입니다. `event.target`과 `event.currentTarget`의 차이를 이해한 지금, 이벤트 위임이 어떻게 동작하는지 자연스럽게 따라갈 수 있을 것입니다.
