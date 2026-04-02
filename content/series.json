@@ -58,5 +58,11 @@
     "title": "DOM과 이벤트 시스템",
     "description": "브라우저가 만든 DOM을 JavaScript로 다루는 방법 — 트리 탐색, 이벤트 흐름, Observer 패턴을 시각화합니다",
     "category": "Browser"
+  },
+  {
+    "slug": "network-and-communication",
+    "title": "네트워크와 브라우저 통신",
+    "description": "URL 입력부터 응답까지 — HTTP, fetch, CORS, 캐싱, WebSocket을 시각화합니다",
+    "category": "Browser"
   }
 ]
