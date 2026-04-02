@@ -97,24 +97,24 @@ const certificateChain = {
   // 1. 서버 인증서 (leaf)
   server: {
     subject: "example.com",
-    issuer: "Let's Encrypt Authority X3",  // 중간 CA가 서명
+    issuer: "R11",  // 중간 CA가 서명
     publicKey: "서버의 공개키",
-    validity: { from: "2026-01-01", to: "2026-04-01" },
+    validity: { from: "2026-01-01", to: "2026-06-30" },
     signature: "중간 CA의 개인키로 서명됨",
   },
 
   // 2. 중간 CA 인증서 (intermediate)
   intermediate: {
-    subject: "Let's Encrypt Authority X3",
-    issuer: "DST Root CA X3",  // 루트 CA가 서명
+    subject: "R11",
+    issuer: "ISRG Root X1",  // 루트 CA가 서명
     publicKey: "중간 CA의 공개키",
     signature: "루트 CA의 개인키로 서명됨",
   },
 
   // 3. 루트 CA 인증서 (root) — 브라우저/OS에 사전 설치됨
   root: {
-    subject: "DST Root CA X3",
-    issuer: "DST Root CA X3",  // 자체 서명 (self-signed)
+    subject: "ISRG Root X1",
+    issuer: "ISRG Root X1",  // 자체 서명 (self-signed)
     publicKey: "루트 CA의 공개키",
     // 브라우저/OS가 이 인증서를 "신뢰"한다고 사전에 등록함
   },
