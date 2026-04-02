@@ -62,6 +62,7 @@ import { HashMapInternal } from "@/components/viz/domain/HashMapInternal";
 import { BSTOperations } from "@/components/viz/domain/BSTOperations";
 import { GraphTraversal } from "@/components/viz/domain/GraphTraversal";
 import { SortingCompare } from "@/components/viz/domain/SortingCompare";
+import { TcpIpLayers } from "@/components/viz/domain/TcpIpLayers";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -127,6 +128,7 @@ export const mdxComponents: MDXComponents = {
   BSTOperations,
   GraphTraversal,
   SortingCompare,
+  TcpIpLayers,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
