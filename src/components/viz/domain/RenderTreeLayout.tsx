@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { StepPlayer } from "../primitives/StepPlayer";
 
 type StepPhase =
@@ -319,25 +320,70 @@ function TreePane({
             (이 단계에서는 표시하지 않음)
           </div>
         ) : (
-          <div className="font-mono text-[0.625rem] leading-relaxed">
+          <div className="font-mono text-[0.625rem]">
             {nodes.map((node, i) => {
               const isActive = node.active;
               const isExcluded = node.excluded;
               const isText = node.type === "text";
               const isPseudo = node.type === "pseudo";
 
-              let connector = "";
-              if (node.depth > 0) {
-                connector = isLastAtDepth(i, node.depth) ? "└─ " : "├─ ";
-              }
-              let indent = "";
+              const isLast = node.depth > 0 && isLastAtDepth(i, node.depth);
+
+              // Build indent segments as styled spans
+              const indentSegments: React.ReactNode[] = [];
               for (let d = 1; d < node.depth; d++) {
                 let hasSibling = false;
                 for (let j = i + 1; j < nodes.length; j++) {
                   if (nodes[j].depth < d) break;
                   if (nodes[j].depth === d) { hasSibling = true; break; }
                 }
-                indent += hasSibling ? "│  " : "   ";
+                indentSegments.push(
+                  <span
+                    key={`i${d}`}
+                    className="inline-block select-none"
+                    style={{ width: 16, height: '100%' }}
+                  >
+                    {hasSibling && (
+                      <span
+                        className="inline-block border-l border-current opacity-25"
+                        style={{ width: 0, height: '100%', marginLeft: 2 }}
+                      />
+                    )}
+                  </span>
+                );
+              }
+
+              // Build connector segment
+              let connectorNode: React.ReactNode = null;
+              if (node.depth > 0) {
+                connectorNode = (
+                  <span
+                    key="conn"
+                    className="inline-flex select-none"
+                    style={{ width: 16, height: '1.375em', verticalAlign: 'top' }}
+                  >
+                    {/* vertical line: full height for ├, half height for └ */}
+                    <span
+                      className="inline-block border-l border-current opacity-25"
+                      style={{
+                        width: 0,
+                        height: isLast ? '50%' : '100%',
+                        marginLeft: 2,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {/* horizontal line */}
+                    <span
+                      className="inline-block border-b border-current opacity-25"
+                      style={{
+                        width: 8,
+                        height: '50%',
+                        flexShrink: 0,
+                        marginLeft: 0,
+                      }}
+                    />
+                  </span>
+                );
               }
 
               const label = isText || isPseudo || node.type === "css" || node.type === "render"
@@ -347,20 +393,22 @@ function TreePane({
               return (
                 <div
                   key={i}
-                  className={`whitespace-pre transition-colors duration-150 ${
+                  className={`flex items-stretch transition-colors duration-150 ${
                     isExcluded
                       ? "text-rose-400 dark:text-rose-500 line-through"
                       : isActive
                         ? "text-text"
                         : "text-muted/40"
                   } ${isText ? "italic" : ""} ${isPseudo ? "opacity-80" : ""}`}
+                  style={{ lineHeight: '1.375em', minHeight: '1.375em' }}
                 >
-                  <span className="text-muted/30 select-none">{indent}{connector}</span>
-                  <span className={isActive && !isExcluded ? c.activeText : ""}>
+                  {indentSegments}
+                  {connectorNode}
+                  <span className={`whitespace-nowrap py-px ${isActive && !isExcluded ? c.activeText : ""}`}>
                     {label}
                   </span>
                   {node.style && isActive && (
-                    <span className="text-muted/50 ml-1">{node.style}</span>
+                    <span className="text-muted/50 ml-1 whitespace-nowrap py-px">{node.style}</span>
                   )}
                 </div>
               );
