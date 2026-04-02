@@ -65,6 +65,7 @@ import { SortingCompare } from "@/components/viz/domain/SortingCompare";
 import { TcpIpLayers } from "@/components/viz/domain/TcpIpLayers";
 import { TcpUdpCompare } from "@/components/viz/domain/TcpUdpCompare";
 import { DnsResolution } from "@/components/viz/domain/DnsResolution";
+import { TlsHandshake } from "@/components/viz/domain/TlsHandshake";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -133,6 +134,7 @@ export const mdxComponents: MDXComponents = {
   TcpIpLayers,
   TcpUdpCompare,
   DnsResolution,
+  TlsHandshake,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
