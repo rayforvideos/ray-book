@@ -86,6 +86,11 @@ export const mdxComponents: MDXComponents = {
   PipelineTrigger,
   PipelineMetrics,
   Term,
+  table: ({ children, ...props }: React.ComponentProps<"table">) => (
+    <div className="table-wrapper">
+      <table {...props}>{children}</table>
+    </div>
+  ),
   pre: ({ children, ...props }: React.ComponentProps<"pre">) => {
     const codeElement = children as React.ReactElement<{
       children: string;

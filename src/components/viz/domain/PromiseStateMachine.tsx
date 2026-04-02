@@ -37,35 +37,58 @@ const steps: StateMachineStep[] = [
 
 const stateConfig: Record<
   PromiseState,
-  { label: string; color: string; ring: string; bg: string; x: number; y: number }
+  {
+    label: string;
+    settled: boolean;
+    fill: string;
+    fillActive: string;
+    stroke: string;
+    strokeActive: string;
+    textColor: string;
+    textActive: string;
+    x: number;
+    y: number;
+  }
 > = {
   pending: {
     label: "pending",
-    color: "text-amber-700 dark:text-amber-300",
-    ring: "ring-amber-400 dark:ring-amber-500",
-    bg: "bg-amber-50 dark:bg-amber-900/70",
-    x: 60,
-    y: 80,
+    settled: false,
+    fill: "var(--color-surface)",
+    fillActive: "#fefce8",
+    stroke: "var(--color-border)",
+    strokeActive: "#f59e0b",
+    textColor: "var(--color-muted)",
+    textActive: "#b45309",
+    x: 20,
+    y: 65,
   },
   fulfilled: {
     label: "fulfilled",
-    color: "text-emerald-700 dark:text-emerald-300",
-    ring: "ring-emerald-400 dark:ring-emerald-500",
-    bg: "bg-emerald-50 dark:bg-emerald-900/70",
-    x: 280,
-    y: 30,
+    settled: true,
+    fill: "var(--color-surface)",
+    fillActive: "#ecfdf5",
+    stroke: "var(--color-border)",
+    strokeActive: "#10b981",
+    textColor: "var(--color-muted)",
+    textActive: "#047857",
+    x: 230,
+    y: 15,
   },
   rejected: {
     label: "rejected",
-    color: "text-red-700 dark:text-red-300",
-    ring: "ring-red-400 dark:ring-red-500",
-    bg: "bg-red-50 dark:bg-red-900/70",
-    x: 280,
-    y: 130,
+    settled: true,
+    fill: "var(--color-surface)",
+    fillActive: "#fef2f2",
+    stroke: "var(--color-border)",
+    strokeActive: "#ef4444",
+    textColor: "var(--color-muted)",
+    textActive: "#b91c1c",
+    x: 230,
+    y: 115,
   },
 };
 
-function StateBox({
+function StateRect({
   state,
   isActive,
 }: {
@@ -73,30 +96,47 @@ function StateBox({
   isActive: boolean;
 }) {
   const cfg = stateConfig[state];
+  const w = 110;
+  const h = cfg.settled ? 45 : 35;
   return (
-    <div
-      className={`absolute flex flex-col items-center justify-center border px-5 py-2.5 transition-all duration-300 ${
-        isActive
-          ? `${cfg.bg} border-transparent ring-2 ${cfg.ring} shadow-sm`
-          : "bg-surface border-border"
-      }`}
-      style={{ left: cfg.x, top: cfg.y, minWidth: 100 }}
-    >
-      <span
-        className={`font-mono text-[0.75rem] font-semibold transition-colors duration-300 ${
-          isActive ? cfg.color : "text-muted"
-        }`}
+    <g>
+      <rect
+        x={cfg.x}
+        y={cfg.y}
+        width={w}
+        height={h}
+        rx={2}
+        fill={isActive ? cfg.fillActive : cfg.fill}
+        stroke={isActive ? cfg.strokeActive : cfg.stroke}
+        strokeWidth={isActive ? 2 : 1}
+      />
+      <text
+        x={cfg.x + w / 2}
+        y={cfg.y + (cfg.settled ? 18 : h / 2 + 5)}
+        textAnchor="middle"
+        fontSize={12}
+        fontFamily="var(--font-mono)"
+        fontWeight={600}
+        fill={isActive ? cfg.textActive : cfg.textColor}
       >
         {cfg.label}
-      </span>
-      {state !== "pending" && (
-        <span className="mt-0.5 text-[0.5625rem] text-muted">settled</span>
+      </text>
+      {cfg.settled && (
+        <text
+          x={cfg.x + w / 2}
+          y={cfg.y + 35}
+          textAnchor="middle"
+          fontSize={9}
+          fill="var(--color-muted)"
+        >
+          settled
+        </text>
       )}
-    </div>
+    </g>
   );
 }
 
-function Arrow({
+function SvgArrow({
   type,
   isActive,
 }: {
@@ -104,39 +144,51 @@ function Arrow({
   isActive: boolean;
 }) {
   const isResolve = type === "resolve";
-  const color = isActive
-    ? isResolve
-      ? "stroke-emerald-500 dark:stroke-emerald-400"
-      : "stroke-red-500 dark:stroke-red-400"
-    : "stroke-border";
+  const activeColor = isResolve ? "#10b981" : "#ef4444";
+  const color = isActive ? activeColor : "var(--color-border)";
   const textColor = isActive
     ? isResolve
-      ? "text-emerald-700 dark:text-emerald-300"
-      : "text-red-700 dark:text-red-300"
-    : "text-muted";
+      ? "#047857"
+      : "#b91c1c"
+    : "var(--color-muted)";
 
-  const y1 = isResolve ? 55 : 105;
-  const y2 = isResolve ? 45 : 145;
-  const labelY = isResolve ? 38 : 158;
+  const y1 = isResolve ? 75 : 90;
+  const y2 = isResolve ? 35 : 140;
+  const labelY = isResolve ? 48 : 128;
 
   return (
     <>
-      <line
-        x1={170}
-        y1={y1}
-        x2={270}
-        y2={y2}
-        className={`${color} transition-colors duration-300`}
-        strokeWidth={isActive ? 2 : 1}
-        markerEnd="url(#arrowhead)"
-      />
-      <foreignObject x={185} y={labelY - 10} width={100} height={20}>
-        <span
-          className={`block text-center font-mono text-[0.5625rem] transition-colors duration-300 ${textColor}`}
+      <defs>
+        <marker
+          id={`arrow-${type}`}
+          markerWidth="8"
+          markerHeight="6"
+          refX="8"
+          refY="3"
+          orient="auto"
         >
-          {isResolve ? "resolve()" : "reject() / throw"}
-        </span>
-      </foreignObject>
+          <polygon points="0 0, 8 3, 0 6" fill={color} />
+        </marker>
+      </defs>
+      <line
+        x1={140}
+        y1={y1}
+        x2={225}
+        y2={y2}
+        stroke={color}
+        strokeWidth={isActive ? 2 : 1}
+        markerEnd={`url(#arrow-${type})`}
+      />
+      <text
+        x={180}
+        y={labelY}
+        textAnchor="middle"
+        fontSize={9}
+        fontFamily="var(--font-mono)"
+        fill={textColor}
+      >
+        {isResolve ? "resolve()" : "reject() / throw"}
+      </text>
     </>
   );
 }
@@ -144,43 +196,24 @@ function Arrow({
 export function PromiseStateMachine() {
   const stepNodes = steps.map((step, idx) => (
     <div key={idx}>
-      {/* Diagram */}
-      <div className="relative mx-auto" style={{ maxWidth: 440, height: 190 }}>
-        <svg
-          className="absolute inset-0 h-full w-full"
-          viewBox="0 0 440 190"
-          fill="none"
-        >
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="8"
-              markerHeight="6"
-              refX="8"
-              refY="3"
-              orient="auto"
-            >
-              <polygon
-                points="0 0, 8 3, 0 6"
-                className="fill-muted"
-              />
-            </marker>
-          </defs>
-          <Arrow
-            type="resolve"
-            isActive={step.transition === "resolve"}
-          />
-          <Arrow
-            type="reject"
-            isActive={step.transition === "reject"}
-          />
-        </svg>
-        <StateBox state="pending" isActive={step.active === "pending"} />
-        <StateBox state="fulfilled" isActive={step.active === "fulfilled"} />
-        <StateBox state="rejected" isActive={step.active === "rejected"} />
-      </div>
+      <svg
+        viewBox="0 0 360 175"
+        className="w-full"
+        style={{ maxHeight: 200 }}
+      >
+        <SvgArrow
+          type="resolve"
+          isActive={step.transition === "resolve"}
+        />
+        <SvgArrow
+          type="reject"
+          isActive={step.transition === "reject"}
+        />
+        <StateRect state="pending" isActive={step.active === "pending"} />
+        <StateRect state="fulfilled" isActive={step.active === "fulfilled"} />
+        <StateRect state="rejected" isActive={step.active === "rejected"} />
+      </svg>
 
-      {/* Description */}
       <span className="mt-4 block border-t border-border pt-3 text-[0.8125rem] leading-relaxed text-muted">
         {step.description}
       </span>

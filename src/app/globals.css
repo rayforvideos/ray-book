@@ -61,6 +61,10 @@ body {
 }
 
 /* Prose */
+.prose {
+  @apply overflow-x-hidden;
+}
+
 .prose h2 {
   font-family: var(--font-serif);
   @apply text-[1.75rem] font-normal mt-14 mb-5 text-text tracking-tight;
@@ -121,8 +125,12 @@ body {
   @apply italic text-muted text-base;
 }
 
+.prose .table-wrapper {
+  @apply my-8 overflow-x-auto;
+}
+
 .prose table {
-  @apply my-8 w-full text-[0.8125rem];
+  @apply w-full text-[0.8125rem];
   border-collapse: collapse;
 }
 

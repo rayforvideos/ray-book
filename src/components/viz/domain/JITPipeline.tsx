@@ -108,29 +108,31 @@ export function JITPipeline({ preset = "hot-function" }: JITPipelineProps) {
     const activeIndex = stages.indexOf(current.stage);
     return (
       <div key={idx} className="space-y-4">
-        <div className="flex items-center justify-between gap-1">
-          {stages.map((stage, i) => {
-            const config = stageConfig[stage];
-            const isActive = i === activeIndex;
-            const isPast = i < activeIndex;
-            const isDeopt = current.stage === "deopt" && stage === "deopt";
-            return (
-              <div key={stage} className="flex items-center gap-1">
-                <div
-                  className={`flex flex-col items-center gap-1 rounded-sm px-2 py-2 transition-all ${config.bg} ${
-                    isActive || isDeopt ? config.active : ""
-                  } ${!isActive && !isPast && !isDeopt ? "opacity-30" : ""}`}
-                  style={{ minWidth: "4rem" }}
-                >
-                  <span className={`font-mono text-[0.75rem] font-bold ${config.text}`}>{config.icon}</span>
-                  <span className={`text-[0.5625rem] leading-tight ${config.text}`}>{config.label}</span>
+        <div className="overflow-x-auto -mx-1 px-1">
+          <div className="flex items-center gap-1" style={{ minWidth: "fit-content" }}>
+            {stages.map((stage, i) => {
+              const config = stageConfig[stage];
+              const isActive = i === activeIndex;
+              const isPast = i < activeIndex;
+              const isDeopt = current.stage === "deopt" && stage === "deopt";
+              return (
+                <div key={stage} className="flex items-center gap-1">
+                  <div
+                    className={`flex flex-col items-center gap-0.5 rounded-sm px-1.5 py-1.5 transition-all ${config.bg} ${
+                      isActive || isDeopt ? config.active : ""
+                    } ${!isActive && !isPast && !isDeopt ? "opacity-30" : ""}`}
+                    style={{ minWidth: "3.2rem" }}
+                  >
+                    <span className={`font-mono text-[0.6875rem] font-bold ${config.text}`}>{config.icon}</span>
+                    <span className={`text-[0.5rem] leading-tight text-center ${config.text}`}>{config.label}</span>
+                  </div>
+                  {i < stages.length - 1 && (
+                    <span className={`text-[0.5rem] ${isPast || isActive ? "text-muted" : "text-muted/20"}`}>→</span>
+                  )}
                 </div>
-                {i < stages.length - 1 && (
-                  <span className={`text-[0.625rem] ${isPast || isActive ? "text-muted" : "text-muted/20"}`}>→</span>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
         <div className="border-t border-border pt-3">
           <p className="text-[0.8125rem] leading-relaxed text-muted">{current.description}</p>
