@@ -331,6 +331,40 @@ const terms: Record<string, TermDef> = {
     emoji: "🗺️",
     description: "물리 메모리보다 큰 주소 공간을 제공하는 메모리 관리 기법. 페이징을 통해 가상 주소를 물리 주소로 변환하며, 필요한 페이지만 메모리에 올립니다.",
   },
+  "cpu-scheduling": {
+    title: "CPU 스케줄링",
+    emoji: "📋",
+    description: "여러 프로세스/스레드가 CPU를 공유할 때, 어떤 순서로 실행할지 결정하는 OS의 정책. 공정성, 응답 시간, 처리량 사이에서 균형을 잡습니다.",
+    analogy: "병원 응급실 트리아지와 비슷합니다 -- 환자의 상태(우선순위)와 도착 순서를 종합해 진료 순서를 결정합니다.",
+  },
+  "context-switching": {
+    title: "컨텍스트 스위칭",
+    emoji: "🔄",
+    description: "CPU가 실행 중인 프로세스/스레드를 교체하는 과정. 현재 상태를 저장하고 다음 대상의 상태를 복원합니다. 교체 비용이 발생하므로 너무 자주 하면 오버헤드가 커집니다.",
+  },
+  "time-quantum": {
+    title: "타임 퀀텀",
+    emoji: "⏱️",
+    description: "라운드 로빈 스케줄링에서 각 프로세스가 CPU를 연속 사용할 수 있는 최대 시간. 너무 작으면 컨텍스트 스위칭 오버헤드가, 너무 크면 FCFS와 다를 바 없어집니다.",
+    analogy: "발표 시간 제한과 비슷합니다 -- 한 사람이 5분씩만 발표하고 다음 사람에게 넘깁니다.",
+  },
+  "convoy-effect": {
+    title: "Convoy Effect",
+    emoji: "🚛",
+    description: "FCFS 스케줄링에서 CPU burst가 긴 프로세스 뒤에 짧은 프로세스들이 오래 대기하는 현상.",
+    analogy: "좁은 도로에서 대형 트럭 뒤에 승용차들이 줄지어 느리게 가는 것과 비슷합니다.",
+  },
+  "preemptive": {
+    title: "선점형 스케줄링",
+    emoji: "⚡",
+    description: "실행 중인 프로세스를 OS가 강제로 중단하고 다른 프로세스에 CPU를 넘길 수 있는 방식. 라운드 로빈, SRTF, 우선순위 스케줄링이 해당합니다.",
+  },
+  "starvation": {
+    title: "기아 상태",
+    emoji: "😫",
+    description: "Starvation. 우선순위가 낮은 프로세스가 높은 우선순위 프로세스에 밀려 무한히 실행되지 못하는 상태. 에이징(Aging) 기법으로 해결합니다.",
+    analogy: "항상 새치기당하는 줄서기와 비슷합니다 -- 뒤에서 계속 기다리기만 합니다.",
+  },
 };
 
 interface TermProps {
