@@ -1,0 +1,333 @@
+---
+title: "스택과 큐"
+description: "LIFO와 FIFO — 스택과 큐의 동작 원리, 구현, 그리고 콜스택과 이벤트 루프와의 연결을 시각화합니다"
+date: 2026-04-02
+tags: ["cs", "data-structure", "stack", "queue", "lifo", "fifo"]
+series: "data-structures-and-algorithms"
+seriesOrder: 2
+draft: false
+---
+
+## 스택 (Stack)
+
+스택은 **LIFO (Last In, First Out)** 원칙을 따르는 자료구조입니다. 마지막에 넣은 요소가 가장 먼저 나옵니다. 접시를 쌓아 올리는 것을 떠올리면 됩니다. 새 접시는 맨 위에 올리고, 꺼낼 때도 맨 위에서 꺼냅니다.
+
+### 핵심 연산
+
+- **push**: 맨 위(top)에 요소를 추가합니다 — O(1)
+- **pop**: 맨 위(top)에서 요소를 제거하고 반환합니다 — O(1)
+- **peek** (또는 top): 맨 위 요소를 제거하지 않고 확인합니다 — O(1)
+- **isEmpty**: 스택이 비어 있는지 확인합니다 — O(1)
+
+모든 핵심 연산이 O(1)입니다. 항상 top에서만 작업하기 때문입니다.
+
+### 의사코드
+
+```text
+Stack:
+    data[]
+    top = -1
+
+Push(stack, value):
+    stack.top = stack.top + 1
+    stack.data[stack.top] = value
+
+Pop(stack):
+    if stack.top < 0
+        error "Stack Underflow"
+    value = stack.data[stack.top]
+    stack.top = stack.top - 1
+    return value
+
+Peek(stack):
+    if stack.top < 0
+        error "Stack is empty"
+    return stack.data[stack.top]
+```
+
+### JavaScript 구현
+
+```javascript
+class Stack {
+  #items = [];
+
+  push(value) {
+    this.#items.push(value);
+  }
+
+  pop() {
+    if (this.isEmpty()) {
+      throw new Error("Stack Underflow");
+    }
+    return this.#items.pop();
+  }
+
+  peek() {
+    if (this.isEmpty()) {
+      throw new Error("Stack is empty");
+    }
+    return this.#items[this.#items.length - 1];
+  }
+
+  isEmpty() {
+    return this.#items.length === 0;
+  }
+
+  get size() {
+    return this.#items.length;
+  }
+}
+
+const stack = new Stack();
+stack.push("A");
+stack.push("B");
+stack.push("C");
+
+console.log(stack.pop());  // "C" (마지막에 넣은 것이 먼저)
+console.log(stack.pop());  // "B"
+console.log(stack.peek()); // "A" (제거하지 않고 확인)
+```
+
+JavaScript의 `Array.prototype.push`와 `Array.prototype.pop`이 이미 스택의 push/pop과 동일하게 동작하므로, 배열을 그대로 스택으로 사용할 수 있습니다. 하지만 클래스로 감싸면 의도를 명확히 하고 실수로 인덱스 접근하는 것을 방지할 수 있습니다.
+
+## 큐 (Queue)
+
+큐는 **FIFO (First In, First Out)** 원칙을 따르는 자료구조입니다. 먼저 넣은 요소가 먼저 나옵니다. 줄을 서는 것과 같습니다. 먼저 온 사람이 먼저 서비스를 받습니다.
+
+### 핵심 연산
+
+- **enqueue**: 맨 뒤(rear)에 요소를 추가합니다 — O(1)
+- **dequeue**: 맨 앞(front)에서 요소를 제거하고 반환합니다 — O(1)
+- **front** (또는 peek): 맨 앞 요소를 제거하지 않고 확인합니다 — O(1)
+- **isEmpty**: 큐가 비어 있는지 확인합니다 — O(1)
+
+### 의사코드
+
+```text
+Queue:
+    data[]
+    front = 0
+    rear = -1
+    size = 0
+
+Enqueue(queue, value):
+    queue.rear = queue.rear + 1
+    queue.data[queue.rear] = value
+    queue.size = queue.size + 1
+
+Dequeue(queue):
+    if queue.size == 0
+        error "Queue Underflow"
+    value = queue.data[queue.front]
+    queue.front = queue.front + 1
+    queue.size = queue.size - 1
+    return value
+```
+
+### JavaScript 구현
+
+```javascript
+class Queue {
+  #items = {};
+  #head = 0;
+  #tail = 0;
+
+  enqueue(value) {
+    this.#items[this.#tail] = value;
+    this.#tail++;
+  }
+
+  dequeue() {
+    if (this.isEmpty()) {
+      throw new Error("Queue Underflow");
+    }
+    const value = this.#items[this.#head];
+    delete this.#items[this.#head];
+    this.#head++;
+    return value;
+  }
+
+  front() {
+    if (this.isEmpty()) {
+      throw new Error("Queue is empty");
+    }
+    return this.#items[this.#head];
+  }
+
+  isEmpty() {
+    return this.#tail - this.#head === 0;
+  }
+
+  get size() {
+    return this.#tail - this.#head;
+  }
+}
+
+const queue = new Queue();
+queue.enqueue("A");
+queue.enqueue("B");
+queue.enqueue("C");
+
+console.log(queue.dequeue()); // "A" (먼저 넣은 것이 먼저)
+console.log(queue.dequeue()); // "B"
+console.log(queue.front());   // "C" (제거하지 않고 확인)
+```
+
+> **왜 배열 대신 객체를 사용하나요?** 배열의 `shift()`로 dequeue를 구현하면 나머지 요소를 모두 앞으로 이동해야 하므로 O(n)입니다. 객체의 키를 인덱스처럼 사용하면 head 포인터만 증가시키면 되어 O(1)을 보장합니다.
+
+## 시각화
+
+아래 시각화에서 스택과 큐에 요소를 넣고 빼는 과정을 단계별로 비교해 보세요. 같은 순서로 넣어도 꺼내는 순서가 다릅니다:
+
+<StackAndQueue />
+
+## 덱 (Deque)
+
+덱 (Deque, Double-Ended Queue)은 **양쪽 끝에서 삽입과 삭제가 모두 가능**한 자료구조입니다. 스택과 큐를 일반화한 형태입니다.
+
+```javascript
+class Deque {
+  #items = {};
+  #head = 0;
+  #tail = 0;
+
+  // 앞에 추가 - O(1)
+  addFront(value) {
+    this.#head--;
+    this.#items[this.#head] = value;
+  }
+
+  // 뒤에 추가 - O(1)
+  addRear(value) {
+    this.#items[this.#tail] = value;
+    this.#tail++;
+  }
+
+  // 앞에서 제거 - O(1)
+  removeFront() {
+    if (this.isEmpty()) throw new Error("Deque is empty");
+    const value = this.#items[this.#head];
+    delete this.#items[this.#head];
+    this.#head++;
+    return value;
+  }
+
+  // 뒤에서 제거 - O(1)
+  removeRear() {
+    if (this.isEmpty()) throw new Error("Deque is empty");
+    this.#tail--;
+    const value = this.#items[this.#tail];
+    delete this.#items[this.#tail];
+    return value;
+  }
+
+  isEmpty() {
+    return this.#tail - this.#head === 0;
+  }
+}
+```
+
+덱의 활용 예시:
+
+- **addRear + removeFront** 만 사용하면 큐처럼 동작
+- **addRear + removeRear** 만 사용하면 스택처럼 동작
+- **슬라이딩 윈도우 알고리즘**에서 양쪽에서 요소를 관리할 때 유용
+
+## 실무 연결
+
+### 콜 스택
+
+JavaScript 엔진의 <Term id="call-stack">콜 스택</Term>은 이름 그대로 스택입니다. 함수가 호출되면 push, 실행이 끝나면 pop됩니다.
+
+```javascript
+function first() {
+  second();   // second를 콜 스택에 push
+  console.log("first 완료");
+}
+
+function second() {
+  third();    // third를 콜 스택에 push
+  console.log("second 완료");
+}
+
+function third() {
+  console.log("third 완료");
+  // third가 끝나면 콜 스택에서 pop
+}
+
+first();
+// 콜 스택 변화:
+// [first] -> [first, second] -> [first, second, third]
+// -> [first, second] -> [first] -> []
+```
+
+스택 오버플로 (Stack Overflow)는 재귀가 너무 깊어져 콜 스택이 가득 찰 때 발생합니다.
+
+```javascript
+// 탈출 조건이 없는 재귀 -> Stack Overflow
+function infinite() {
+  infinite(); // 무한히 push만 계속
+}
+// RangeError: Maximum call stack size exceeded
+```
+
+### 이벤트 루프와 태스크 큐
+
+브라우저의 이벤트 루프는 **태스크 큐**를 사용합니다. `setTimeout`, 클릭 이벤트, 네트워크 응답 등의 콜백이 큐에 들어가고, 콜 스택이 비면 큐에서 하나씩 꺼내 실행합니다.
+
+```javascript
+console.log("1");          // 콜 스택에서 바로 실행
+
+setTimeout(() => {
+  console.log("2");        // 태스크 큐에 들어감
+}, 0);
+
+console.log("3");          // 콜 스택에서 바로 실행
+
+// 출력: 1, 3, 2
+// "2"는 setTimeout 0ms여도 큐를 거치므로 마지막에 실행
+```
+
+콜 스택 (LIFO)과 태스크 큐 (FIFO)가 함께 동작하는 것이 JavaScript 비동기의 핵심입니다.
+
+### 브라우저 히스토리
+
+브라우저의 뒤로 가기/앞으로 가기는 두 개의 스택으로 구현됩니다.
+
+```javascript
+// 개념적 구현
+const backStack = [];    // 뒤로 가기 스택
+const forwardStack = []; // 앞으로 가기 스택
+let currentPage = "home";
+
+function navigate(page) {
+  backStack.push(currentPage);
+  currentPage = page;
+  forwardStack.length = 0; // 새 페이지 이동 시 앞으로 가기 초기화
+}
+
+function goBack() {
+  if (backStack.length === 0) return;
+  forwardStack.push(currentPage);
+  currentPage = backStack.pop();
+}
+
+function goForward() {
+  if (forwardStack.length === 0) return;
+  backStack.push(currentPage);
+  currentPage = forwardStack.pop();
+}
+```
+
+## 비교 표
+
+| 특성 | 스택 (Stack) | 큐 (Queue) | 덱 (Deque) |
+|------|-------------|-----------|------------|
+| 원칙 | LIFO | FIFO | 양방향 |
+| 삽입 | push — top에 O(1) | enqueue — rear에 O(1) | 양쪽 O(1) |
+| 삭제 | pop — top에서 O(1) | dequeue — front에서 O(1) | 양쪽 O(1) |
+| 실무 예시 | 콜 스택, 실행 취소, 괄호 검증 | 태스크 큐, BFS, 프린트 대기열 | 슬라이딩 윈도우 |
+
+## 다음 단계
+
+스택과 큐는 배열이나 링크드 리스트 위에 "접근 규칙"을 올린 추상 자료구조입니다. 다음 글에서는 **해시맵 (Hash Map)** 을 살펴봅니다. 키-값 쌍을 O(1)에 저장하고 조회하는 해시 함수의 원리와 충돌 해결 전략을 알아봅니다.
