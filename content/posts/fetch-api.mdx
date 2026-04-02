@@ -1,0 +1,273 @@
+---
+title: "fetch API와 요청 제어"
+description: "JavaScript에서 HTTP 요청을 보내는 fetch API — Request, Response, Headers, AbortController를 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "network", "fetch", "api", "javascript"]
+series: "network-and-communication"
+seriesOrder: 2
+draft: false
+---
+
+## XMLHttpRequest에서 fetch로
+
+브라우저에서 HTTP 요청을 보내는 API는 오랫동안 `XMLHttpRequest`(XHR)이었습니다. XHR은 콜백 기반이고, 상태 코드와 이벤트를 직접 관리해야 합니다.
+
+```javascript
+const xhr = new XMLHttpRequest();
+xhr.open("GET", "/api/data");
+xhr.onload = function () {
+  if (xhr.status === 200) {
+    const data = JSON.parse(xhr.responseText);
+    console.log(data);
+  }
+};
+xhr.onerror = function () {
+  console.error("네트워크 에러");
+};
+xhr.send();
+```
+
+`fetch`는 이 패턴을 Promise 기반으로 바꿉니다.
+
+```javascript
+const response = await fetch("/api/data");
+const data = await response.json();
+console.log(data);
+```
+
+코드가 짧아진 것만이 아닙니다. `fetch`는 요청과 응답을 **Request**와 **Response** 객체로 명확하게 분리하고, 헤더를 **Headers** 객체로 다루며, 바디를 **ReadableStream**으로 처리합니다. 각각이 독립적인 API를 가진 구조화된 설계입니다.
+
+XHR과 fetch의 핵심 차이를 정리하면 이렇습니다:
+
+| 항목 | XMLHttpRequest | fetch |
+|------|---------------|-------|
+| 반환 | 없음 (콜백) | Promise\<Response\> |
+| 바디 처리 | responseText, responseXML | json(), text(), blob(), arrayBuffer() |
+| 스트리밍 | 제한적 | ReadableStream |
+| 요청 취소 | xhr.abort() | AbortController |
+| 쿠키 | 항상 전송 | credentials 옵션으로 제어 |
+
+## fetch 라이프사이클
+
+`fetch`를 호출하면 어떤 일이 일어나는지 단계별로 살펴보겠습니다. 아래 시각화에서 각 단계를 넘기며 Promise 상태 변화와 코드를 확인해 보세요.
+
+<FetchLifecycle />
+
+핵심은 **두 단계의 비동기 처리**입니다. 첫 번째 `await`은 응답 헤더가 도착할 때 resolve되고, 두 번째 `await`(예: `response.json()`)은 바디를 끝까지 읽을 때 resolve됩니다. 이 구분을 이해하면 fetch의 동작이 명확해집니다.
+
+## Request 객체
+
+`fetch`의 첫 번째 인자는 URL이지만, 두 번째 인자로 **Request 옵션**을 전달합니다. 내부적으로 이 옵션들은 `Request` 객체로 만들어집니다.
+
+```javascript
+const request = new Request("/api/users", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer token123",
+  },
+  body: JSON.stringify({ name: "Kim", age: 30 }),
+  mode: "cors",
+  credentials: "same-origin",
+});
+
+const response = await fetch(request);
+```
+
+주요 옵션을 살펴봅니다.
+
+**method** -- `GET`, `POST`, `PUT`, `DELETE`, `PATCH` 등. 기본값은 `GET`입니다.
+
+**headers** -- 요청 헤더. 객체 리터럴이나 `Headers` 인스턴스를 전달합니다.
+
+**body** -- 요청 바디. `GET`과 `HEAD`에서는 사용할 수 없습니다. 문자열, `FormData`, `Blob`, `ArrayBuffer`, `URLSearchParams` 등을 전달할 수 있습니다.
+
+**mode** -- CORS 동작을 제어합니다. `cors`(기본값), `no-cors`, `same-origin` 중 하나입니다. 다음 글에서 자세히 다룹니다.
+
+**credentials** -- 쿠키 전송을 제어합니다. `same-origin`(기본값, 같은 출처만), `include`(항상), `omit`(전송하지 않음).
+
+## Response 객체
+
+`fetch`가 resolve되면 **Response** 객체를 받습니다. 이 시점에서 헤더는 사용 가능하지만, 바디는 아직 스트리밍 중일 수 있습니다.
+
+```javascript
+const response = await fetch("/api/data");
+
+// 메타데이터 (즉시 사용 가능)
+console.log(response.status);      // 200
+console.log(response.ok);          // true (200-299)
+console.log(response.statusText);  // "OK"
+console.log(response.url);         // 최종 URL (리다이렉트 후)
+console.log(response.redirected);  // 리다이렉트 여부
+```
+
+바디를 읽는 메서드는 모두 **Promise를 반환**합니다:
+
+```javascript
+await response.json();        // JSON 파싱 → 객체
+await response.text();        // 텍스트 → 문자열
+await response.blob();        // 바이너리 → Blob
+await response.arrayBuffer(); // 바이너리 → ArrayBuffer
+await response.formData();    // 폼 데이터 → FormData
+```
+
+바디는 **ReadableStream**이므로 한 번만 읽을 수 있습니다. `response.json()`을 호출한 뒤 `response.text()`를 호출하면 에러가 발생합니다. 바디를 여러 번 읽어야 한다면 `clone()`을 사용합니다.
+
+```javascript
+const cloned = response.clone();
+
+const json = await response.json();   // 원본에서 JSON 읽기
+const text = await cloned.text();     // 복제본에서 텍스트 읽기
+```
+
+## Headers API
+
+요청과 응답의 헤더는 **Headers** 객체로 다룹니다. Map과 비슷한 인터페이스를 제공합니다.
+
+```javascript
+// 생성
+const headers = new Headers({
+  "Content-Type": "application/json",
+  "Accept": "application/json",
+});
+
+// 조회
+headers.get("Content-Type");   // "application/json"
+headers.has("Authorization");  // false
+
+// 수정
+headers.set("Authorization", "Bearer token123");
+headers.append("Accept", "text/plain"); // 기존 값에 추가
+headers.delete("Accept");
+
+// 순회
+for (const [key, value] of headers.entries()) {
+  console.log(`${key}: ${value}`);
+}
+```
+
+자주 사용하는 헤더를 정리합니다:
+
+| 헤더 | 용도 | 예시 |
+|------|------|------|
+| Content-Type | 바디의 형식 | application/json |
+| Accept | 원하는 응답 형식 | application/json |
+| Authorization | 인증 토큰 | Bearer abc123 |
+| Cache-Control | 캐싱 정책 | no-cache |
+
+응답 헤더 중 일부는 CORS 정책에 의해 JavaScript에서 접근이 제한됩니다. 기본적으로 접근 가능한 헤더는 `Cache-Control`, `Content-Language`, `Content-Type`, `Expires`, `Last-Modified`, `Pragma`뿐입니다. 서버가 `Access-Control-Expose-Headers`로 명시적으로 허용해야 다른 헤더에 접근할 수 있습니다.
+
+## AbortController
+
+네트워크 요청은 언제든 중단해야 할 수 있습니다. 사용자가 검색어를 수정했을 때 이전 요청을 취소하거나, 타임아웃을 설정하거나, 컴포넌트가 언마운트될 때 진행 중인 요청을 정리해야 합니다.
+
+`AbortController`는 이 모든 경우를 하나의 패턴으로 처리합니다.
+
+```javascript
+const controller = new AbortController();
+
+fetch("/api/search?q=hello", { signal: controller.signal })
+  .then((res) => res.json())
+  .then((data) => console.log(data))
+  .catch((err) => {
+    if (err.name === "AbortError") {
+      console.log("요청이 취소되었습니다");
+    }
+  });
+
+// 필요한 시점에 중단
+controller.abort();
+```
+
+### 타임아웃 패턴
+
+일정 시간이 지나면 자동으로 요청을 중단하는 패턴입니다.
+
+```javascript
+async function fetchWithTimeout(url, options = {}, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(id);
+  }
+}
+```
+
+최신 브라우저에서는 `AbortSignal.timeout()`으로 더 간결하게 작성할 수 있습니다.
+
+```javascript
+const response = await fetch("/api/data", {
+  signal: AbortSignal.timeout(5000),
+});
+```
+
+### React cleanup
+
+React에서 컴포넌트가 언마운트될 때 요청을 정리하는 것은 메모리 누수를 방지하는 기본 패턴입니다.
+
+```javascript
+useEffect(() => {
+  const controller = new AbortController();
+
+  fetch("/api/data", { signal: controller.signal })
+    .then((res) => res.json())
+    .then((data) => setData(data))
+    .catch((err) => {
+      if (err.name !== "AbortError") {
+        setError(err);
+      }
+    });
+
+  return () => controller.abort();
+}, []);
+```
+
+`useEffect`의 cleanup 함수에서 `abort()`를 호출하면, 컴포넌트가 언마운트되거나 의존성이 변경될 때 진행 중인 요청이 자동으로 취소됩니다.
+
+## 에러 핸들링
+
+`fetch`의 에러 처리에서 가장 중요한 점은 **HTTP 에러 상태(4xx, 5xx)가 reject되지 않는다**는 것입니다. `fetch`는 네트워크 레벨의 실패(DNS 실패, 서버 접근 불가, CORS 차단 등)만 reject합니다.
+
+```javascript
+// 404 응답 -- reject되지 않음!
+const response = await fetch("/api/not-found");
+console.log(response.ok);     // false
+console.log(response.status); // 404
+```
+
+따라서 `response.ok`를 반드시 확인해야 합니다. 이 패턴을 래퍼 함수로 만들면 편리합니다.
+
+```javascript
+async function fetchJSON(url, options) {
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+```
+
+에러 유형별로 정리하면 이렇습니다:
+
+| 상황 | fetch 동작 | 처리 방법 |
+|------|-----------|----------|
+| 네트워크 끊김 | Promise reject (TypeError) | catch에서 처리 |
+| CORS 차단 | Promise reject (TypeError) | catch에서 처리 |
+| AbortController.abort() | Promise reject (AbortError) | catch에서 name 확인 |
+| 404, 500 등 | Promise resolve | response.ok 확인 |
+| JSON 파싱 실패 | .json() reject (SyntaxError) | catch에서 처리 |
+
+네트워크 에러와 CORS 차단이 동일한 `TypeError`로 reject되는 이유는 보안 때문입니다. CORS 에러의 상세 정보를 JavaScript에 노출하면, 공격자가 내부 네트워크의 서비스 존재 여부를 탐지하는 데 악용할 수 있습니다.
+
+## 다음 단계
+
+`fetch`로 다른 도메인의 API를 호출하면 CORS 에러를 만나게 됩니다. 브라우저 콘솔에 빨간색으로 찍히는 그 에러입니다. 왜 브라우저는 다른 도메인으로의 요청을 차단할까요? 다음 글에서는 CORS의 동작 원리와 프리플라이트 요청, 그리고 올바른 서버 설정을 다룹니다.

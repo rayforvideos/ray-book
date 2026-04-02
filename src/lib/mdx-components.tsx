@@ -17,6 +17,7 @@ import { ThisBinding } from "@/components/viz/domain/ThisBinding";
 import { EventDelegation } from "@/components/viz/domain/EventDelegation";
 import { EventFlow } from "@/components/viz/domain/EventFlow";
 import { EventLoopFull } from "@/components/viz/domain/EventLoopFull";
+import { FetchLifecycle } from "@/components/viz/domain/FetchLifecycle";
 import { PromiseChain } from "@/components/viz/domain/PromiseChain";
 import { AsyncAwait } from "@/components/viz/domain/AsyncAwait";
 import { AsyncErrorPattern } from "@/components/viz/domain/AsyncErrorPattern";
@@ -67,6 +68,7 @@ export const mdxComponents: MDXComponents = {
   EventDelegation,
   EventFlow,
   EventLoopFull,
+  FetchLifecycle,
   PromiseChain,
   AsyncAwait,
   AsyncErrorPattern,
