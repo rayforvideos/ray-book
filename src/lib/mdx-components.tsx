@@ -59,6 +59,7 @@ import { XssAttackFlow } from "@/components/viz/domain/XssAttackFlow";
 import { ArrayVsLinkedList } from "@/components/viz/domain/ArrayVsLinkedList";
 import { StackAndQueue } from "@/components/viz/domain/StackAndQueue";
 import { HashMapInternal } from "@/components/viz/domain/HashMapInternal";
+import { BSTOperations } from "@/components/viz/domain/BSTOperations";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -121,6 +122,7 @@ export const mdxComponents: MDXComponents = {
   ArrayVsLinkedList,
   StackAndQueue,
   HashMapInternal,
+  BSTOperations,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
