@@ -1,0 +1,231 @@
+---
+title: "DOM 트리 구조와 노드 탐색"
+description: "HTML이 DOM 트리가 되는 과정과 JavaScript로 노드를 탐색하는 방법을 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "dom", "javascript", "traversal"]
+series: "dom-and-events"
+seriesOrder: 1
+draft: false
+---
+
+## HTML에서 DOM으로
+
+브라우저가 HTML을 파싱하면 **DOM (Document Object Model)** 트리가 만들어집니다. 렌더링 파이프라인 시리즈 1편에서 바이트가 토큰을 거쳐 트리가 되는 과정을 살펴봤는데, 그 결과물이 바로 DOM입니다.
+
+DOM은 HTML 문서의 **프로그래밍 인터페이스**입니다. JavaScript가 웹 페이지의 콘텐츠, 구조, 스타일을 읽고 수정할 수 있는 이유는 DOM이라는 API가 존재하기 때문입니다.
+
+```html
+<html>
+  <body>
+    <h1>Hello</h1>
+    <p>World</p>
+  </body>
+</html>
+```
+
+위 HTML은 파싱 후 아래와 같은 트리 구조가 됩니다:
+
+```text
+Document
+└── html (Element)
+    ├── head (Element)
+    │   └── ...
+    └── body (Element)
+        ├── h1 (Element)
+        │   └── "Hello" (Text)
+        └── p (Element)
+            └── "World" (Text)
+```
+
+중요한 점은 DOM이 HTML 소스 코드 그 자체가 아니라는 것입니다. DOM은 파싱된 결과이며, 잘못된 HTML도 브라우저가 보정한 뒤 올바른 트리로 만들어줍니다.
+
+## 노드의 종류
+
+DOM 트리의 모든 항목은 **노드 (Node)** 입니다. 노드에는 여러 종류가 있고, `nodeType` 프로퍼티로 구분할 수 있습니다.
+
+| nodeType | 상수 | 설명 |
+|---|---|---|
+| 1 | `Node.ELEMENT_NODE` | `<div>`, `<p>` 같은 요소 |
+| 3 | `Node.TEXT_NODE` | 요소 내부의 텍스트 |
+| 8 | `Node.COMMENT_NODE` | `<!-- 주석 -->` |
+| 9 | `Node.DOCUMENT_NODE` | `document` 객체 자체 |
+| 11 | `Node.DOCUMENT_FRAGMENT_NODE` | `DocumentFragment` |
+
+```javascript
+const el = document.querySelector("h1");
+
+console.log(el.nodeType);   // 1 (ELEMENT_NODE)
+console.log(el.nodeName);   // "H1"
+console.log(el.tagName);    // "H1"
+
+const text = el.firstChild;
+console.log(text.nodeType);  // 3 (TEXT_NODE)
+console.log(text.nodeName);  // "#text"
+console.log(text.nodeValue); // "Hello"
+```
+
+**DocumentFragment**는 실제 DOM에 속하지 않는 가벼운 컨테이너입니다. 여러 노드를 한꺼번에 추가할 때 유용합니다. 프래그먼트에 노드를 모아뒀다가 한 번에 DOM에 삽입하면 리플로우를 최소화할 수 있습니다.
+
+```javascript
+const fragment = document.createDocumentFragment();
+for (let i = 0; i < 100; i++) {
+  const li = document.createElement("li");
+  li.textContent = `항목 ${i}`;
+  fragment.appendChild(li);
+}
+// 한 번의 DOM 조작으로 100개 항목 삽입
+document.querySelector("ul").appendChild(fragment);
+```
+
+## DOM 트리 탐색
+
+DOM 트리를 JavaScript로 탐색하는 방법은 다양합니다. 아래 시각화에서 각 탐색 API가 어떤 노드를 선택하는지 단계별로 확인하세요:
+
+<DomTreeTraversal />
+
+시각화에서 보듯, 같은 트리라도 사용하는 API에 따라 접근하는 노드가 달라집니다. 핵심은 "Element 전용 API"와 "모든 노드 포함 API"의 차이를 이해하는 것입니다.
+
+## 탐색 API
+
+### 부모 탐색: parentNode vs parentElement
+
+```javascript
+const li = document.querySelector("li");
+
+// 둘 다 부모 요소를 반환 — 대부분의 경우 결과가 같다
+li.parentNode;     // <ul>
+li.parentElement;  // <ul>
+
+// 차이가 나는 유일한 경우: document
+document.documentElement.parentNode;    // #document
+document.documentElement.parentElement; // null
+```
+
+`parentNode`는 모든 종류의 부모 노드를 반환하지만, `parentElement`는 부모가 Element일 때만 반환합니다. `<html>`의 부모는 `document` (Document 노드)이므로 `parentElement`는 `null`입니다.
+
+### 자식 탐색: children vs childNodes
+
+```javascript
+const body = document.body;
+
+// children — Element 노드만
+body.children;        // HTMLCollection [h1, ul, p]
+body.children.length; // 3
+
+// childNodes — 텍스트, 주석 등 모든 노드 포함
+body.childNodes;        // NodeList [#text, h1, #text, ul, #text, p, #text]
+body.childNodes.length; // 7 (줄바꿈 텍스트 노드 포함)
+```
+
+HTML에서 태그 사이의 공백과 줄바꿈도 **텍스트 노드**로 생성됩니다. `childNodes`를 사용할 때는 이 보이지 않는 텍스트 노드를 항상 염두에 두어야 합니다.
+
+### 형제 탐색
+
+```javascript
+const ul = document.querySelector("ul");
+
+// Element 전용
+ul.previousElementSibling; // <h1>
+ul.nextElementSibling;     // <p>
+
+// 모든 노드 포함 (텍스트 노드가 반환될 수 있음)
+ul.previousSibling; // #text (줄바꿈)
+ul.nextSibling;     // #text (줄바꿈)
+```
+
+### 검색: querySelector와 querySelectorAll
+
+```javascript
+// CSS 선택자 문법 그대로 사용
+document.querySelector(".nav > li:first-child");
+document.querySelectorAll("[data-active='true']");
+
+// querySelectorAll은 정적 NodeList를 반환
+const items = document.querySelectorAll("li");
+// DOM이 변해도 items는 변하지 않음 (스냅샷)
+
+// getElementsBy*는 라이브 HTMLCollection을 반환
+const live = document.getElementsByTagName("li");
+// DOM이 변하면 live도 자동 업데이트됨
+```
+
+`querySelectorAll`이 반환하는 **정적 NodeList**와 `getElementsBy*`가 반환하는 **라이브 HTMLCollection**의 차이는 실무에서 버그의 원인이 되기도 합니다. 반복문 중에 DOM을 수정한다면 라이브 컬렉션은 예상치 못한 결과를 낼 수 있습니다.
+
+### closest
+
+```javascript
+const li = document.querySelector("li");
+
+// 자신을 포함해 위로 올라가며 선택자 매칭
+li.closest("ul");   // <ul>
+li.closest("body"); // <body>
+li.closest(".card"); // null (일치하는 조상 없음)
+```
+
+`closest()`는 이벤트 위임 패턴에서 특히 유용합니다. 클릭된 요소에서 위로 올라가며 특정 컨테이너를 찾을 때 자주 사용됩니다.
+
+## DOM 조작 기본
+
+탐색으로 노드를 찾았다면, 이제 조작할 차례입니다.
+
+### 노드 생성과 추가
+
+```javascript
+// 새 요소 생성
+const div = document.createElement("div");
+div.className = "card";
+div.textContent = "새 카드";
+
+// 자식으로 추가
+document.body.appendChild(div);
+
+// 특정 위치에 삽입
+const ref = document.querySelector("h1");
+document.body.insertBefore(div, ref); // h1 앞에 삽입
+```
+
+### 노드 제거
+
+```javascript
+const target = document.querySelector(".old");
+
+// 부모를 통해 제거 (전통적 방식)
+target.parentNode.removeChild(target);
+
+// 직접 제거 (모던 API)
+target.remove();
+```
+
+### textContent vs innerHTML
+
+```javascript
+const el = document.querySelector("p");
+
+// textContent — 텍스트만 다룸, HTML 태그는 문자열로 처리
+el.textContent = "<b>안전</b>"; // 화면에 "<b>안전</b>" 그대로 표시
+
+// innerHTML — HTML을 파싱하여 DOM으로 변환
+el.innerHTML = "<b>위험할 수 있음</b>"; // <b> 태그가 실제로 적용됨
+```
+
+`innerHTML`에 사용자 입력을 넣으면 **XSS (Cross-Site Scripting)** 취약점이 생길 수 있습니다. 사용자 입력은 반드시 `textContent`로 처리하세요.
+
+### insertAdjacentHTML
+
+```javascript
+const ul = document.querySelector("ul");
+
+// 4가지 삽입 위치
+ul.insertAdjacentHTML("beforebegin", "<p>ul 바로 앞</p>");
+ul.insertAdjacentHTML("afterbegin", "<li>첫 번째 자식</li>");
+ul.insertAdjacentHTML("beforeend", "<li>마지막 자식</li>");
+ul.insertAdjacentHTML("afterend", "<p>ul 바로 뒤</p>");
+```
+
+`insertAdjacentHTML`은 기존 DOM을 건드리지 않고 원하는 위치에 HTML을 삽입합니다. `innerHTML`과 달리 기존 자식 노드의 이벤트 리스너가 제거되지 않는다는 장점이 있습니다.
+
+## 다음 단계
+
+DOM 트리의 구조와 노드 탐색, 기본적인 조작 방법을 살펴봤습니다. DOM은 정적인 데이터 구조가 아니라, 사용자 상호작용에 반응하는 살아있는 인터페이스입니다.
+
+다음 글에서는 이 DOM 트리 위에서 **이벤트가 어떻게 전파되는지** — 캡처링, 타겟, 버블링 단계를 따라가며 살펴봅니다. DOM 트리의 구조를 이해했으니, 이벤트가 이 트리를 따라 흐르는 방식도 자연스럽게 이해할 수 있을 것입니다.

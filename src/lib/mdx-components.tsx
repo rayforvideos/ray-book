@@ -23,6 +23,7 @@ import { CallbackPyramid } from "@/components/viz/domain/CallbackPyramid";
 import { PromiseStateMachine } from "@/components/viz/domain/PromiseStateMachine";
 import { DebounceTimeline } from "@/components/viz/domain/DebounceTimeline";
 import { DomCssomParser } from "@/components/viz/domain/DomCssomParser";
+import { DomTreeTraversal } from "@/components/viz/domain/DomTreeTraversal";
 import { NewOperatorFlow } from "@/components/viz/domain/NewOperatorFlow";
 import { InheritanceCompare } from "@/components/viz/domain/InheritanceCompare";
 import { ModuleCompare } from "@/components/viz/domain/ModuleCompare";
@@ -67,6 +68,7 @@ export const mdxComponents: MDXComponents = {
   PromiseStateMachine,
   DebounceTimeline,
   DomCssomParser,
+  DomTreeTraversal,
   NewOperatorFlow,
   InheritanceCompare,
   ModuleCompare,
