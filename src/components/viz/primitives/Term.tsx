@@ -295,6 +295,42 @@ const terms: Record<string, TermDef> = {
     description: "DFS (Depth-First Search). 그래프에서 한 방향으로 끝까지 탐색한 후 되돌아와 다른 경로를 탐색하는 알고리즘. 스택이나 재귀를 사용합니다.",
     analogy: "미로 탈출과 비슷합니다 — 한 갈래를 끝까지 가보고, 막히면 되돌아와서 다른 길을 시도합니다.",
   },
+  "tcp": {
+    title: "TCP",
+    emoji: "🤝",
+    description: "Transmission Control Protocol. 신뢰성 있는 데이터 전송을 보장하는 연결 지향 프로토콜. 3-way handshake, 흐름 제어, 혼잡 제어를 제공합니다.",
+  },
+  "udp": {
+    title: "UDP",
+    emoji: "📨",
+    description: "User Datagram Protocol. 연결 설정 없이 데이터를 전송하는 비연결 프로토콜. 빠르지만 전송 보장이 없어 게임, 스트리밍에 사용됩니다.",
+  },
+  "tls": {
+    title: "TLS",
+    emoji: "🔐",
+    description: "Transport Layer Security. 통신을 암호화하는 프로토콜. HTTPS는 HTTP + TLS입니다. 대칭/비대칭 암호화를 조합하여 기밀성과 무결성을 보장합니다.",
+  },
+  "process": {
+    title: "프로세스",
+    emoji: "📦",
+    description: "실행 중인 프로그램의 인스턴스. 독립된 메모리 공간(코드, 데이터, 힙, 스택)을 가지며 OS가 자원을 할당하는 단위입니다.",
+  },
+  "thread": {
+    title: "스레드",
+    emoji: "🧵",
+    description: "프로세스 내에서 실행되는 경량 실행 단위. 같은 프로세스의 스레드끼리 힙 메모리를 공유하지만 각자 독립된 스택을 가집니다.",
+  },
+  "deadlock": {
+    title: "교착 상태",
+    emoji: "🔒",
+    description: "Deadlock. 두 개 이상의 프로세스가 서로 상대방이 점유한 자원을 기다리며 영원히 멈추는 상태. 상호 배제, 점유 대기, 비선점, 순환 대기 4조건이 동시에 성립할 때 발생합니다.",
+    analogy: "좁은 길에서 마주 오는 두 차와 비슷합니다 — 둘 다 비키지 않으면 영원히 못 지나갑니다.",
+  },
+  "virtual-memory": {
+    title: "가상 메모리",
+    emoji: "🗺️",
+    description: "물리 메모리보다 큰 주소 공간을 제공하는 메모리 관리 기법. 페이징을 통해 가상 주소를 물리 주소로 변환하며, 필요한 페이지만 메모리에 올립니다.",
+  },
 };
 
 interface TermProps {
