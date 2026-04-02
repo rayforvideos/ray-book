@@ -1,0 +1,244 @@
+---
+title: "DOM 변화 감지: MutationObserver와 IntersectionObserver"
+description: "DOM 변경과 뷰포트 교차를 비동기적으로 감지하는 Observer API를 시각화합니다"
+date: 2026-04-02
+tags: ["browser", "dom", "observer", "mutation", "intersection", "performance"]
+series: "dom-and-events"
+seriesOrder: 4
+draft: false
+---
+
+## 왜 Observer인가?
+
+DOM에서 "무언가가 변했는지" 알고 싶을 때 가장 직관적인 방법은 **폴링(polling)** 입니다. `setInterval`로 주기적으로 DOM 상태를 확인하는 것이죠.
+
+```javascript
+// 나쁜 예: 폴링으로 DOM 변경 감지
+setInterval(() => {
+  const count = document.querySelectorAll("li").length;
+  if (count !== previousCount) {
+    console.log("항목이 변경됨!");
+    previousCount = count;
+  }
+}, 100);
+```
+
+이 방식에는 심각한 문제가 있습니다. 변경이 없어도 100ms마다 DOM을 쿼리하므로 **CPU를 낭비**합니다. 간격을 줄이면 리소스 낭비가 커지고, 늘리면 변경 감지가 늦어집니다. 어떻게 설정해도 최적이 될 수 없습니다.
+
+**Observer API**는 이 문제를 근본적으로 해결합니다. 폴링 대신 브라우저에게 "이 요소에 변화가 생기면 알려달라"고 등록하는 방식입니다. 브라우저 내부에서 최적화된 방법으로 변경을 감지하고, 변경이 실제로 일어났을 때만 콜백을 실행합니다. 불필요한 연산이 전혀 없습니다.
+
+Observer는 세 종류가 있습니다:
+
+- **MutationObserver** -- DOM 트리 변경 (자식 추가/제거, 속성 변경, 텍스트 변경)
+- **IntersectionObserver** -- 요소의 뷰포트 교차 상태 변화
+- **ResizeObserver** -- 요소의 크기 변화
+
+각각 감시 대상과 실행 타이밍이 다릅니다. 하나씩 살펴보겠습니다.
+
+## MutationObserver
+
+MutationObserver는 DOM 트리의 변경을 감지합니다. 자식 노드가 추가되거나 삭제될 때, 속성이 변경될 때, 텍스트 콘텐츠가 바뀔 때 콜백이 호출됩니다.
+
+아래 시각화에서 MutationObserver의 동작 흐름을 단계별로 확인하세요:
+
+<ObserverPattern type="mutation" />
+
+### 기본 사용법
+
+```javascript
+// 1. 콜백 함수와 함께 Observer 생성
+const observer = new MutationObserver((records) => {
+  for (const record of records) {
+    console.log("변경 타입:", record.type);
+    console.log("추가된 노드:", record.addedNodes);
+    console.log("제거된 노드:", record.removedNodes);
+  }
+});
+
+// 2. 감시 대상과 옵션 지정
+const target = document.querySelector("ul");
+observer.observe(target, {
+  childList: true,   // 자식 노드 추가/제거 감시
+  attributes: true,  // 속성 변경 감시
+  characterData: true, // 텍스트 콘텐츠 변경 감시
+  subtree: true,     // 모든 하위 노드까지 감시
+});
+
+// 3. 감시 해제
+observer.disconnect();
+```
+
+### observe 옵션
+
+| 옵션 | 설명 |
+|---|---|
+| `childList` | 자식 노드의 추가/제거를 감시 |
+| `attributes` | 속성 변경을 감시 |
+| `characterData` | 텍스트 노드의 데이터 변경을 감시 |
+| `subtree` | 대상뿐 아니라 모든 자손 노드까지 감시 |
+| `attributeFilter` | 감시할 속성 이름 배열 (예: `["class", "style"]`) |
+| `attributeOldValue` | 변경 전 속성 값을 `record.oldValue`에 기록 |
+| `characterDataOldValue` | 변경 전 텍스트 데이터를 `record.oldValue`에 기록 |
+
+`childList`, `attributes`, `characterData` 중 최소 하나는 `true`여야 합니다. 그렇지 않으면 에러가 발생합니다.
+
+### 마이크로태스크로 실행된다
+
+MutationObserver의 콜백은 **마이크로태스크**로 실행됩니다. 비동기 시리즈에서 다뤘던 이벤트 루프를 떠올려 보세요. DOM 변경이 발생하면 MutationRecord가 즉시 생성되지만, 콜백은 현재 태스크가 끝난 뒤 마이크로태스크 큐에서 실행됩니다.
+
+이 설계 덕분에 하나의 동기 코드 블록에서 여러 DOM 변경이 발생해도 콜백은 **한 번만** 호출됩니다. 변경 사항들이 배열로 묶여서 전달되므로, 개별 변경마다 반응하는 것보다 훨씬 효율적입니다.
+
+```javascript
+// 세 번의 DOM 변경이 발생하지만...
+ul.appendChild(li1);
+ul.appendChild(li2);
+ul.removeChild(li3);
+
+// 콜백은 한 번만 호출됨 (records 배열에 3개의 MutationRecord)
+```
+
+### disconnect와 takeRecords
+
+`disconnect()`는 모든 감시를 중단합니다. 아직 전달되지 않은 MutationRecord가 있다면 `takeRecords()`로 즉시 가져올 수 있습니다.
+
+```javascript
+// 아직 콜백에 전달되지 않은 레코드 즉시 수거
+const pending = observer.takeRecords();
+observer.disconnect();
+
+// pending을 수동으로 처리
+if (pending.length > 0) {
+  processMutations(pending);
+}
+```
+
+## IntersectionObserver
+
+IntersectionObserver는 요소가 뷰포트(또는 지정한 루트 요소)와 **교차하는 순간**을 감지합니다. 스크롤 이벤트를 직접 다루는 것보다 훨씬 성능이 좋습니다.
+
+아래 시각화에서 IntersectionObserver가 뷰포트 진입을 감지하는 과정을 확인하세요:
+
+<ObserverPattern type="intersection" />
+
+### 레이지 로딩 구현
+
+IntersectionObserver의 가장 대표적인 활용은 **이미지 레이지 로딩**입니다. 이미지가 뷰포트에 들어올 때 비로소 실제 이미지를 로딩합니다.
+
+```javascript
+const observer = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) {
+      const img = entry.target;
+      img.src = img.dataset.src; // 실제 이미지 로드
+      observer.unobserve(img);   // 감시 해제
+    }
+  }
+});
+
+// 모든 레이지 이미지에 Observer 등록
+document.querySelectorAll("img[data-src]").forEach((img) => {
+  observer.observe(img);
+});
+```
+
+### threshold와 rootMargin
+
+```javascript
+const observer = new IntersectionObserver(callback, {
+  root: null,          // null이면 뷰포트 기준 (기본값)
+  rootMargin: "100px", // 뷰포트를 100px 확장 (미리 로딩)
+  threshold: [0, 0.5, 1], // 교차 비율 0%, 50%, 100%에서 콜백 실행
+});
+```
+
+**threshold**는 콜백이 실행되는 교차 비율을 지정합니다. `0`이면 요소가 1px이라도 보이는 순간, `1`이면 요소가 완전히 보이는 순간 콜백이 호출됩니다. 배열로 여러 지점을 지정할 수 있습니다.
+
+**rootMargin**은 루트 요소의 경계를 확장하거나 축소합니다. `"100px"`로 설정하면 요소가 뷰포트에 진입하기 100px 전에 콜백이 호출됩니다. 이미지 레이지 로딩에서 미리 로딩을 시작하고 싶을 때 유용합니다.
+
+### 무한 스크롤 구현
+
+리스트의 마지막 요소를 감시하여 **무한 스크롤**을 구현할 수 있습니다.
+
+```javascript
+function setupInfiniteScroll() {
+  const observer = new IntersectionObserver(async (entries) => {
+    const sentinel = entries[0];
+    if (!sentinel.isIntersecting) return;
+
+    // 추가 데이터 로드
+    const newItems = await fetchMoreItems();
+    appendItems(newItems);
+
+    // 기존 센티널 해제, 새 마지막 요소 감시
+    observer.unobserve(sentinel.target);
+    const newSentinel = document.querySelector(".item:last-child");
+    observer.observe(newSentinel);
+  });
+
+  const sentinel = document.querySelector(".item:last-child");
+  observer.observe(sentinel);
+}
+```
+
+스크롤 이벤트 핸들러와 비교하면 코드가 더 간결하고, `getBoundingClientRect()` 호출이 없어 리플로우를 유발하지 않습니다.
+
+## ResizeObserver
+
+ResizeObserver는 요소의 **크기 변경**을 감지합니다. `window.onresize`는 뷰포트 크기만 감지하지만, ResizeObserver는 개별 요소의 크기 변화를 포착합니다.
+
+```javascript
+const observer = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const { width, height } = entry.contentRect;
+    console.log(`크기 변경: ${width}x${height}`);
+  }
+});
+
+observer.observe(document.querySelector(".panel"));
+```
+
+반응형 컴포넌트에서 특히 유용합니다. 컨테이너의 크기에 따라 레이아웃을 변경하는 **컨테이너 쿼리(Container Query)** 와 비슷한 역할을 JavaScript로 수행할 수 있습니다.
+
+```javascript
+const observer = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const width = entry.contentRect.width;
+    const el = entry.target;
+
+    if (width < 400) {
+      el.classList.add("compact");
+      el.classList.remove("wide");
+    } else {
+      el.classList.add("wide");
+      el.classList.remove("compact");
+    }
+  }
+});
+```
+
+ResizeObserver의 콜백은 **레이아웃(layout) 단계 이후, 페인트(paint) 단계 이전**에 실행됩니다. 따라서 콜백 내에서 크기를 변경하면 추가 레이아웃이 발생할 수 있으므로 주의가 필요합니다.
+
+## Observer와 이벤트의 차이
+
+DOM 이벤트와 Observer는 모두 "무언가가 일어났을 때 반응한다"는 점에서 비슷해 보이지만, 실행 타이밍과 동작 방식이 근본적으로 다릅니다.
+
+**이벤트(addEventListener)** 는 사용자 액션이나 브라우저 동작에 **즉시 동기적으로** 반응합니다. 이벤트 핸들러는 발생 즉시 실행되며, 캡처링과 버블링을 거치며 DOM 트리를 따라 전파됩니다.
+
+**MutationObserver**는 DOM 변경이 발생하면 레코드를 수집해두었다가, 현재 태스크가 끝난 뒤 **마이크로태스크**로 콜백을 실행합니다. 동기 코드 블록 내의 여러 변경이 하나의 콜백 호출로 배치 처리됩니다. Promise의 `.then()`과 같은 타이밍입니다.
+
+**IntersectionObserver와 ResizeObserver**는 브라우저의 **렌더링 사이클**에 맞춰 비동기적으로 실행됩니다. 매 프레임의 레이아웃 계산 후에 교차 상태나 크기 변화를 확인하고, 변경이 있을 때만 콜백을 호출합니다.
+
+```text
+이벤트        → 발생 즉시 동기적 실행 (콜 스택 위)
+Mutation      → 마이크로태스크 큐 (현재 태스크 종료 후)
+Intersection  → 렌더링 사이클에 맞춰 비동기 실행
+Resize        → 레이아웃 이후, 페인트 이전
+```
+
+이 차이는 성능에 직접적인 영향을 줍니다. 이벤트 핸들러가 무거우면 메인 스레드를 블로킹하지만, Observer 콜백은 브라우저가 최적의 시점에 실행하므로 렌더링 파이프라인과 자연스럽게 어우러집니다.
+
+## 다음 단계
+
+Observer API를 통해 DOM 변화를 효율적으로 감지하는 방법을 살펴봤습니다. MutationObserver는 마이크로태스크로, IntersectionObserver와 ResizeObserver는 렌더링 사이클에 맞춰 동작합니다.
+
+다음 글에서는 이 렌더링 사이클의 핵심인 **requestAnimationFrame**을 다룹니다. 브라우저가 프레임을 그리는 타이밍에 맞춰 코드를 실행하는 방법과, 부드러운 애니메이션을 만드는 패턴을 살펴보겠습니다.

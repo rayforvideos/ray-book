@@ -27,6 +27,7 @@ import { DebounceTimeline } from "@/components/viz/domain/DebounceTimeline";
 import { DomCssomParser } from "@/components/viz/domain/DomCssomParser";
 import { DomTreeTraversal } from "@/components/viz/domain/DomTreeTraversal";
 import { NewOperatorFlow } from "@/components/viz/domain/NewOperatorFlow";
+import { ObserverPattern } from "@/components/viz/domain/ObserverPattern";
 import { InheritanceCompare } from "@/components/viz/domain/InheritanceCompare";
 import { ModuleCompare } from "@/components/viz/domain/ModuleCompare";
 import { TreeShaking } from "@/components/viz/domain/TreeShaking";
@@ -74,6 +75,7 @@ export const mdxComponents: MDXComponents = {
   DomCssomParser,
   DomTreeTraversal,
   NewOperatorFlow,
+  ObserverPattern,
   InheritanceCompare,
   ModuleCompare,
   TreeShaking,
