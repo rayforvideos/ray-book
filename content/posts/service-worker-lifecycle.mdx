@@ -1,0 +1,206 @@
+---
+title: "Service Worker 라이프사이클"
+description: "브라우저와 네트워크 사이의 프록시 — 등록, 설치, 활성화, 업데이트 흐름을 시각화합니다"
+date: 2026-04-03
+tags: ["browser", "service-worker", "pwa", "offline"]
+series: "service-worker-and-pwa"
+seriesOrder: 1
+draft: false
+---
+
+## 브라우저와 네트워크 사이의 프록시
+
+웹 애플리케이션은 네트워크에 의존합니다. 네트워크가 느리거나 끊기면 사용자는 빈 화면을 봅니다. 네이티브 앱은 이런 문제가 없습니다. 앱 코드와 리소스가 기기에 설치되어 있고, 네트워크는 데이터를 가져올 때만 필요합니다.
+
+Service Worker(SW)는 이 격차를 메우기 위해 만들어졌습니다. 브라우저와 네트워크 사이에 위치하는 **프로그래밍 가능한 프록시**입니다. 페이지가 보내는 모든 네트워크 요청을 가로채서, 캐시에서 응답하거나, 네트워크로 보내거나, 둘을 조합할 수 있습니다.
+
+SW가 일반적인 JavaScript와 다른 점이 몇 가지 있습니다.
+
+- **별도의 스레드**에서 실행됩니다. DOM에 접근할 수 없습니다.
+- **이벤트 기반**으로 동작합니다. 필요할 때 깨어나고, 할 일이 없으면 종료됩니다.
+- **HTTPS에서만** 동작합니다 (localhost 예외). 네트워크 요청을 가로채는 능력이 강력한 만큼, 보안이 전제됩니다.
+- 페이지와 **독립적인 수명**을 가집니다. 페이지를 닫아도 SW는 살아있을 수 있고, 페이지 없이도 Push 이벤트를 받을 수 있습니다.
+
+이 특성들을 이해하려면 SW의 라이프사이클을 알아야 합니다. SW는 등록, 설치, 활성화라는 단계적 과정을 거칩니다. 이 과정이 기존 웹 개발과 가장 다른 부분이고, 가장 혼란스러운 부분이기도 합니다.
+
+## 라이프사이클
+
+아래 시각화에서 SW의 전체 라이프사이클을 단계별로 확인해 보세요. 등록부터 활성화, 그리고 업데이트까지의 흐름을 따라갈 수 있습니다.
+
+<SwLifecycle />
+
+각 단계를 구체적으로 살펴봅시다.
+
+## 등록 (Registration)
+
+SW를 사용하려면 먼저 등록해야 합니다. 페이지의 JavaScript에서 `navigator.serviceWorker.register()`를 호출합니다.
+
+```javascript
+// main.js (페이지의 스크립트)
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js", {
+    scope: "/",
+  });
+}
+```
+
+등록은 SW 파일의 위치를 브라우저에 알려주는 것일 뿐, SW 코드를 실행하는 것은 아닙니다. 브라우저는 SW 파일을 다운로드하고, 파싱한 뒤, 설치 단계로 넘어갑니다.
+
+**스코프**가 중요합니다. SW는 자신의 스코프 내의 페이지만 제어할 수 있습니다. `/sw.js`가 루트에 있으면 전체 사이트를 제어할 수 있지만, `/app/sw.js`에 있으면 `/app/` 하위 경로만 제어합니다. SW 파일의 위치가 곧 최대 스코프입니다.
+
+```javascript
+// /app/sw.js는 /app/ 하위만 제어 가능
+navigator.serviceWorker.register("/app/sw.js");
+// scope를 명시해도 파일 위치보다 넓게 설정할 수 없음
+navigator.serviceWorker.register("/app/sw.js", { scope: "/" }); // 에러!
+```
+
+## 설치 (Install)
+
+브라우저가 SW 파일을 다운로드하면 `install` 이벤트가 발생합니다. 이 단계에서 보통 오프라인에 필요한 리소스를 미리 캐싱합니다.
+
+```javascript
+// sw.js
+const CACHE_NAME = "app-v1";
+const PRECACHE_URLS = ["/", "/styles.css", "/app.js", "/offline.html"];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+  );
+});
+```
+
+`event.waitUntil()`이 핵심입니다. 전달된 Promise가 완료될 때까지 SW가 설치 완료로 넘어가지 않습니다. 캐싱이 실패하면 SW 설치 자체가 실패합니다. 이것은 의도적인 설계입니다. 불완전한 캐시로 동작하는 것보다, 설치를 중단하고 다음 방문에서 재시도하는 것이 낫습니다.
+
+설치가 완료되면 SW는 **대기 상태**(waiting)로 들어갑니다.
+
+## 대기 (Waiting)
+
+이것이 가장 혼란스러운 단계입니다. SW가 설치되었는데 왜 바로 활성화되지 않을까요?
+
+이유는 간단합니다. **기존 SW가 아직 페이지를 제어하고 있기 때문입니다.** 사용자가 여러 탭을 열어두고 있을 수 있습니다. 각 탭은 현재 활성화된 SW에 의해 제어되고 있습니다. 새 SW를 갑자기 활성화하면, 어떤 탭은 구 버전의 코드로 동작하면서 새 SW의 캐시 전략을 받게 되어 불일치가 발생할 수 있습니다.
+
+그래서 브라우저는 **모든 탭이 닫힐 때까지** 새 SW를 대기시킵니다. 기존 SW가 제어하는 클라이언트가 하나도 없어야 새 SW가 활성화됩니다.
+
+이 동작을 건너뛰고 싶다면 `skipWaiting()`을 사용할 수 있습니다.
+
+```javascript
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting()) // 대기 단계 건너뛰기
+  );
+});
+```
+
+`skipWaiting()`은 편리하지만 주의가 필요합니다. 기존 SW로 로드된 페이지가 갑자기 새 SW의 제어를 받게 됩니다. 구 버전의 HTML이 새 버전의 캐시 전략과 만나면 예상치 못한 동작이 발생할 수 있습니다. 이 트레이드오프를 이해하고 사용해야 합니다.
+
+## 활성화 (Activate)
+
+대기가 끝나면 `activate` 이벤트가 발생합니다. 이 단계에서는 주로 이전 버전의 캐시를 정리합니다.
+
+```javascript
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(
+        names
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => caches.delete(name))
+      )
+    )
+  );
+});
+```
+
+활성화가 완료되면 SW는 스코프 내의 모든 페이지를 제어할 수 있습니다. 하지만 **첫 등록 시에는** SW를 등록한 페이지 자체는 제어되지 않습니다. 이미 SW 없이 로드된 페이지이기 때문입니다. 다음 탐색(새로고침 또는 새 페이지 이동)부터 제어가 시작됩니다.
+
+이것도 건너뛰고 싶다면 `clients.claim()`을 사용합니다.
+
+```javascript
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((names) =>
+        Promise.all(
+          names
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => caches.delete(name))
+        )
+      )
+      .then(() => self.clients.claim()) // 즉시 모든 클라이언트 제어
+  );
+});
+```
+
+`skipWaiting()` + `clients.claim()`을 함께 사용하면 새 SW가 즉시 모든 페이지를 제어합니다. 빠르게 적용되지만, 앞서 언급한 버전 불일치 위험을 감수해야 합니다.
+
+## fetch 이벤트
+
+활성화된 SW는 스코프 내의 모든 네트워크 요청에 대해 `fetch` 이벤트를 받습니다. 이것이 SW의 핵심 기능입니다.
+
+```javascript
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      // 캐시에 있으면 캐시 응답, 없으면 네트워크 요청
+      return cached || fetch(event.request);
+    })
+  );
+});
+```
+
+`event.respondWith()`로 응답을 직접 제어합니다. 캐시에서 줄 수도 있고, 네트워크에서 가져올 수도 있고, 완전히 새로운 Response를 만들 수도 있습니다. 다양한 캐싱 전략은 다음 글에서 자세히 다룹니다.
+
+## 업데이트
+
+브라우저는 SW가 제어하는 페이지에 탐색할 때마다 SW 파일을 다시 확인합니다. 기존 SW와 바이트 단위로 비교해서 1바이트라도 다르면 새 SW를 설치합니다.
+
+업데이트 확인은 다음 상황에서 발생합니다.
+
+- 스코프 내 페이지로 탐색할 때
+- `push`, `sync` 같은 이벤트가 발생했을 때 (24시간 이내에 확인하지 않았다면)
+- `registration.update()`를 수동 호출할 때
+
+브라우저는 SW 파일에 대해 **HTTP 캐시를 최대 24시간만** 존중합니다. 24시간이 지나면 `Cache-Control` 헤더와 관계없이 네트워크에서 새로 가져옵니다. 이것은 잘못된 `Cache-Control: max-age=31536000` 설정으로 SW가 영원히 갇히는 상황을 방지하기 위한 안전장치입니다.
+
+```javascript
+// 수동 업데이트 확인
+const registration = await navigator.serviceWorker.ready;
+await registration.update();
+```
+
+## 실무에서의 디버깅
+
+Chrome DevTools의 **Application** 탭에서 SW의 현재 상태를 확인할 수 있습니다.
+
+**Service Workers** 패널에서 확인할 수 있는 것들:
+
+- 현재 활성화된 SW와 대기 중인 SW
+- **Update on reload** 체크박스 — 새로고침마다 SW를 강제 업데이트 (개발 중 유용)
+- **Bypass for network** 체크박스 — SW를 무시하고 네트워크 직접 요청
+- **Unregister** 버튼 — SW를 완전히 제거
+
+**Cache Storage** 패널에서 SW가 저장한 캐시의 내용을 확인하고 삭제할 수 있습니다.
+
+개발 중 가장 흔한 문제는 "코드를 바꿨는데 반영이 안 된다"는 것입니다. 이것은 대부분 대기 상태 때문입니다. DevTools에서 "Update on reload"을 활성화하거나, `skipWaiting()`을 개발 빌드에서만 사용하는 것이 일반적인 해결책입니다.
+
+```javascript
+// 개발 환경에서만 skipWaiting
+self.addEventListener("install", (event) => {
+  if (process.env.NODE_ENV === "development") {
+    self.skipWaiting();
+  }
+  // ...
+});
+```
+
+## 다음 단계
+
+이 글에서는 Service Worker의 라이프사이클을 살펴봤습니다. 등록 → 설치 → 대기 → 활성화라는 단계적 과정이 있고, 각 단계에서 무슨 일이 일어나는지, 왜 그렇게 설계되었는지를 확인했습니다. 핵심은 **안전한 업데이트**입니다. 대기 상태가 존재하는 이유는 버전 불일치를 방지하기 위해서이고, `skipWaiting()`은 이 안전장치를 우회하는 옵션입니다.
+
+다음 글에서는 SW의 가장 강력한 기능인 **캐싱 전략**을 다룹니다. Cache First, Network First, Stale-While-Revalidate 등 다양한 전략이 어떤 상황에 적합한지, 그리고 Workbox를 사용해 이 전략들을 선언적으로 관리하는 방법을 살펴봅니다.

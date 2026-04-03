@@ -73,6 +73,7 @@ import { CpuScheduler } from "@/components/viz/domain/CpuScheduler";
 import { DeadlockDemo } from "@/components/viz/domain/DeadlockDemo";
 import { VirtualMemory } from "@/components/viz/domain/VirtualMemory";
 import { FileSystemIO } from "@/components/viz/domain/FileSystemIO";
+import { SwLifecycle } from "@/components/viz/domain/SwLifecycle";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -149,6 +150,7 @@ export const mdxComponents: MDXComponents = {
   DeadlockDemo,
   VirtualMemory,
   FileSystemIO,
+  SwLifecycle,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">

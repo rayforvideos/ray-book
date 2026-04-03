@@ -72,6 +72,12 @@
     "category": "Browser"
   },
   {
+    "slug": "service-worker-and-pwa",
+    "title": "Service Worker와 PWA",
+    "description": "브라우저와 네트워크 사이의 프록시 — SW 라이프사이클, 오프라인 캐싱, Push, Background Sync, PWA를 시각화합니다",
+    "category": "Browser"
+  },
+  {
     "slug": "data-structures-and-algorithms",
     "title": "자료구조와 알고리즘",
     "description": "데이터를 담고 꺼내는 방법 — 배열, 링크드 리스트, 해시맵, 트리, 그래프, 정렬을 시각화합니다",
