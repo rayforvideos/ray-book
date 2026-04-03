@@ -14,7 +14,7 @@ draft: false
 
 브라우저가 제공하는 저장소는 네 가지입니다. Cookie, localStorage, sessionStorage, IndexedDB. 각각 만들어진 시기와 목적이 다릅니다.
 
-Cookie는 가장 오래된 저장소입니다. 1994년 Netscape에서 장바구니 구현을 위해 도입했습니다. 핵심 특징은 HTTP 요청에 자동으로 포함된다는 점입니다. 이것이 서버와 상태를 공유하는 유일한 클라이언트 저장소인 이유이고, 동시에 [CSRF 공격](/posts/csrf)의 원인이 되는 이유이기도 합니다.
+Cookie는 가장 오래된 저장소입니다. 1994년 Netscape에서 쇼핑 카트 문제를 계기로 범용 상태 관리 메커니즘으로 도입했습니다. 핵심 특징은 HTTP 요청에 자동으로 포함된다는 점입니다. 이것이 서버와 상태를 공유하는 유일한 클라이언트 저장소인 이유이고, 동시에 [CSRF 공격](/posts/csrf)의 원인이 되는 이유이기도 합니다.
 
 Web Storage(localStorage, sessionStorage)는 HTML5에서 도입되었습니다. 쿠키의 용량 제한(~4KB)을 해소하고, 서버로 전송하지 않아도 되는 클라이언트 전용 데이터를 위해 설계되었습니다. 둘의 차이는 수명입니다. localStorage는 명시적으로 삭제할 때까지 유지되고, sessionStorage는 탭을 닫으면 사라집니다.
 

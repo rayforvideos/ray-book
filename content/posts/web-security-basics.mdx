@@ -36,7 +36,7 @@ https://my-app.com:443/page
 
 ## Same-Origin Policy
 
-Same-Origin Policy(SOP)는 한 출처에서 로드된 문서나 스크립트가 다른 출처의 리소스와 상호작용하는 것을 제한하는 브라우저의 보안 메커니즘입니다. 1995년 Netscape Navigator 2.0에서 처음 도입된 이래 모든 브라우저가 구현하고 있습니다.
+Same-Origin Policy(SOP)는 한 출처에서 로드된 문서나 스크립트가 다른 출처의 리소스와 상호작용하는 것을 제한하는 브라우저의 보안 메커니즘입니다. 1996년 Netscape Navigator 2.0에서 처음 도입된 이래 모든 브라우저가 구현하고 있습니다.
 
 SOP가 차단하는 것들을 구체적으로 살펴봅시다.
 
@@ -48,7 +48,7 @@ const frame = document.getElementById("bank-frame");
 frame.contentDocument; // SecurityError: Blocked a frame
 ```
 
-**네트워크 응답 읽기 차단** -- `fetch`나 `XMLHttpRequest`로 다른 출처에 요청을 보낼 수는 있지만, 응답을 JavaScript에서 읽을 수 없습니다. 요청 자체는 서버에 도달합니다. 하지만 브라우저가 응답을 JavaScript에 전달하지 않습니다.
+**네트워크 응답 읽기 차단** -- `fetch`나 `XMLHttpRequest`로 다른 출처에 요청을 보낼 수는 있지만, 응답을 JavaScript에서 읽을 수 없습니다. 단순 요청(simple request)의 경우 요청 자체는 서버에 도달하지만, 브라우저가 응답을 JavaScript에 전달하지 않습니다. 커스텀 헤더나 PUT/DELETE 같은 메서드를 사용하면 브라우저가 먼저 preflight(OPTIONS) 요청을 보내고, 서버가 허용하지 않으면 실제 요청 자체가 전송되지 않습니다.
 
 ```javascript
 // https://evil.com 에서 실행
