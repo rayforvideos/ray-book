@@ -75,6 +75,9 @@ import { VirtualMemory } from "@/components/viz/domain/VirtualMemory";
 import { FileSystemIO } from "@/components/viz/domain/FileSystemIO";
 import { SwLifecycle } from "@/components/viz/domain/SwLifecycle";
 import { SwCacheStrategy } from "@/components/viz/domain/SwCacheStrategy";
+import { PushFlow } from "@/components/viz/domain/PushFlow";
+import { BackgroundSync } from "@/components/viz/domain/BackgroundSync";
+import { PwaManifest } from "@/components/viz/domain/PwaManifest";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -153,6 +156,9 @@ export const mdxComponents: MDXComponents = {
   FileSystemIO,
   SwLifecycle,
   SwCacheStrategy,
+  PushFlow,
+  BackgroundSync,
+  PwaManifest,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">

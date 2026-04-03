@@ -1,0 +1,261 @@
+---
+title: "PWA: 설치 가능한 웹앱"
+description: "Web App Manifest, 설치 프롬프트, 디스플레이 모드 — 네이티브에 가까운 웹앱을 시각화합니다"
+date: 2026-04-03
+tags: ["browser", "pwa", "service-worker", "manifest", "offline"]
+series: "service-worker-and-pwa"
+seriesOrder: 5
+draft: false
+---
+
+## 웹과 네이티브 사이
+
+이 시리즈에서 지금까지 살펴본 것들을 정리하면 이렇습니다. [1편](/posts/service-worker-lifecycle)에서 SW의 라이프사이클을, [2편](/posts/sw-caching-strategies)에서 캐싱 전략을, [3편](/posts/push-notification)에서 Push Notification을, [4편](/posts/background-sync)에서 Background Sync를 다뤘습니다.
+
+이 기능들을 조합하면 웹앱이 네이티브 앱에 상당히 가까워집니다. 오프라인에서 동작하고, 백그라운드에서 데이터를 동기화하고, 서버가 보낸 알림을 받을 수 있습니다. 남은 것은 **앱처럼 설치하고 실행하는 경험**입니다.
+
+PWA(Progressive Web App)는 특정 기술이 아니라 **패턴**입니다. HTTPS + Service Worker + Web App Manifest를 조합해서, 웹앱을 홈 화면에 설치하고, 독립 창에서 실행하고, 네이티브와 유사한 경험을 제공하는 것입니다.
+
+## Web App Manifest
+
+Manifest는 브라우저에게 "이 웹앱을 어떻게 설치하고 표시할지"를 알려주는 JSON 파일입니다.
+
+```json
+{
+  "name": "My Notes",
+  "short_name": "Notes",
+  "description": "간단한 메모 앱",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "/icons/192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
+```
+
+```html
+<!-- HTML에서 manifest 연결 -->
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#4f46e5" />
+```
+
+각 필드의 역할을 살펴봅시다.
+
+<PwaManifest />
+
+## 설치 기준
+
+브라우저마다 PWA 설치 기준이 다르지만, Chrome 기준으로 핵심 조건은 세 가지입니다.
+
+1. **HTTPS**에서 제공 (localhost 예외)
+2. **Service Worker**가 등록되어 있고, `fetch` 이벤트 핸들러가 있음
+3. **Web App Manifest**에 `name`, `icons` (192px, 512px), `start_url`, `display`가 포함
+
+이 조건이 충족되면 브라우저가 설치 배너를 표시하거나, 주소창에 설치 아이콘을 표시합니다.
+
+```javascript
+// 최소한의 SW — 설치 조건을 충족시키기 위해
+self.addEventListener("fetch", (event) => {
+  // 아무것도 하지 않아도 됨 — fetch 핸들러의 존재 자체가 조건
+});
+```
+
+물론 실제로는 [2편](/posts/sw-caching-strategies)에서 다룬 캐싱 전략을 적용해야 의미가 있습니다.
+
+## 설치 프롬프트 커스텀
+
+브라우저의 기본 설치 배너 대신, 앱에 맞는 설치 UI를 만들 수 있습니다.
+
+```javascript
+let deferredPrompt = null;
+
+// 브라우저가 설치 가능하다고 판단하면 이벤트 발생
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault(); // 기본 배너 억제
+  deferredPrompt = event; // 나중에 사용하기 위해 저장
+  showInstallButton(); // 자체 설치 버튼 표시
+});
+
+// 사용자가 설치 버튼을 클릭하면
+async function handleInstallClick() {
+  if (!deferredPrompt) return;
+
+  deferredPrompt.prompt(); // 브라우저 설치 대화상자 표시
+  const { outcome } = await deferredPrompt.userChoice;
+
+  if (outcome === "accepted") {
+    console.log("설치됨");
+  }
+
+  deferredPrompt = null;
+  hideInstallButton();
+}
+
+// 설치 완료 감지
+window.addEventListener("appinstalled", () => {
+  hideInstallButton();
+  // 설치 분석 이벤트 전송
+});
+```
+
+`beforeinstallprompt`를 가로채서 기본 배너를 막고, 적절한 시점에 자체 UI로 설치를 유도합니다. [3편](/posts/push-notification)에서 다룬 Push 권한 요청과 같은 원칙입니다. 맥락이 있는 시점에, 가치를 설명하면서 요청하세요.
+
+```javascript
+// 예: 사용자가 앱을 3회 이상 방문한 후에 설치 제안
+const visits = parseInt(localStorage.getItem("visits") ?? "0") + 1;
+localStorage.setItem("visits", String(visits));
+
+if (visits >= 3 && deferredPrompt) {
+  showInstallBanner("자주 사용하시네요! 홈 화면에 추가하면 더 빠르게 접근할 수 있습니다.");
+}
+```
+
+## 디스플레이 모드
+
+Manifest의 `display` 속성은 설치된 앱이 어떻게 표시되는지를 결정합니다.
+
+| 모드 | 브라우저 UI | 사용 사례 |
+|------|-----------|----------|
+| `browser` | 일반 브라우저 탭 | 기본값, PWA로서의 의미 없음 |
+| `minimal-ui` | 최소한의 탐색 UI (뒤로가기, URL 표시) | 콘텐츠 사이트 |
+| `standalone` | 브라우저 UI 없음, 독립 창 | 대부분의 앱 |
+| `fullscreen` | 상태 표시줄도 없음, 전체 화면 | 게임, 프레젠테이션 |
+
+가장 많이 사용하는 것은 `standalone`입니다. 브라우저의 주소창과 탐색 버튼이 사라지고, 네이티브 앱처럼 독립된 창에서 실행됩니다.
+
+CSS에서 현재 디스플레이 모드를 감지할 수 있습니다.
+
+```css
+/* standalone 모드에서만 적용 */
+@media (display-mode: standalone) {
+  .install-banner {
+    display: none; /* 이미 설치되었으므로 설치 배너 숨김 */
+  }
+}
+```
+
+JavaScript에서도 확인할 수 있습니다.
+
+```javascript
+const isStandalone =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone; // iOS Safari
+
+if (isStandalone) {
+  // 앱 모드 전용 UI 표시
+}
+```
+
+## 아이콘과 스플래시
+
+PWA 아이콘은 두 가지가 필요합니다.
+
+**일반 아이콘** — 홈 화면, 앱 서랍, 작업 표시줄에 표시됩니다. 최소 192x192와 512x512 두 크기가 필요합니다.
+
+**Maskable 아이콘** — Android의 적응형 아이콘 시스템에서 사용됩니다. OS가 원형, 사각형, 모서리 둥근 사각형 등 다양한 형태로 자를 수 있도록, 아이콘의 안전 영역(중앙 80%) 안에 핵심 그래픽을 배치합니다.
+
+```json
+{
+  "icons": [
+    { "src": "/icons/192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
+```
+
+`purpose: "maskable"` 아이콘을 별도로 제공하면 Android에서 다른 앱과 일관된 모양의 아이콘이 표시됩니다.
+
+**스플래시 화면**은 Chrome이 자동으로 생성합니다. Manifest의 `name`, `background_color`, `icons` (512px)를 조합해서 앱 시작 시 표시합니다. 별도로 만들 필요는 없지만, `background_color`와 `theme_color`를 설정하면 더 자연스러운 전환이 됩니다.
+
+## 앱 업데이트
+
+PWA의 업데이트는 SW 업데이트와 동일합니다. [1편](/posts/service-worker-lifecycle)에서 다룬 라이프사이클을 따릅니다. 하지만 standalone 모드에서는 사용자가 새로고침 버튼이 없으므로, 업데이트를 사용자에게 알려줘야 합니다.
+
+```javascript
+// 페이지 코드 — SW 업데이트 감지 후 사용자에게 알림
+const registration = await navigator.serviceWorker.ready;
+
+registration.addEventListener("updatefound", () => {
+  const newWorker = registration.installing;
+
+  newWorker.addEventListener("statechange", () => {
+    if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+      // 새 SW가 대기 중 — 사용자에게 알림
+      showUpdateBanner("새 버전이 있습니다. 지금 업데이트하시겠어요?");
+    }
+  });
+});
+
+function handleUpdateClick() {
+  // 대기 중인 SW에게 skipWaiting 요청
+  navigator.serviceWorker.controller?.postMessage({ type: "SKIP_WAITING" });
+}
+
+// 새 SW가 활성화되면 페이지 새로고침
+navigator.serviceWorker.addEventListener("controllerchange", () => {
+  window.location.reload();
+});
+```
+
+```javascript
+// sw.js — skipWaiting 메시지 처리
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+```
+
+이 패턴은 사용자에게 선택권을 줍니다. 업데이트 배너를 표시하고, 사용자가 동의하면 새 SW를 활성화하고 페이지를 새로고침합니다.
+
+## PWA vs 네이티브
+
+PWA가 할 수 있는 것과 없는 것을 정리합니다.
+
+| 기능 | PWA | 네이티브 |
+|------|-----|---------|
+| 오프라인 동작 | SW 캐싱으로 가능 | 기본 지원 |
+| 홈 화면 설치 | Manifest로 가능 | 앱 스토어 |
+| Push 알림 | Push API (iOS 16.4+) | 기본 지원 |
+| 백그라운드 처리 | 제한적 (SW 수명 한계) | 자유로움 |
+| 파일 시스템 접근 | File System Access API (제한적) | 전체 접근 |
+| 블루투스/NFC/USB | Web Bluetooth 등 (제한적) | 전체 접근 |
+| 앱 스토어 배포 | TWA/PWABuilder로 가능 | 기본 |
+| 자동 업데이트 | SW 업데이트로 즉시 | 스토어 심사 필요 |
+| 설치 용량 | 수 KB~MB | 수십~수백 MB |
+
+PWA의 가장 큰 장점은 **배포의 간편함**입니다. URL 하나로 접근하고, 설치 없이 사용하고, 원하면 설치할 수 있습니다. 업데이트는 서버에 배포하면 끝입니다. 앱 스토어 심사가 필요 없습니다.
+
+가장 큰 한계는 **OS 접근 권한**입니다. 블루투스, NFC, 파일 시스템 같은 하드웨어 접근이 제한적이고, 백그라운드 처리에 SW의 수명 제한이 있습니다. 이런 기능이 핵심인 앱이라면 네이티브가 적합합니다.
+
+## 시리즈 마무리
+
+이 시리즈에서 Service Worker와 PWA의 전체 그림을 살펴봤습니다.
+
+[1편 — 라이프사이클](/posts/service-worker-lifecycle)에서는 SW가 등록, 설치, 대기, 활성화라는 단계를 거치는 이유를 알아봤습니다. 안전한 업데이트를 위한 설계입니다.
+
+[2편 — 캐싱 전략](/posts/sw-caching-strategies)에서는 Precache와 Runtime cache, 다섯 가지 런타임 전략을 살펴봤습니다. 리소스의 성격에 따라 전략을 선택하는 것이 핵심입니다.
+
+[3편 — Push Notification](/posts/push-notification)에서는 서버가 브라우저를 깨우는 흐름과, 권한 요청의 UX를 다뤘습니다.
+
+[4편 — Background Sync](/posts/background-sync)에서는 오프라인 작업의 자동 동기화와 대용량 다운로드의 백그라운드 처리를 살펴봤습니다.
+
+5편인 이 글에서는 Manifest로 앱을 설치 가능하게 만들고, 설치 프롬프트를 커스텀하고, 업데이트를 관리하는 방법을 다뤘습니다.
+
+이 시리즈의 핵심 메시지는 **점진적 향상**입니다. SW가 없어도 앱이 동작해야 합니다. SW가 있으면 오프라인 캐싱이 추가됩니다. Push를 지원하면 알림이 추가됩니다. Manifest가 있으면 설치가 가능합니다. 각 계층이 독립적으로 가치를 더합니다. 이것이 Progressive Web App이라는 이름의 의미입니다.

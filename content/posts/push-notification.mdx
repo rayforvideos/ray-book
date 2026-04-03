@@ -1,0 +1,246 @@
+---
+title: "Push Notification"
+description: "서버가 브라우저를 깨우는 방법 — Push API, 구독 흐름, VAPID, 알림 UX를 시각화합니다"
+date: 2026-04-03
+tags: ["browser", "service-worker", "push", "notification", "pwa"]
+series: "service-worker-and-pwa"
+seriesOrder: 3
+draft: false
+---
+
+## 서버가 브라우저를 "깨운다"
+
+지금까지 살펴본 SW의 기능은 모두 **사용자가 먼저 행동**해야 동작했습니다. 페이지를 열면 SW가 요청을 가로채고, 캐시를 확인합니다. 사용자가 아무것도 하지 않으면 SW도 아무것도 하지 않습니다.
+
+Push Notification은 이 방향을 뒤집습니다. **서버가 먼저** 브라우저에 메시지를 보냅니다. 사용자가 사이트를 열지 않은 상태에서도, 브라우저가 닫혀 있어도(OS 수준에서 백그라운드 프로세스가 살아있다면) 알림을 받을 수 있습니다.
+
+이 기능은 실제로 **두 개의 독립된 API**로 구성됩니다.
+
+- **Push API** -- 서버에서 브라우저로 메시지를 전달하는 메커니즘. SW가 `push` 이벤트를 받습니다.
+- **Notification API** -- 운영체제의 알림 시스템에 알림을 표시하는 API. Push 없이도 단독으로 사용할 수 있습니다.
+
+Push와 Notification은 보통 함께 쓰이지만, 각각 독립적으로 동작합니다. 페이지 내에서 Notification API만 사용해 로컬 알림을 띄울 수도 있고, Push로 받은 데이터를 알림 대신 IndexedDB에 저장할 수도 있습니다.
+
+## 전체 흐름
+
+Push Notification의 전체 흐름을 단계별로 확인해 보세요. 클라이언트, 푸시 서비스, 서버 사이의 상호작용을 추적할 수 있습니다.
+
+<PushFlow />
+
+핵심을 정리하면 이렇습니다. 클라이언트가 구독하면 푸시 서비스의 엔드포인트 URL을 받고, 이 URL을 서버에 전달합니다. 서버는 이 엔드포인트로 메시지를 보내고, 푸시 서비스가 브라우저에 전달하면 SW가 알림을 표시합니다.
+
+## 구독 (Subscribe)
+
+Push를 받으려면 먼저 사용자의 **권한**을 얻고, 푸시 서비스에 **구독**해야 합니다.
+
+```javascript
+// 클라이언트 코드
+async function subscribePush() {
+  // 1. SW가 준비될 때까지 대기
+  const registration = await navigator.serviceWorker.ready;
+
+  // 2. 구독 생성 (권한 요청 포함)
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true, // 사용자에게 보이는 알림만 (필수)
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  });
+
+  // 3. 구독 정보를 서버에 전송
+  await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subscription),
+  });
+}
+```
+
+`subscription` 객체에는 푸시 서비스의 **엔드포인트 URL**과 암호화 **키**가 포함됩니다. 이것을 서버에 저장해 두면, 서버가 이 엔드포인트로 메시지를 보낼 수 있습니다.
+
+```json
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/abc123...",
+  "keys": {
+    "p256dh": "BNcR...",
+    "auth": "tBH..."
+  }
+}
+```
+
+`userVisibleOnly: true`는 현재 사양상 필수입니다. Push를 받으면 반드시 사용자에게 보이는 알림을 표시해야 한다는 약속입니다. 백그라운드에서 조용히 데이터만 동기화하는 "silent push"는 브라우저가 제한합니다.
+
+## VAPID
+
+`applicationServerKey`에 전달하는 것이 **VAPID**(Voluntary Application Server Identification) 키입니다. 서버가 "나는 이 앱의 정당한 서버다"라고 자신을 증명하는 메커니즘입니다.
+
+VAPID는 공개키-개인키 쌍으로 동작합니다.
+
+1. 서버가 키 쌍을 생성합니다 (한 번만).
+2. **공개키**는 클라이언트의 `subscribe()`에 전달됩니다.
+3. **개인키**는 서버에서 푸시 메시지를 보낼 때 JWT 서명에 사용됩니다.
+4. 푸시 서비스는 이 서명을 검증해서, 구독을 만든 서버만 메시지를 보낼 수 있게 합니다.
+
+```bash
+# Node.js에서 VAPID 키 생성
+npx web-push generate-vapid-keys
+```
+
+```text
+Public Key:  BNcRd... (클라이언트에서 사용)
+Private Key: 0GZb2... (서버에서만 사용, 노출 금지)
+```
+
+VAPID가 없으면 엔드포인트 URL을 알기만 하면 누구나 그 사용자에게 Push를 보낼 수 있습니다. VAPID는 이 문제를 해결합니다.
+
+## 서버에서 Push 보내기
+
+서버가 구독 정보와 VAPID 개인키를 사용해 푸시 메시지를 보냅니다. `web-push` 라이브러리가 암호화와 서명을 처리합니다.
+
+```javascript
+// server.js (Node.js)
+import webpush from "web-push";
+
+webpush.setVapidDetails(
+  "mailto:admin@example.com",
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
+
+// 저장된 구독 정보로 Push 전송
+async function sendPush(subscription, data) {
+  try {
+    await webpush.sendNotification(
+      subscription,
+      JSON.stringify(data)
+    );
+  } catch (err) {
+    if (err.statusCode === 410) {
+      // 410 Gone — 구독이 만료됨, DB에서 삭제
+      await removeSubscription(subscription.endpoint);
+    }
+  }
+}
+
+// 사용
+await sendPush(subscription, {
+  title: "새 메시지",
+  body: "김철수님이 댓글을 남겼습니다.",
+  url: "/posts/123",
+});
+```
+
+푸시 메시지는 **암호화**됩니다. 서버와 클라이언트가 구독 시 교환한 키로 페이로드를 암호화하므로, 푸시 서비스(FCM, Mozilla Push Service 등)조차 메시지 내용을 읽을 수 없습니다.
+
+## SW에서 Push 받기
+
+SW가 `push` 이벤트를 받으면 알림을 표시합니다.
+
+```javascript
+// sw.js
+self.addEventListener("push", (event) => {
+  const data = event.data?.json() ?? {};
+
+  event.waitUntil(
+    self.registration.showNotification(data.title ?? "알림", {
+      body: data.body,
+      icon: "/icons/notification-192.png",
+      badge: "/icons/badge-72.png",
+      data: { url: data.url }, // 클릭 시 사용할 데이터
+    })
+  );
+});
+```
+
+`event.waitUntil()`로 알림 표시가 완료될 때까지 SW가 종료되지 않게 합니다. `showNotification`이 반환하는 Promise를 전달하세요.
+
+알림 옵션은 다양합니다.
+
+| 옵션 | 역할 |
+|------|------|
+| `body` | 알림 본문 텍스트 |
+| `icon` | 알림 아이콘 (보통 192x192) |
+| `badge` | 상태바 작은 아이콘 (Android, 보통 72x72) |
+| `image` | 알림에 포함할 큰 이미지 |
+| `actions` | 버튼 배열 (최대 2개, 플랫폼마다 다름) |
+| `tag` | 같은 tag의 알림을 교체 (중복 방지) |
+| `renotify` | `tag`가 같아도 다시 알림 (진동/소리) |
+| `silent` | 소리/진동 없이 표시 |
+| `data` | 클릭 핸들러에서 사용할 임의 데이터 |
+
+## 알림 클릭 처리
+
+사용자가 알림을 클릭하면 `notificationclick` 이벤트가 발생합니다.
+
+```javascript
+// sw.js
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const url = event.notification.data?.url ?? "/";
+
+  event.waitUntil(
+    // 이미 열린 탭이 있으면 포커스, 없으면 새 탭
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      const existing = clients.find((c) => c.url === url);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(url);
+    })
+  );
+});
+```
+
+`clients.matchAll()`로 현재 열린 탭을 확인합니다. 같은 URL의 탭이 이미 있으면 포커스하고, 없으면 새 탭을 엽니다. 이렇게 하면 알림을 클릭할 때마다 새 탭이 쌓이는 것을 방지합니다.
+
+## 권한 요청 UX
+
+Push의 기술적 구현보다 중요한 것이 **권한 요청 타이밍**입니다.
+
+```javascript
+const permission = await Notification.requestPermission();
+// "granted" | "denied" | "default"
+```
+
+사용자가 "denied"를 선택하면 코드로 다시 요청할 수 없습니다. 브라우저 설정에서 직접 변경해야 합니다. 따라서 첫 요청이 매우 중요합니다.
+
+**나쁜 패턴:**
+
+```javascript
+// 페이지 로드 직후 즉시 권한 요청 — 하지 마세요
+window.addEventListener("load", () => {
+  Notification.requestPermission(); // 사용자: "이게 뭔데?" → 거부
+});
+```
+
+사이트에 처음 방문한 사용자에게 아무 맥락 없이 권한을 요청하면 대부분 거부합니다. 한번 거부하면 복구가 어렵습니다.
+
+**좋은 패턴:**
+
+사용자가 알림의 가치를 이해한 시점에 요청합니다. 예를 들어:
+
+- 댓글에 답글이 달렸을 때 "답글 알림을 받으시겠어요?"
+- 배송 상태가 변경될 때 "배송 알림을 켜시겠어요?"
+- 설정 페이지에서 사용자가 직접 알림을 활성화
+
+```javascript
+// 좋은 예: 사용자 행동 이후, 맥락이 있는 시점에 요청
+async function enableNotifications() {
+  // 먼저 자체 UI로 의사 확인
+  const userWants = await showCustomPrompt(
+    "새 댓글이 달리면 알림을 받으시겠어요?"
+  );
+  if (!userWants) return;
+
+  // 사용자가 동의한 후에 브라우저 권한 요청
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    await subscribePush();
+  }
+}
+```
+
+자체 UI로 먼저 의사를 확인하고, 동의한 경우에만 브라우저 권한을 요청합니다. 이렇게 하면 브라우저 권한 요청의 수락률이 높아지고, 사용자가 무엇에 동의하는지 명확히 알 수 있습니다.
+
+## 다음 단계
+
+Push Notification은 서버가 브라우저를 깨울 수 있는 강력한 기능입니다. Push API로 메시지를 전달하고, Notification API로 알림을 표시하며, VAPID로 서버를 인증합니다. 기술적 구현만큼 권한 요청의 타이밍과 UX가 중요합니다.
+
+다음 글에서는 **Background Sync**를 다룹니다. 오프라인에서 수행한 작업을 온라인 복귀 시 자동으로 동기화하는 방법, 그리고 Periodic Background Sync와 Background Fetch를 살펴봅니다.
