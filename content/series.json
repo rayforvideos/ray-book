@@ -94,5 +94,11 @@
     "title": "운영체제 기초",
     "description": "코드가 실행되는 무대 뒤 — 프로세스, 스케줄링, 동기화, 메모리, I/O를 시각화합니다",
     "category": "CS"
+  },
+  {
+    "slug": "frontend-design-patterns",
+    "title": "프론트엔드 디자인 패턴",
+    "description": "프론트엔드 코드에서 자주 만나는 디자인 패턴을 인터랙티브 시각화로 이해합니다",
+    "category": "JavaScript"
   }
 ]
