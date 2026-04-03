@@ -91,7 +91,13 @@ function NodeGraph({ nodes, connections }: { nodes: Node[]; connections: Connect
               dominantBaseline="central"
               className={`${style.text} text-[0.55rem] font-bold`}
             >
-              {node.label}
+              {node.label.includes("\n")
+                ? node.label.split("\n").map((line, i) => (
+                    <tspan key={i} x={node.x} dy={i === 0 ? "-0.5em" : "1.1em"}>
+                      {line}
+                    </tspan>
+                  ))
+                : node.label}
             </text>
           </g>
         );
