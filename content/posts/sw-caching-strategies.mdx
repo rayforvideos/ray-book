@@ -1,0 +1,303 @@
+---
+title: "Service Worker 캐싱 전략"
+description: "Cache First, Network First, Stale-While-Revalidate — 리소스 유형별 최적의 캐싱 전략을 시각화합니다"
+date: 2026-04-03
+tags: ["browser", "service-worker", "cache", "offline", "workbox"]
+series: "service-worker-and-pwa"
+seriesOrder: 2
+draft: false
+---
+
+## 프로그래밍 가능한 캐시
+
+[이전 시리즈](/posts/caching-strategies)에서 HTTP 캐시를 다뤘습니다. `Cache-Control`, `ETag`, 조건부 요청 -- 이것들은 서버가 헤더로 지시하고 브라우저가 자동으로 따르는 방식입니다. 효과적이지만 개발자가 세밀하게 제어할 수 없습니다.
+
+[이전 글](/posts/service-worker-lifecycle)에서 살펴본 Service Worker(SW)는 이 한계를 넘어섭니다. SW는 브라우저와 네트워크 사이의 프록시이므로, 모든 요청에 대해 **어떤 응답을 돌려줄지 직접 결정**할 수 있습니다. 캐시에서 줄지, 네트워크에서 가져올지, 둘을 조합할지 -- 모든 것이 코드입니다.
+
+이 글에서는 SW 캐싱의 두 가지 축을 다룹니다. **Precache**(미리 캐싱)와 **Runtime cache**(실행 중 캐싱), 그리고 Runtime cache의 다섯 가지 전략입니다.
+
+## Precache vs Runtime Cache
+
+SW 캐싱은 크게 두 가지로 나뉩니다.
+
+**Precache (사전 캐싱)** -- SW가 설치될 때 지정된 리소스를 미리 다운로드해 캐시에 저장합니다. 사용자가 해당 리소스를 요청하기 전에 이미 준비되어 있습니다.
+
+```javascript
+// sw.js — install 이벤트에서 사전 캐싱
+const PRECACHE = "precache-v1";
+const PRECACHE_URLS = [
+  "/",
+  "/index.html",
+  "/styles/main.css",
+  "/scripts/app.js",
+  "/images/logo.svg",
+  "/offline.html",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(PRECACHE).then((cache) => cache.addAll(PRECACHE_URLS))
+  );
+});
+```
+
+Precache는 **앱 셸(App Shell)** 패턴의 기반입니다. HTML 틀, CSS, JS, 핵심 이미지 같은 앱의 뼈대를 미리 캐싱해 두면, 오프라인에서도 앱의 구조는 즉시 표시됩니다. 데이터만 네트워크에서 가져오면 됩니다.
+
+Precache의 단점은 설치 시점에 모든 URL을 알고 있어야 한다는 것입니다. 빌드 타임에 URL 목록을 생성하는 것이 일반적입니다.
+
+**Runtime Cache (런타임 캐싱)** -- 사용자가 실제로 요청한 리소스를 그때그때 캐싱합니다. 어떤 리소스가 요청될지 미리 알 수 없는 경우에 사용합니다. API 응답, 사용자가 방문한 페이지, 외부 CDN의 이미지 등이 해당합니다.
+
+```javascript
+// sw.js — fetch 이벤트에서 런타임 캐싱
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        const clone = response.clone();
+        caches.open("runtime-v1").then((cache) => {
+          cache.put(event.request, clone);
+        });
+        return response;
+      });
+    })
+  );
+});
+```
+
+Runtime cache에서 중요한 것은 **전략 선택**입니다. 모든 리소스에 같은 전략을 적용하면 비효율적입니다. 이미지에는 캐시 우선이 적합하고, API 응답에는 네트워크 우선이 적합합니다.
+
+## 다섯 가지 런타임 전략
+
+아래 시각화에서 다섯 가지 캐싱 전략의 요청/응답 흐름을 비교해 보세요. 각 전략이 캐시와 네트워크를 어떤 순서로 사용하는지, 어떤 리소스 유형에 적합한지 확인할 수 있습니다.
+
+<SwCacheStrategy />
+
+각 전략을 구체적으로 살펴봅시다.
+
+## Cache First (캐시 우선)
+
+캐시에 있으면 캐시를 반환합니다. 없을 때만 네트워크를 사용하고, 응답을 캐시에 저장합니다.
+
+```javascript
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  const cache = await caches.open("runtime-v1");
+  cache.put(request, response.clone());
+  return response;
+}
+```
+
+**적합한 리소스:** 자주 변경되지 않는 정적 자산 -- 폰트, 이미지, 해시가 포함된 JS/CSS 파일. 한번 캐싱되면 네트워크 요청이 완전히 사라지므로 가장 빠릅니다.
+
+**주의:** 캐시된 버전이 영원히 사용될 수 있습니다. URL이 변경되지 않는 리소스에만 사용하거나, 캐시 만료 로직을 별도로 구현해야 합니다.
+
+## Network First (네트워크 우선)
+
+네트워크를 먼저 시도합니다. 성공하면 응답을 캐시에 저장하고 반환합니다. 네트워크가 실패하면 캐시를 폴백으로 사용합니다.
+
+```javascript
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    const cache = await caches.open("runtime-v1");
+    cache.put(request, response.clone());
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || new Response("Offline", { status: 503 });
+  }
+}
+```
+
+**적합한 리소스:** 최신 데이터가 중요하지만 오프라인 폴백도 필요한 경우 -- HTML 문서, API 응답, 뉴스 피드. 온라인이면 항상 최신 데이터를 보여주고, 오프라인이면 마지막으로 성공한 응답을 보여줍니다.
+
+**주의:** 네트워크가 느리면 사용자가 응답을 기다려야 합니다. 타임아웃을 설정하는 것이 좋습니다.
+
+```javascript
+async function networkFirstWithTimeout(request, timeoutMs = 3000) {
+  try {
+    const response = await Promise.race([
+      fetch(request),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), timeoutMs)
+      ),
+    ]);
+    const cache = await caches.open("runtime-v1");
+    cache.put(request, response.clone());
+    return response;
+  } catch {
+    return caches.match(request);
+  }
+}
+```
+
+## Stale-While-Revalidate (SWR)
+
+캐시가 있으면 **즉시 캐시를 반환**하면서, **백그라운드에서 네트워크 요청**을 보내 캐시를 갱신합니다.
+
+```javascript
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open("runtime-v1");
+  const cached = await cache.match(request);
+
+  const fetchPromise = fetch(request).then((response) => {
+    cache.put(request, response.clone());
+    return response;
+  });
+
+  return cached || fetchPromise;
+}
+```
+
+**적합한 리소스:** 약간의 지연은 허용되지만 빠른 응답이 중요한 경우 -- 아바타 이미지, 소셜 피드, 자주 업데이트되는 정적 페이지. 사용자는 항상 빠른 응답을 받고, 다음 요청부터 최신 데이터를 봅니다.
+
+**핵심:** 이번 요청에서 보는 것은 이전 캐시입니다. "한 박자 느린" 업데이트를 허용할 수 있는 리소스에 적합합니다.
+
+## Network Only / Cache Only
+
+**Network Only** -- 캐시를 전혀 사용하지 않습니다. 항상 네트워크에서 가져옵니다.
+
+```javascript
+async function networkOnly(request) {
+  return fetch(request);
+}
+```
+
+실시간 결제, 인증, 분석 요청처럼 캐시된 데이터가 의미 없는 경우에 사용합니다.
+
+**Cache Only** -- 네트워크를 전혀 사용하지 않습니다. Precache된 리소스만 반환합니다.
+
+```javascript
+async function cacheOnly(request) {
+  return caches.match(request);
+}
+```
+
+Precache에 포함된 앱 셸 리소스에 사용합니다. Precache가 보장되므로 네트워크가 필요 없습니다.
+
+## 전략 선택 가이드
+
+리소스의 성격에 따라 전략을 조합합니다.
+
+| 리소스 유형 | 전략 | 이유 |
+|------------|------|------|
+| 앱 셸 (HTML 틀, 핵심 CSS/JS) | Precache + Cache Only | 설치 시 확보, 항상 즉시 응답 |
+| 해시된 정적 자산 (`app.a1b2.js`) | Cache First | URL이 곧 버전, 캐시 무효화 불필요 |
+| CDN 이미지, 폰트 | Cache First | 변경 빈도 낮음, 빠른 응답 우선 |
+| HTML 페이지 | Network First | 최신 콘텐츠 우선, 오프라인 폴백 |
+| API 응답 (목록, 피드) | Network First / SWR | 데이터 특성에 따라 선택 |
+| 아바타, 프로필 이미지 | SWR | 빠른 표시 우선, 백그라운드 갱신 |
+| 결제, 인증 API | Network Only | 캐시된 응답이 위험 |
+
+실제 SW에서는 URL 패턴으로 전략을 분기합니다.
+
+```javascript
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // 같은 출처의 정적 자산 — Cache First
+  if (url.origin === self.location.origin && url.pathname.match(/\.(js|css|png|svg|woff2)$/)) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // API 요청 — Network First
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  // HTML — Network First with timeout
+  if (request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(networkFirstWithTimeout(request));
+    return;
+  }
+
+  // 나머지 — SWR
+  event.respondWith(staleWhileRevalidate(request));
+});
+```
+
+## 캐시 버전 관리
+
+캐시는 명시적으로 삭제하지 않으면 영원히 남습니다. 앱을 업데이트할 때 이전 버전의 캐시를 정리해야 합니다.
+
+```javascript
+const CURRENT_CACHES = ["precache-v2", "runtime-v2"];
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(
+        names
+          .filter((name) => !CURRENT_CACHES.includes(name))
+          .map((name) => caches.delete(name))
+      )
+    )
+  );
+});
+```
+
+캐시 이름에 버전을 포함하고, `activate` 이벤트에서 현재 버전이 아닌 캐시를 모두 삭제합니다. 이렇게 하면 SW 업데이트 시 자연스럽게 캐시가 교체됩니다.
+
+## Workbox
+
+지금까지 살펴본 전략들을 직접 구현하면 코드가 길어지고, 엣지 케이스 처리가 번거롭습니다. Google의 **Workbox**는 이 전략들을 선언적으로 관리하는 라이브러리입니다.
+
+```javascript
+import { precacheAndRoute } from "workbox-precaching";
+import { registerRoute } from "workbox-routing";
+import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from "workbox-strategies";
+import { ExpirationPlugin } from "workbox-expiration";
+
+// Precache — 빌드 타임에 URL 목록이 주입됨
+precacheAndRoute(self.__WB_MANIFEST);
+
+// 이미지 — Cache First + 30일 만료 + 최대 60개
+registerRoute(
+  ({ request }) => request.destination === "image",
+  new CacheFirst({
+    cacheName: "images",
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+    ],
+  })
+);
+
+// API — Network First + 5분 만료
+registerRoute(
+  ({ url }) => url.pathname.startsWith("/api/"),
+  new NetworkFirst({
+    cacheName: "api",
+    plugins: [
+      new ExpirationPlugin({ maxAgeSeconds: 5 * 60 }),
+    ],
+  })
+);
+
+// 페이지 — SWR
+registerRoute(
+  ({ request }) => request.mode === "navigate",
+  new StaleWhileRevalidate({ cacheName: "pages" })
+);
+```
+
+Workbox의 장점은 명확합니다.
+
+- **선언적 라우팅** -- URL 패턴과 전략을 매칭하는 코드가 간결합니다.
+- **플러그인 시스템** -- 캐시 만료, 최대 항목 수, 캐시 가능한 응답 필터링 등을 플러그인으로 조합합니다.
+- **Precache 자동화** -- 빌드 도구(Webpack, Vite 등)와 연동해 `self.__WB_MANIFEST`에 URL 목록을 자동 주입합니다.
+- **검증된 엣지 케이스 처리** -- opaque 응답, 할당량 초과, 네트워크 타임아웃 등을 이미 처리합니다.
+
+직접 구현해서 동작 원리를 이해한 뒤, 프로덕션에서는 Workbox를 사용하는 것이 실용적입니다.
+
+## 다음 단계
+
+이 글에서는 SW 캐싱의 두 축(Precache/Runtime)과 다섯 가지 런타임 전략을 살펴봤습니다. 리소스의 성격에 따라 적절한 전략을 선택하는 것이 핵심이고, Workbox를 사용하면 이를 선언적으로 관리할 수 있습니다.
+
+다음 글에서는 **Push Notification**을 다룹니다. 사용자가 브라우저를 열지 않아도 서버가 메시지를 보낼 수 있는 Push API의 동작 원리, 구독 흐름, 그리고 권한 요청의 UX를 살펴봅니다.
