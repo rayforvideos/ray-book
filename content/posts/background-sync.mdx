@@ -214,11 +214,11 @@ Background Fetch의 특징:
 
 이 글에서 다룬 세 API 모두 브라우저 지원이 제한적입니다.
 
-| API | Chrome | Firefox | Safari |
-|-----|--------|---------|--------|
-| Background Sync | 지원 | 미지원 | 미지원 |
-| Periodic Background Sync | 지원 | 미지원 | 미지원 |
-| Background Fetch | 지원 | 미지원 | 미지원 |
+| API | Chrome | Edge | Firefox | Safari |
+|-----|--------|------|---------|--------|
+| Background Sync | 지원 | 지원 (Chromium) | 미지원 | 미지원 |
+| Periodic Background Sync | 지원 | 지원 (Chromium) | 미지원 | 미지원 |
+| Background Fetch | 지원 | 지원 (Chromium) | 미지원 | 미지원 |
 
 따라서 **점진적 향상**(progressive enhancement) 패턴이 필수입니다. API가 있으면 사용하고, 없으면 기존 방식으로 동작합니다.
 
