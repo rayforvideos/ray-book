@@ -365,6 +365,23 @@ const terms: Record<string, TermDef> = {
     description: "Starvation. 우선순위가 낮은 프로세스가 높은 우선순위 프로세스에 밀려 무한히 실행되지 못하는 상태. 에이징(Aging) 기법으로 해결합니다.",
     analogy: "항상 새치기당하는 줄서기와 비슷합니다 -- 뒤에서 계속 기다리기만 합니다.",
   },
+  "design-pattern": {
+    title: "디자인 패턴",
+    emoji: "🧩",
+    description: "소프트웨어 설계에서 자주 발생하는 문제에 대한 재사용 가능한 해결책. GoF(Gang of Four)가 정리한 23개 패턴이 대표적입니다.",
+  },
+  "observer-pattern": {
+    title: "옵저버 패턴",
+    emoji: "👀",
+    description: "객체의 상태가 변경될 때, 의존하는 모든 객체에게 자동으로 알림을 보내는 디자인 패턴. Subject(관찰 대상)와 Observer(관찰자)로 구성됩니다.",
+    analogy: "유튜브 구독과 비슷합니다 — 채널(Subject)에 새 영상이 올라오면 구독자(Observer) 전원에게 알림이 갑니다.",
+  },
+  "pub-sub": {
+    title: "Pub/Sub 패턴",
+    emoji: "📡",
+    description: "Publisher와 Subscriber가 서로를 직접 알지 못하고, 중간의 Event Channel을 통해 메시지를 주고받는 패턴. Observer 패턴보다 결합도가 더 낮습니다.",
+    analogy: "라디오 방송과 비슷합니다 — 방송국(Publisher)은 청취자가 누구인지 모르고, 청취자(Subscriber)도 방송국의 내부를 모릅니다. 주파수(Channel)만 맞추면 됩니다.",
+  },
 };
 
 interface TermProps {
