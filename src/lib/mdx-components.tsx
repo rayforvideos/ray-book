@@ -78,6 +78,7 @@ import { SwCacheStrategy } from "@/components/viz/domain/SwCacheStrategy";
 import { PushFlow } from "@/components/viz/domain/PushFlow";
 import { BackgroundSync } from "@/components/viz/domain/BackgroundSync";
 import { PwaManifest } from "@/components/viz/domain/PwaManifest";
+import { ObserverPubSub } from "@/components/viz/domain/ObserverPubSub";
 import { Term } from "@/components/viz/primitives/Term";
 
 export const mdxComponents: MDXComponents = {
@@ -159,6 +160,7 @@ export const mdxComponents: MDXComponents = {
   PushFlow,
   BackgroundSync,
   PwaManifest,
+  ObserverPubSub,
   Term,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
