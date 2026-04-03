@@ -45,7 +45,7 @@ XHR과 fetch의 핵심 차이를 정리하면 이렇습니다:
 | 바디 처리 | responseText, responseXML | json(), text(), blob(), arrayBuffer() |
 | 스트리밍 | 제한적 | ReadableStream |
 | 요청 취소 | xhr.abort() | AbortController |
-| 쿠키 | 항상 전송 | credentials 옵션으로 제어 |
+| 쿠키 | same-origin 시 자동, cross-origin 시 `withCredentials` 필요 | credentials 옵션으로 제어 |
 
 ## fetch 라이프사이클
 

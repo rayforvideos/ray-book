@@ -41,7 +41,7 @@ DOM Tree + CSSOM Tree
 }
 ```
 
-중요한 점은 `display: none`이 상속된다는 것입니다. 부모가 `display: none`이면 자식이 `display: block`을 명시해도 렌더 트리에 포함되지 않습니다.
+중요한 점은 부모에 `display: none`이 적용되면 자식도 렌더 트리에서 제외된다는 것입니다. 이것은 CSS 상속이 아니라, 부모의 박스 자체가 생성되지 않기 때문입니다. 부모가 `display: none`이면 자식이 `display: block`을 명시해도 렌더 트리에 포함되지 않습니다.
 
 ## 렌더 트리에 추가되는 것들
 

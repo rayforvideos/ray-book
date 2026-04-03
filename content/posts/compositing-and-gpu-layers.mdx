@@ -184,7 +184,8 @@ opacity 변경:         스타일 >                              합성
   will-change: transform;
 }
 
-/* 좋음: 필요한 시점에만 힌트 */
+/* 주의: :hover 시점에 will-change를 적용하면 레이어 승격 비용이 hover와 동시에 발생합니다.
+   가능하면 부모의 hover나 JavaScript로 미리 설정하는 것이 좋습니다. */
 .card {
   transition: transform 0.3s;
 }

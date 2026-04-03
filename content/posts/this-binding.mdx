@@ -99,6 +99,16 @@ const ray = new User("Ray");
 
 `new`로 호출하면 **새로 생성된 빈 객체** 가 this가 됩니다.
 
+단, 생성자 함수가 명시적으로 **객체를 반환**하면 그 객체가 대신 사용됩니다. 원시값을 반환하면 무시되고 새 객체가 사용됩니다.
+
+```javascript
+function Odd() {
+  this.name = "original";
+  return { name: "override" }; // 객체 반환 → 이것이 사용됨
+}
+new Odd(); // { name: "override" }
+```
+
 ## 우선순위
 
 여러 규칙이 충돌할 때:

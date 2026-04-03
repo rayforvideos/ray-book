@@ -56,7 +56,7 @@ GC가 실행되면:
 
 Minor GC에서 살아남은 객체는 Old Generation으로 승격됩니다. 승격 기준:
 
-- Minor GC에서 **한 번** 살아남은 경우 (From → To로 복사된 후, 다음 GC에서 승격)
+- To-space로 한 번 복사된 적이 있는 객체가 다시 Minor GC를 만나면 Old Generation으로 승격됩니다.
 - To-space의 사용률이 **일정 임계값을 초과** 할 때 (V8 버전에 따라 다름)
 
 ## Major GC — Mark-Sweep-Compact

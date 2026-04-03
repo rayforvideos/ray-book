@@ -187,7 +187,7 @@ getBoundingClientRect()
 
 ### DocumentFragment — 배치 DOM 삽입
 
-여러 요소를 DOM에 추가할 때, 매번 직접 추가하면 매 삽입마다 레이아웃이 발생할 수 있습니다:
+여러 요소를 DOM에 추가할 때, 현대 브라우저는 동기 코드 블록 내의 DOM 변경을 배치(batch) 처리하므로, 연속된 `appendChild`만으로는 매번 레이아웃이 발생하지 않습니다. 하지만 `DocumentFragment`를 사용하면 DOM 트리 변경 횟수가 줄어들고, 코드 의도도 명확해집니다:
 
 ```javascript
 // ❌ N번의 DOM 수정 → 잠재적으로 N번의 레이아웃

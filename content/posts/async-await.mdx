@@ -115,6 +115,20 @@ async function loadData() {
 
 동기 코드와 동일한 에러 처리 패턴입니다. `if (err)` 체크도, `.catch()` 체인도 필요 없습니다.
 
+```javascript
+// 주의: return과 return await의 차이
+async function getUser() {
+  try {
+    return await fetchUser(); // catch가 에러를 잡음
+    // return fetchUser();    // catch가 에러를 잡지 못함!
+  } catch (err) {
+    return defaultUser;
+  }
+}
+```
+
+`try` 블록 안에서 `return promise`는 catch를 거치지 않고 그대로 반환됩니다. 에러를 잡으려면 `return await promise`를 사용해야 합니다.
+
 <AsyncAwait preset="error-handling" />
 
 ### finally도 동일하게
@@ -193,12 +207,12 @@ async function example() {
 
 // 엔진이 이해하는 형태 (개념적)
 function example() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     console.log("A");
     fetchData().then((val) => {
       console.log("B", val);
       resolve(val);
-    });
+    }).catch(reject);
   });
 }
 ```

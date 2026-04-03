@@ -200,9 +200,9 @@ BigInt의 형변환 규칙은 이 시리즈의 지식을 적용하면 이해할 
 String(42n)        // "42"
 `${42n}`           // "42"
 
-// ToNumber — 불가
-Number(42n)        // TypeError!
-+42n               // TypeError! — 단항 +도 불가
+// ToNumber
+Number(42n)        // 42 — Number() 함수는 정상 변환
++42n               // TypeError! — 단항 +는 BigInt에 사용 불가
 
 // ToBoolean — 0n만 falsy
 Boolean(0n)        // false

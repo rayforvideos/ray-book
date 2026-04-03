@@ -113,7 +113,7 @@ export function greetB() { return 'Hello from B'; }
 console.log(greetA()); // "Hello from A" — 정상!
 ```
 
-`function` 선언은 호이스팅되므로, 평가 순서와 관계없이 사용할 수 있습니다. 반면 `const`, `let`, 화살표 함수는 호이스팅되지 않습니다.
+`function` 선언은 호이스팅되므로, 평가 순서와 관계없이 사용할 수 있습니다. 반면 `const`, `let`, 화살표 함수는 호이스팅되지만 TDZ(Temporal Dead Zone)에 의해 초기화 전에는 접근할 수 없습니다.
 
 ## CJS vs ESM 순환 참조 비교
 

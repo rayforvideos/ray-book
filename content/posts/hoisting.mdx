@@ -101,8 +101,8 @@ console.log(x); // 1
 ```
 
 생성 단계에서:
-1. `var x` → `undefined`로 등록
-2. `function x` → 함수 객체로 등록 (var를 덮어씀)
+1. `function x` → 함수 객체로 등록
+2. `var x` → 이미 `x`가 존재하므로 무시 (no-op)
 
 실행 단계에서:
 1. `x = 1` → 함수를 1로 덮어씀

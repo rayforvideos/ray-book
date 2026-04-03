@@ -89,6 +89,8 @@ promise.catch((reason) => {
 
 `.catch(fn)`은 `.then(undefined, fn)`의 축약형입니다. 체인 어디에서든 발생한 에러를 잡습니다.
 
+다만 실전에서 중요한 차이가 있습니다. `.then(onFulfilled).catch(onRejected)`는 `onFulfilled` 내부에서 발생한 에러도 잡지만, `.then(onFulfilled, onRejected)`에서 `onRejected`는 같은 `.then`의 `onFulfilled`에서 발생한 에러를 잡지 못합니다.
+
 ### finally
 
 ```javascript

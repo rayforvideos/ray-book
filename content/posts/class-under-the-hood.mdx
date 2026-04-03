@@ -83,6 +83,20 @@ OldDog.prototype.bark = function() {};
 Object.keys(OldDog.prototype); // ["bark"]
 ```
 
+### 4. 호이스팅 차이
+
+함수 선언은 완전히 호이스팅되지만, class 선언은 `let`/`const`처럼 TDZ(Temporal Dead Zone)에 놓여 선언 전에 사용할 수 없습니다.
+
+```javascript
+// 함수 선언 — 호이스팅됨
+const dog = new OldDog(); // 동작함
+function OldDog() {}
+
+// class 선언 — TDZ
+const dog2 = new NewDog(); // ReferenceError!
+class NewDog {}
+```
+
 ## extends — 상속
 
 ```javascript

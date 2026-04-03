@@ -76,7 +76,7 @@ Worker는 브라우저 환경이지만 **DOM에 접근할 수 없습니다**. Wo
 
 Worker에서 **사용 가능한** API (MDN Web Workers API 기준):
 - `fetch`, `XMLHttpRequest`
-- `setTimeout`, `setInterval`, `requestAnimationFrame`
+- `setTimeout`, `setInterval`, `requestAnimationFrame` (OffscreenCanvas 사용 시에만)
 - `WebSocket`
 - `IndexedDB`, `Cache API`
 - `crypto`, `navigator`

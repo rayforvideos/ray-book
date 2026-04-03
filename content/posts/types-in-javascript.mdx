@@ -140,7 +140,7 @@ date instanceof Object // true — Date도 Object의 인스턴스
 
 ### Object.prototype.toString
 
-가장 정확한 타입 확인 방법입니다. 내부 `[[Class]]` 태그를 반환합니다.
+가장 정확한 타입 확인 방법입니다. 내부 태그를 반환합니다. ES5에서는 `[[Class]]` 내부 슬롯이었으나, ES6부터는 `Symbol.toStringTag`로 커스텀할 수 있습니다.
 
 ```javascript
 Object.prototype.toString.call(42)        // "[object Number]"
@@ -154,7 +154,7 @@ Object.prototype.toString.call(/regex/)   // "[object RegExp]"
 
 ## Falsy와 Truthy
 
-JavaScript에서 boolean 컨텍스트 (if, &&, || 등) 에서 값은 truthy 또는 falsy로 평가됩니다. **정확히 8개의 falsy 값** 이 있고, 나머지는 모두 truthy입니다.
+JavaScript에서 boolean 컨텍스트 (if, &&, || 등) 에서 값은 truthy 또는 falsy로 평가됩니다. **8개의 falsy 값** 이 있고, 나머지는 모두 truthy입니다.
 
 ```javascript
 // 8개의 falsy 값
@@ -167,6 +167,8 @@ null
 undefined
 NaN
 ```
+
+> 브라우저 환경에서는 `document.all`이 추가적인 falsy 값으로 동작합니다 (HTML 명세의 역사적 예외).
 
 흔한 실수: 빈 배열 `[]`과 빈 객체 `{}`는 **truthy** 입니다. 객체는 항상 truthy입니다.
 
