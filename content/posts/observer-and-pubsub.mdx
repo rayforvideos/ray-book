@@ -1,0 +1,310 @@
+---
+title: "Observer와 Pub/Sub — 이벤트 기반 소통"
+description: "상태 변경을 자동으로 전파하는 Observer 패턴과 완전한 디커플링을 제공하는 Pub/Sub 패턴을 시각화합니다"
+date: 2026-04-03
+tags: ["design-pattern", "observer", "pub-sub", "event-driven"]
+series: "frontend-design-patterns"
+seriesOrder: 1
+draft: false
+---
+
+## 문제: 상태 변경을 어떻게 전파할까?
+
+쇼핑몰을 만들고 있다고 해봅시다. 사용자가 장바구니에 아이템을 추가하면 여러 곳이 동시에 업데이트되어야 합니다 — 헤더의 배지 숫자, 합계 금액, 추천 상품 목록.
+
+가장 직관적인 방법은 `addItem` 안에서 모든 업데이트를 직접 호출하는 것입니다:
+
+```javascript
+// 직접 호출 — 직관적이지만 문제가 많습니다
+class Cart {
+  addItem(item) {
+    this.items.push(item);
+
+    // 모든 UI를 직접 업데이트
+    header.updateBadge(this.items.length);
+    totalPrice.recalculate(this.items);
+    recommend.refresh(this.items);
+  }
+}
+```
+
+동작은 합니다. 하지만 이 코드에는 세 가지 심각한 문제가 있습니다:
+
+1. **결합도 폭발** — `Cart`가 `header`, `totalPrice`, `recommend`를 모두 알아야 합니다. 장바구니가 UI 전체에 의존하는 셈입니다.
+2. **수정의 연쇄** — 위시리스트 기능을 추가하면? `addItem`을 또 수정해야 합니다. 쿠폰 계산기를 붙이면? 또 수정. 기능이 늘어날수록 `addItem`이 비대해집니다.
+3. **테스트 어려움** — `Cart`를 테스트하려면 `header`, `totalPrice`, `recommend`를 모두 준비해야 합니다. 장바구니 로직만 테스트하고 싶은데 UI 전체가 필요합니다.
+
+이 문제를 해결하는 것이 <Term id="design-pattern">디자인 패턴</Term> 중 하나인 Observer 패턴입니다.
+
+## Observer 패턴
+
+GoF의 정의를 한 줄로 요약하면 이렇습니다:
+
+> "객체 사이에 1:N 의존 관계를 정의하여, 한 객체의 상태가 변경되면 의존 객체 모두에게 자동 통지한다."
+
+<Term id="observer-pattern">옵저버 패턴</Term>의 핵심 구조는 두 가지입니다:
+
+- **Subject** (관찰 대상) — 상태를 가지고 있으며, Observer 목록을 관리합니다. `subscribe`, `unsubscribe`, `notify` 메서드를 제공합니다.
+- **Observer** (관찰자) — Subject의 상태 변화에 반응합니다. `update` 메서드를 구현합니다.
+
+아래 시각화에서 Subject가 Observer들에게 상태 변경을 전파하는 과정을 확인하세요:
+
+<ObserverPubSub preset="basic" />
+
+### Before/After
+
+아까의 직접 호출 코드를 Observer 패턴으로 바꿔봅시다.
+
+**Before — 직접 결합:**
+
+```javascript
+class Cart {
+  addItem(item) {
+    this.items.push(item);
+    header.updateBadge(this.items.length);
+    totalPrice.recalculate(this.items);
+    recommend.refresh(this.items);
+  }
+}
+```
+
+**After — Observer 패턴:**
+
+```javascript
+// Subject (관찰 대상)
+class CartSubject {
+  constructor() {
+    this.observers = [];
+    this.items = [];
+  }
+
+  subscribe(observer) {
+    this.observers.push(observer);
+  }
+
+  unsubscribe(observer) {
+    this.observers = this.observers.filter(obs => obs !== observer);
+  }
+
+  notify(data) {
+    this.observers.forEach(obs => obs.update(data));
+  }
+
+  addItem(item) {
+    this.items.push(item);
+    this.notify({ items: this.items, action: 'add', item });
+  }
+}
+
+// Observer (관찰자)
+const headerBadge = {
+  update({ items }) {
+    document.querySelector('.badge').textContent = items.length;
+  }
+};
+
+const totalPrice = {
+  update({ items }) {
+    const sum = items.reduce((acc, i) => acc + i.price, 0);
+    document.querySelector('.total').textContent = `${sum.toLocaleString()}원`;
+  }
+};
+
+// 사용
+const cart = new CartSubject();
+cart.subscribe(headerBadge);
+cart.subscribe(totalPrice);
+cart.addItem({ name: '키보드', price: 89000 });
+// → headerBadge.update() 자동 호출
+// → totalPrice.update() 자동 호출
+```
+
+달라진 점을 주목하세요. 장바구니는 배지나 합계가 존재하는지 **모릅니다**. 그저 "내 상태가 바뀌었다"고 알릴 뿐이고, 각 Observer가 스스로 반응합니다. 새 기능을 추가할 때도 `addItem`을 수정할 필요가 없습니다 — 새 Observer를 만들어서 `subscribe`만 하면 됩니다.
+
+```javascript
+// 새 기능 추가 — Cart 코드는 전혀 건드리지 않음
+const couponCalculator = {
+  update({ items }) {
+    const total = items.reduce((acc, i) => acc + i.price, 0);
+    if (total > 100000) showCouponBanner();
+  }
+};
+
+cart.subscribe(couponCalculator);
+```
+
+## DOM에서의 Observer
+
+사실 이 패턴은 낯선 것이 아닙니다. 브라우저의 `addEventListener`가 바로 Observer 패턴입니다.
+
+- `EventTarget` 인터페이스 = **Subject**
+- 등록된 이벤트 핸들러 = **Observer**
+- 이벤트 발생 = **notify**
+
+```javascript
+// DOM의 Observer 패턴
+const button = document.querySelector('#submit');
+
+// Observer 등록 (subscribe)
+button.addEventListener('click', validateForm);
+button.addEventListener('click', showSpinner);
+button.addEventListener('click', sendAnalytics);
+
+// Subject의 상태 변경 (사용자 클릭) → 모든 Observer에게 통지
+// button은 validateForm, showSpinner, sendAnalytics가 뭘 하는지 모릅니다
+```
+
+`button`은 클릭이 발생했다는 사실만 알리고, 각 핸들러가 자신의 역할을 수행합니다. 폼 검증을 제거하고 싶으면 `removeEventListener`로 구독을 해제하면 됩니다 — 다른 핸들러에 영향을 주지 않습니다.
+
+이미 매일 쓰고 있던 패턴인 셈입니다.
+
+## Pub/Sub — 완전한 디커플링
+
+Observer 패턴에는 한 가지 제약이 있습니다. Subject가 Observer 목록을 **직접 관리**한다는 것입니다. Subject는 Observer들의 레퍼런스를 가지고 있고, 누가 구독 중인지 알고 있습니다.
+
+<Term id="pub-sub">Pub/Sub</Term> (Publish/Subscribe) 패턴은 여기서 한 단계 더 나아갑니다. Publisher와 Subscriber 사이에 **메시지 브로커** (또는 이벤트 버스)를 두어 양쪽이 서로를 전혀 모르게 만듭니다.
+
+| | Observer | Pub/Sub |
+|---|---------|---------|
+| 구조 | Subject ↔ Observer | Publisher → Broker ← Subscriber |
+| 관계 | Subject가 Observer를 직접 앎 | 양쪽 모두 상대를 모름 |
+
+아래 시각화에서 Pub/Sub의 메시지 브로커가 어떻게 중계하는지 확인하세요:
+
+<ObserverPubSub preset="pubsub" />
+
+### EventBus 구현
+
+간단한 EventBus를 직접 만들어 봅시다:
+
+```javascript
+class EventBus {
+  constructor() {
+    this.listeners = {};
+  }
+
+  on(event, callback) {
+    (this.listeners[event] ??= []).push(callback);
+  }
+
+  off(event, callback) {
+    this.listeners[event] = this.listeners[event]?.filter(cb => cb !== callback);
+  }
+
+  emit(event, data) {
+    this.listeners[event]?.forEach(cb => cb(data));
+  }
+}
+
+// 사용 — Publisher와 Subscriber가 서로를 모릅니다
+const bus = new EventBus();
+
+// Subscriber: 로그인 이벤트에 관심
+bus.on('user:login', (user) => updateHeader(user));
+bus.on('user:login', (user) => loadPreferences(user));
+
+// Publisher: 로그인 성공 시 이벤트 발행
+async function login(credentials) {
+  const user = await api.login(credentials);
+  bus.emit('user:login', user);
+  // Publisher는 누가 듣고 있는지 모릅니다
+}
+```
+
+Observer 패턴과의 핵심 차이를 다시 정리하면:
+
+- **Observer** — `cart.subscribe(headerBadge)` → Subject인 cart가 headerBadge를 직접 알고 있음
+- **Pub/Sub** — `bus.on('user:login', updateHeader)` → Publisher(login 함수)와 Subscriber(updateHeader)가 서로 모름. 오직 이벤트 이름(`'user:login'`)으로만 연결됨
+
+## 프론트엔드 실전 사례
+
+이 두 패턴은 프론트엔드 생태계 곳곳에서 사용됩니다.
+
+### 1. CustomEvent (브라우저 내장)
+
+브라우저의 `CustomEvent`는 내장 Pub/Sub 시스템입니다. DOM 이벤트 버블링을 활용하여 컴포넌트 간 통신에 사용할 수 있습니다.
+
+```javascript
+// 발행
+element.dispatchEvent(new CustomEvent('cart:update', {
+  detail: { items },
+  bubbles: true
+}));
+
+// 구독
+document.addEventListener('cart:update', (e) => {
+  console.log(e.detail.items);
+});
+```
+
+`bubbles: true`를 설정하면 이벤트가 DOM 트리를 타고 올라가므로, 발행 요소의 상위 어디서든 구독할 수 있습니다.
+
+### 2. Redux Store의 subscribe
+
+Redux의 Store는 전형적인 Observer 패턴입니다. `dispatch`로 상태를 변경하면, 등록된 모든 subscriber에게 통지합니다.
+
+```javascript
+const unsubscribe = store.subscribe(() => {
+  const state = store.getState();
+  renderUI(state);
+});
+// store.dispatch(action) → 모든 subscriber에게 통지
+```
+
+React-Redux의 `useSelector`도 내부적으로 `store.subscribe`를 사용합니다. 컴포넌트가 store를 구독하고, 관심 있는 상태가 바뀌면 리렌더링하는 구조입니다.
+
+### 3. Node.js EventEmitter
+
+Node.js의 `EventEmitter`는 Pub/Sub 패턴의 대표적 구현입니다. Stream, HTTP 서버 등 Node.js의 핵심 모듈이 모두 EventEmitter를 상속합니다.
+
+```javascript
+import { EventEmitter } from 'events';
+const emitter = new EventEmitter();
+emitter.on('data', chunk => process(chunk));
+emitter.emit('data', buffer);
+```
+
+프론트엔드에서 직접 사용할 일은 적지만, Webpack의 플러그인 시스템이나 SSR 서버에서 자주 만나게 됩니다.
+
+## 언제 Observer, 언제 Pub/Sub?
+
+두 패턴의 차이를 표로 정리합니다:
+
+| | Observer | Pub/Sub |
+|---|---------|---------|
+| **결합도** | Subject가 Observer를 앎 | 완전 분리 |
+| **타입 안전성** | 높음 (인터페이스 강제) | 낮음 (문자열 이벤트명) |
+| **디버깅** | 추적 쉬움 | 추적 어려움 |
+| **사용 시점** | 1:N 관계가 명확할 때 | 모듈 간 통신, 이벤트 시스템 |
+
+**Observer를 선택하세요** — Subject와 Observer 사이의 관계가 명확하고, 타입 안전성이 중요할 때. React의 상태 관리나 MobX가 이 경우입니다.
+
+**Pub/Sub를 선택하세요** — 서로 다른 모듈이 느슨하게 소통해야 할 때. 마이크로 프론트엔드 간 통신이나 분석 이벤트 시스템이 이 경우입니다. 다만 이벤트가 어디서 발행되고 어디서 소비되는지 추적하기 어려우므로, 이벤트 네이밍 규칙과 문서화에 신경 쓰세요.
+
+### 주의할 점
+
+두 패턴 모두 공통적인 함정이 있습니다:
+
+```javascript
+// 메모리 누수 — 구독 해제를 잊으면 Observer가 GC되지 않음
+class Component {
+  mount() {
+    cart.subscribe(this);  // 구독
+  }
+  unmount() {
+    cart.unsubscribe(this);  // 반드시 해제!
+  }
+}
+
+// EventBus도 마찬가지
+const handler = (data) => updateUI(data);
+bus.on('update', handler);
+// 컴포넌트 제거 시
+bus.off('update', handler);  // 반드시 해제!
+```
+
+구독을 등록했으면 **반드시 해제**하세요. 이를 잊으면 이미 화면에서 사라진 컴포넌트가 계속 이벤트를 받아 메모리 누수와 버그가 발생합니다. React의 `useEffect` cleanup, Vue의 `onUnmounted`에서 해제하는 것이 일반적인 패턴입니다.
+
+---
+
+다음 글에서는 **Strategy 패턴**을 다룹니다. 끝없이 이어지는 `if/else` 분기를 깔끔한 전략 객체로 교체하는 방법 — "if/else 지옥에서 벗어나는 방법"을 살펴보겠습니다.
