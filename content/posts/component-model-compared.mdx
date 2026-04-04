@@ -1,0 +1,118 @@
+---
+title: "컴포넌트 모델 — UI를 어떻게 나누는가"
+description: "함수, 클래스, SFC, .svelte 파일 — 각 프레임워크가 컴포넌트를 정의하고 통신하는 방법을 비교합니다"
+date: 2026-04-05
+tags: ["framework", "component", "props", "slots", "lifecycle"]
+series: "framework-philosophies"
+seriesOrder: 3
+draft: false
+---
+
+## 핵심 질문
+
+컴포넌트란 무엇이고, 어떻게 나누고 조합하는가?
+
+모든 프레임워크가 "컴포넌트"라는 단어를 사용합니다. 하지만 컴포넌트를 **정의하는 방법**, **데이터를 전달하는 방법**, **내부 콘텐츠를 끼워 넣는 방법**은 프레임워크마다 다릅니다.
+
+## 문제: UI가 커지면 한 파일로는 한계가 온다
+
+```html
+<!-- 이 파일이 3000줄이라면? -->
+<div id="app">
+  <header>...</header>
+  <nav>...</nav>
+  <main>
+    <section class="todo-list">...</section>
+    <section class="sidebar">...</section>
+  </main>
+  <footer>...</footer>
+</div>
+```
+
+한 파일에 모든 UI를 넣으면 수정할 때마다 전체를 읽어야 합니다. 재사용도 불가능합니다. 해결책은 UI를 **독립된 단위**로 쪼개는 것 — 그것이 컴포넌트입니다.
+
+네 프레임워크가 컴포넌트를 정의하는 방식을 한 줄로 요약하면:
+
+- **React**: 함수가 곧 컴포넌트 — `function → JSX` 반환
+- **Vue**: 단일 파일 컴포넌트 (SFC) — `<script>` + `<template>` + `<style>`을 하나의 `.vue` 파일에
+- **Angular**: 클래스 + 데코레이터 — `@Component` 데코레이터가 메타데이터를 부여
+- **Svelte**: `.svelte` 파일 — `<script>` + 마크업 + `<style>`이 컴파일러 입력이 됨
+
+## 컴포넌트의 정의 — 같은 TodoItem, 네 가지 표현
+
+아래 코드는 모두 동일한 기능을 구현합니다. 텍스트를 보여주고, 완료 여부에 따라 취소선을 긋고, 클릭하면 토글하는 TodoItem입니다.
+
+<CodeTabs preset="component-definition" />
+
+공통점이 보입니다. 네 프레임워크 모두 **입력 (props)** 을 받고, **마크업을 출력**하고, **이벤트를 외부로 전달**합니다. 형태만 다를 뿐 역할은 같습니다.
+
+**React**는 가장 직접적입니다. 함수의 매개변수가 props이고 반환값이 UI입니다. JavaScript 함수 그 자체이므로 별도의 API를 배울 필요가 거의 없습니다.
+
+**Vue**의 SFC는 관심사를 영역으로 분리합니다. `<script setup>`에서 로직을, `<template>`에서 마크업을 다룹니다. `defineProps`와 `defineEmits`라는 컴파일러 매크로가 타입 안전한 인터페이스를 만들어 줍니다.
+
+**Angular**는 클래스 기반입니다. `@Component` 데코레이터가 메타데이터 (selector, template) 를 선언하고, `@Input`과 `@Output`이 외부와의 계약을 명시합니다. 가장 명시적이지만 보일러플레이트가 많습니다.
+
+**Svelte**는 `.svelte` 파일 자체가 컴포넌트입니다. Svelte 5의 `$props()` 룬은 구조 분해로 props를 꺼내며, 이벤트는 콜백 prop으로 처리합니다. 컴파일러가 나머지를 처리하므로 코드가 가장 짧습니다.
+
+## Props와 Events — 데이터는 아래로, 이벤트는 위로
+
+컴포넌트를 나눴으면 통신이 필요합니다. 네 프레임워크 모두 **단방향 데이터 흐름**이라는 원칙을 공유합니다. 데이터 (props) 는 부모에서 자식으로, 이벤트는 자식에서 부모로 흐릅니다.
+
+<ComponentModelCompared />
+
+이 패턴이 왜 중요할까요? 양방향 바인딩이 편해 보이지만, 앱이 커지면 "이 값을 누가 바꿨는지" 추적하기 어려워집니다. 단방향 흐름은 데이터의 출처를 명확하게 만듭니다.
+
+각 프레임워크의 구현 방식:
+
+- **React**: props는 함수 인자, 이벤트는 콜백 함수 — `onClick={handleClick}`처럼 함수 자체를 prop으로 넘깁니다
+- **Vue**: `defineProps`로 선언, `defineEmits`로 이벤트 발생 — `emit('toggle')`은 부모의 `@toggle` 핸들러를 호출합니다
+- **Angular**: `@Input()`으로 수신, `@Output() + EventEmitter`로 발신 — 타입 시스템이 계약을 강제합니다
+- **Svelte**: `$props()`로 수신, 콜백 prop으로 발신 — React와 유사하지만 컴파일러가 최적화합니다
+
+## Children과 Slots — 컴포넌트 안에 콘텐츠 넣기
+
+Props로는 데이터를 전달할 수 있지만, "컴포넌트 안에 다른 컴포넌트나 마크업을 끼워 넣고 싶다"면 다른 메커니즘이 필요합니다. HTML의 `<div>내용</div>`처럼, 컴포넌트도 여는 태그와 닫는 태그 사이에 콘텐츠를 넣을 수 있어야 합니다.
+
+<CodeTabs preset="slots-children" />
+
+네 가지 방식은 이름이 다르지만 개념은 같습니다 — **"이 자리에 외부 콘텐츠를 렌더링하라"**는 것입니다.
+
+- **React**: `children`은 특별한 prop입니다. JSX에서 태그 사이에 넣은 모든 것이 `children`으로 전달됩니다. JavaScript 값이므로 조건부 렌더링, 매핑 등 어떤 조작이든 가능합니다.
+- **Vue**: `<slot />`은 템플릿의 "구멍"입니다. 이름 있는 슬롯 (`<slot name="header" />`) 으로 여러 위치에 콘텐츠를 배치할 수 있습니다.
+- **Angular**: `<ng-content />`는 **콘텐츠 프로젝션** (Content Projection) 이라 부릅니다. CSS 선택자로 특정 콘텐츠를 특정 위치에 매핑할 수 있습니다.
+- **Svelte**: Svelte 5에서는 `children`을 snippet으로 받아 `{@render children()}`으로 렌더링합니다. 명시적인 함수 호출 방식입니다.
+
+## 라이프사이클 — 태어나고, 바뀌고, 사라진다
+
+컴포넌트는 DOM에 나타나고 (mount), 상태가 바뀌면 업데이트되고 (update), DOM에서 제거됩니다 (destroy). 이 생명주기에 개입하는 방법이 프레임워크마다 다릅니다.
+
+| | Mount | Update | Destroy |
+|---|---|---|---|
+| **React** | `useEffect(() => {}, [])` | `useEffect(() => {}, [deps])` | `useEffect` return cleanup |
+| **Vue** | `onMounted()` | `onUpdated()` / `watch()` | `onUnmounted()` |
+| **Angular** | `ngOnInit()` | `ngOnChanges()` | `ngOnDestroy()` |
+| **Svelte** | `$effect()` | `$effect()` | `$effect` return cleanup |
+
+**React**와 **Svelte**는 흥미로운 공통점이 있습니다. 별도의 mount/update/destroy 함수가 아니라, **하나의 effect 시스템**으로 모든 라이프사이클을 표현합니다. 의존성 배열 (React) 이나 시그널 추적 (Svelte) 으로 "언제 실행할지"를 결정하고, cleanup 함수로 정리합니다.
+
+**Vue**는 명시적인 훅 이름을 제공합니다. `onMounted`, `onUpdated`, `onUnmounted` — 이름만 봐도 언제 실행되는지 알 수 있습니다. 직관적이지만 API 표면이 넓어집니다.
+
+**Angular**는 클래스 메서드로 라이프사이클을 구현합니다. 인터페이스 (`OnInit`, `OnChanges`, `OnDestroy`) 를 구현하면 Angular가 적절한 시점에 호출합니다. 가장 객체지향적인 접근입니다.
+
+## 트레이드오프 정리
+
+| | React | Vue | Angular | Svelte |
+|---|---|---|---|---|
+| **컴포넌트 단위** | 함수 | SFC (.vue) | 클래스 (standalone) | .svelte 파일 |
+| **Props 전달** | 함수 인자 | defineProps | @Input | $props() |
+| **이벤트 전달** | 콜백 함수 | emit | EventEmitter | 콜백 함수 |
+| **슬롯/Children** | children prop | `<slot />` | `<ng-content />` | `{@render children()}` |
+| **스타일 스코핑** | CSS Modules/외부 | `<style scoped>` | ViewEncapsulation | `<style>` (기본 스코핑) |
+
+React와 Svelte는 "함수/콜백" 중심이고, Vue와 Angular는 "선언적 API" 중심입니다. React는 JavaScript에 가장 가깝고, Angular는 가장 구조화되어 있으며, Vue와 Svelte는 그 사이에서 균형을 잡습니다.
+
+어떤 방식이 "정답"이라기보다, 팀의 규모와 프로젝트의 성격에 따라 적합한 트레이드오프가 달라집니다. 소규모 팀이라면 React나 Svelte의 유연함이, 대규모 팀이라면 Angular의 명시적 구조가 장점이 될 수 있습니다.
+
+## 다음 글에서는
+
+컴포넌트를 정의하고 조합하는 방법을 살펴봤습니다. 다음 글에서는 **렌더링 전략**을 다룹니다 — CSR, SSR, SSG, ISR이라는 약어 뒤에 숨은 "언제, 어디서 HTML을 만드는가"의 문제입니다.

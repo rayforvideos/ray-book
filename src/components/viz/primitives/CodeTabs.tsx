@@ -69,6 +69,144 @@ export class CounterComponent {
 </button>`,
     },
   ],
+  "component-definition": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `// 함수 = 컴포넌트
+function TodoItem({ text, done, onToggle }) {
+  return (
+    <li onClick={onToggle} style={{ textDecoration: done ? 'line-through' : 'none' }}>
+      {text}
+    </li>
+  );
+}`,
+    },
+    {
+      label: "Vue",
+      lang: "html",
+      code: `<!-- 단일 파일 컴포넌트 (SFC) -->
+<script setup>
+defineProps(['text', 'done']);
+const emit = defineEmits(['toggle']);
+</script>
+
+<template>
+  <li @click="emit('toggle')" :style="{ textDecoration: done ? 'line-through' : 'none' }">
+    {{ text }}
+  </li>
+</template>`,
+    },
+    {
+      label: "Angular",
+      lang: "typescript",
+      code: `// 클래스 + 데코레이터 = 컴포넌트
+@Component({
+  selector: 'app-todo-item',
+  standalone: true,
+  template: \`
+    <li (click)="toggle.emit()" [style.textDecoration]="done ? 'line-through' : 'none'">
+      {{ text }}
+    </li>
+  \`,
+})
+export class TodoItemComponent {
+  @Input() text = '';
+  @Input() done = false;
+  @Output() toggle = new EventEmitter();
+}`,
+    },
+    {
+      label: "Svelte",
+      lang: "html",
+      code: `<!-- .svelte 파일 = 컴포넌트 -->
+<script>
+  let { text, done, ontoggle } = $props();
+</script>
+
+<li onclick={ontoggle} style:text-decoration={done ? 'line-through' : 'none'}>
+  {text}
+</li>`,
+    },
+  ],
+  "slots-children": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `function Card({ title, children }) {
+  return (
+    <div className="card">
+      <h2>{title}</h2>
+      <div className="body">{children}</div>
+    </div>
+  );
+}
+
+// 사용
+<Card title="공지">
+  <p>내용이 여기에 들어갑니다</p>
+</Card>`,
+    },
+    {
+      label: "Vue",
+      lang: "html",
+      code: `<template>
+  <div class="card">
+    <h2>{{ title }}</h2>
+    <div class="body">
+      <slot />  <!-- 기본 슬롯 -->
+    </div>
+  </div>
+</template>
+
+<!-- 사용 -->
+<Card title="공지">
+  <p>내용이 여기에 들어갑니다</p>
+</Card>`,
+    },
+    {
+      label: "Angular",
+      lang: "typescript",
+      code: `@Component({
+  selector: 'app-card',
+  template: \`
+    <div class="card">
+      <h2>{{ title }}</h2>
+      <div class="body">
+        <ng-content />  <!-- 콘텐츠 프로젝션 -->
+      </div>
+    </div>
+  \`,
+})
+export class CardComponent {
+  @Input() title = '';
+}
+
+<!-- 사용 -->
+<app-card title="공지">
+  <p>내용이 여기에 들어갑니다</p>
+</app-card>`,
+    },
+    {
+      label: "Svelte",
+      lang: "html",
+      code: `<script>
+  let { title, children } = $props();
+</script>
+
+<div class="card">
+  <h2>{title}</h2>
+  <div class="body">
+    {@render children()}
+  </div>
+</div>
+
+<!-- 사용 -->
+<Card title="공지">
+  <p>내용이 여기에 들어갑니다</p>
+</Card>`,
+    },
+  ],
   "reactivity-state": [
     {
       label: "React",
