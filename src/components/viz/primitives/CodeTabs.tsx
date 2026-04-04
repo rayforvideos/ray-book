@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { codeToHtml } from "shiki";
 
 interface Tab {
@@ -9,8 +9,71 @@ interface Tab {
   code: string;
 }
 
+/* ─── Presets ─── */
+
+const PRESETS: Record<string, Tab[]> = {
+  "counter-comparison": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `import { useState } from 'react';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      클릭: {count}
+    </button>
+  );
+}`,
+    },
+    {
+      label: "Vue",
+      lang: "html",
+      code: `<script setup>
+import { ref } from 'vue';
+const count = ref(0);
+</script>
+
+<template>
+  <button @click="count++">
+    클릭: {{ count }}
+  </button>
+</template>`,
+    },
+    {
+      label: "Angular",
+      lang: "typescript",
+      code: `@Component({
+  selector: 'app-counter',
+  standalone: true,
+  template: \`
+    <button (click)="count = count + 1">
+      클릭: {{ count }}
+    </button>
+  \`,
+})
+export class CounterComponent {
+  count = 0;
+}`,
+    },
+    {
+      label: "Svelte",
+      lang: "html",
+      code: `<script>
+  let count = $state(0);
+</script>
+
+<button onclick={() => count++}>
+  클릭: {count}
+</button>`,
+    },
+  ],
+};
+
 interface CodeTabsProps {
-  tabs: Tab[];
+  tabs?: Tab[];
+  preset?: string;
 }
 
 const STORAGE_KEY = "ray-book-code-tab";
@@ -43,7 +106,11 @@ function getDefaultTab(tabs: Tab[]): string {
   return tabs[0]?.label ?? "";
 }
 
-export function CodeTabs({ tabs }: CodeTabsProps) {
+export function CodeTabs({ tabs: tabsProp, preset }: CodeTabsProps) {
+  const tabs = useMemo(
+    () => tabsProp ?? (preset ? PRESETS[preset] : undefined) ?? [],
+    [tabsProp, preset]
+  );
   const [activeLabel, setActiveLabel] = useState<string>(
     () => tabs[0]?.label ?? ""
   );
@@ -81,6 +148,8 @@ export function CodeTabs({ tabs }: CodeTabsProps) {
     setActiveLabel(label);
     localStorage.setItem(STORAGE_KEY, label);
   }
+
+  if (tabs.length === 0) return null;
 
   const activeHtml = htmlCache[activeLabel] ?? "";
 
