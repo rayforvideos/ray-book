@@ -1,0 +1,166 @@
+---
+title: "렌더링 성능 — 60fps를 지켜라"
+description: "reflow, repaint, 합성 — 렌더링 파이프라인의 각 단계를 이해하고 최적화하는 방법을 시각화합니다"
+date: 2026-04-05
+tags: ["performance", "rendering", "reflow", "repaint", "composite", "animation"]
+series: "frontend-performance"
+seriesOrder: 4
+draft: false
+---
+
+## 16.67ms — 프레임 예산
+
+디스플레이는 보통 초당 60프레임을 렌더링합니다. 1000ms ÷ 60 = 약 16.67ms. 한 프레임을 이 시간 안에 완성하지 못하면 프레임이 누락되고, 사용자는 버벅임을 느낍니다.
+
+실제로 브라우저 자체의 오버헤드를 빼면 JavaScript와 렌더링에 쓸 수 있는 시간은 약 10ms입니다. 이 10ms 안에 스타일 계산, 레이아웃, 페인트, 합성을 모두 마쳐야 합니다.
+
+60fps 유지 실패의 가장 큰 원인은 **불필요한 렌더링 파이프라인 재실행**입니다. 어떤 CSS 속성을 변경하느냐에 따라 파이프라인의 어느 단계부터 재실행되는지가 달라집니다.
+
+## 렌더링 파이프라인 복습
+
+브라우저의 렌더링 파이프라인은 크게 세 단계로 나뉩니다.
+
+**Layout** — 각 요소의 위치와 크기를 계산합니다. width, height, margin, padding, top, left 같은 기하학적 속성이 변경되면 이 단계부터 시작합니다.
+
+**Paint** — 계산된 레이아웃을 기반으로 픽셀을 채웁니다. color, background-color, box-shadow, border-radius 같은 시각적 속성이 변경되면 Layout을 건너뛰고 이 단계부터 시작합니다.
+
+**Composite** — 레이어를 GPU에서 합성합니다. transform과 opacity는 이미 GPU에 올라간 레이어의 변환 행렬만 수정하므로 Layout과 Paint를 모두 건너뜁니다. 가장 저렴한 경로입니다.
+
+## 파이프라인 최적화 시각화
+
+CSS 속성 변경이 파이프라인의 어느 단계를 트리거하는지, 단계별로 비교합니다.
+
+<RenderingPipelineOpt />
+
+핵심은 간단합니다. 변경하는 속성이 파이프라인의 뒤쪽 단계만 트리거할수록 비용이 낮습니다. 애니메이션에서는 가능한 한 **transform과 opacity만** 사용해야 합니다.
+
+## transform/opacity 애니메이션
+
+애니메이션 성능의 핵심 원칙은 **Composite-only 속성을 사용하는 것**입니다.
+
+```css
+/* ❌ Layout을 트리거하는 애니메이션 */
+.box {
+  transition: left 0.3s, top 0.3s;
+}
+
+/* ✅ Composite-only 애니메이션 */
+.box {
+  transition: transform 0.3s;
+}
+```
+
+left/top 대신 `transform: translate()`를 사용합니다. width/height 대신 `transform: scale()`을 사용합니다. visibility 토글 대신 `opacity`를 사용합니다.
+
+```javascript
+// ❌ reflow를 유발하는 위치 변경
+element.style.left = `${x}px`;
+element.style.top = `${y}px`;
+
+// ✅ 합성만 트리거하는 위치 변경
+element.style.transform = `translate(${x}px, ${y}px)`;
+```
+
+## Layout Thrashing 방지
+
+Layout thrashing은 DOM 읽기와 쓰기를 반복적으로 교차시킬 때 발생합니다. 브라우저는 보류 중인 레이아웃 변경이 있는 상태에서 기하학적 속성을 읽으면 **강제 동기 레이아웃**을 실행합니다.
+
+```javascript
+// ❌ Layout thrashing — 루프마다 강제 레이아웃
+for (const el of elements) {
+  el.style.width = container.offsetWidth + 'px'; // 쓰기 → 읽기 반복
+}
+
+// ✅ 읽기를 먼저 배치로 처리
+const width = container.offsetWidth; // 한 번만 읽기
+for (const el of elements) {
+  el.style.width = width + 'px'; // 쓰기만 반복
+}
+```
+
+`offsetWidth`, `offsetHeight`, `getBoundingClientRect()`, `getComputedStyle()` 등이 강제 동기 레이아웃을 유발하는 대표적인 속성과 메서드입니다. Paul Irish가 정리한 목록이 GitHub gist에 공개되어 있습니다.
+
+## will-change
+
+`will-change` CSS 속성은 브라우저에게 특정 속성이 곧 변경될 것임을 미리 알립니다. 브라우저는 해당 요소를 별도의 합성 레이어로 승격시켜 변경 시 최적화된 경로를 사용합니다.
+
+```css
+.animated-element {
+  will-change: transform, opacity;
+}
+```
+
+주의할 점이 있습니다. `will-change`는 메모리를 소비합니다. 모든 요소에 적용하면 오히려 성능이 악화됩니다. 실제로 애니메이션이 실행되는 요소에만 적용하고, 애니메이션이 끝나면 제거하는 것이 좋습니다.
+
+```javascript
+element.addEventListener('mouseenter', () => {
+  element.style.willChange = 'transform';
+});
+
+element.addEventListener('transitionend', () => {
+  element.style.willChange = 'auto';
+});
+```
+
+## requestAnimationFrame
+
+`requestAnimationFrame` (rAF) 은 브라우저의 렌더링 사이클에 맞춰 콜백을 실행합니다. 다음 리페인트 직전에 호출되므로, 시각적 변경 작업에 가장 적합한 타이밍을 보장합니다.
+
+```javascript
+// ❌ setInterval은 프레임 타이밍과 무관하게 실행
+setInterval(() => {
+  element.style.transform = `translateX(${x++}px)`;
+}, 16);
+
+// ✅ rAF는 브라우저 프레임에 동기화
+function animate() {
+  element.style.transform = `translateX(${x++}px)`;
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+```
+
+rAF의 또 다른 장점은 탭이 비활성 상태일 때 자동으로 일시정지된다는 것입니다. `setInterval`은 백그라운드에서도 계속 실행되어 배터리와 CPU를 낭비합니다.
+
+DOM 읽기/쓰기를 배치 처리할 때도 rAF를 활용합니다. 읽기 → rAF 콜백에서 쓰기 패턴으로 layout thrashing을 방지할 수 있습니다.
+
+## CSS contain
+
+`contain` 속성은 요소의 렌더링 범위를 제한합니다. 브라우저가 해당 요소 내부의 변경이 외부에 영향을 주지 않음을 보장받으면, 레이아웃과 페인트를 해당 요소의 서브트리로 한정할 수 있습니다.
+
+```css
+.card {
+  contain: layout paint;
+}
+```
+
+**layout** — 요소 내부의 레이아웃 변경이 외부로 전파되지 않습니다.
+
+**paint** — 요소의 자식이 요소의 경계 밖에 그려지지 않습니다.
+
+**size** — 요소의 크기가 자식에 의존하지 않습니다. 명시적으로 크기를 지정해야 합니다.
+
+**content** — `layout`과 `paint`의 단축 속성입니다.
+
+**strict** — `layout`, `paint`, `size`를 모두 적용합니다.
+
+`content-visibility: auto`는 뷰포트에 보이지 않는 요소의 렌더링을 건너뛰어 초기 로딩 성능을 개선합니다. 긴 목록이나 스크롤 페이지에서 유용합니다.
+
+```css
+.offscreen-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 500px;
+}
+```
+
+`contain-intrinsic-size`로 예상 크기를 지정하면 스크롤바 점프를 방지할 수 있습니다.
+
+## 체크리스트
+
+- [ ] 애니메이션에 `transform`과 `opacity`만 사용하고 있는가
+- [ ] left/top/width/height 변경을 transform으로 대체했는가
+- [ ] DOM 읽기와 쓰기가 분리되어 layout thrashing이 없는가
+- [ ] `requestAnimationFrame`으로 시각적 변경을 스케줄링하는가
+- [ ] `will-change`를 필요한 요소에만 적용하고 해제하는가
+- [ ] 긴 목록에 `content-visibility: auto`를 적용했는가
+- [ ] DevTools Performance 패널로 레이아웃/페인트 비용을 측정했는가
