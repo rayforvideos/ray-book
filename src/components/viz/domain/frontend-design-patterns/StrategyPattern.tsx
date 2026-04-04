@@ -52,7 +52,8 @@ function StrategyDiagram({ boxes, arrows }: { boxes: StrategyBox[]; arrows: Arro
     },
   };
 
-  const BOX_W = 110;
+  const hasMany = boxes.length > 4;
+  const BOX_W = hasMany ? 80 : 110;
   const BOX_H = 44;
 
   return (
@@ -125,7 +126,7 @@ function StrategyDiagram({ boxes, arrows }: { boxes: StrategyBox[]; arrows: Arro
                 x={box.x}
                 y={box.y + 10}
                 textAnchor="middle"
-                className="fill-muted text-[0.45rem] font-mono"
+                className="fill-muted text-[0.4rem] font-mono"
               >
                 {box.code}
               </text>
@@ -163,9 +164,9 @@ const sortSteps: Step[] = [
   {
     boxes: [
       { id: "ctx", label: "ProductList", type: "context", x: 200, y: 40, code: "sort(strategy)" },
-      { id: "price", label: "가격순", type: "strategy", x: 80, y: 150, code: "(a,b) => a.price - b.price" },
-      { id: "name", label: "이름순", type: "strategy", x: 200, y: 150, code: "a.name.localeCompare(b.name)" },
-      { id: "rating", label: "평점순", type: "strategy", x: 320, y: 150, code: "(a,b) => b.rating - a.rating" },
+      { id: "price", label: "가격순", type: "strategy", x: 80, y: 150, code: "price 비교" },
+      { id: "name", label: "이름순", type: "strategy", x: 200, y: 150, code: "name 비교" },
+      { id: "rating", label: "평점순", type: "strategy", x: 320, y: 150, code: "rating 비교" },
     ],
     arrows: [
       { from: "ctx", to: "price" },
@@ -178,9 +179,9 @@ const sortSteps: Step[] = [
   {
     boxes: [
       { id: "ctx", label: "ProductList", type: "context", x: 200, y: 40, code: "sort(priceAsc)" },
-      { id: "price", label: "가격순 ✓", type: "active-strategy", x: 80, y: 150, code: "(a,b) => a.price - b.price" },
-      { id: "name", label: "이름순", type: "strategy", x: 200, y: 150, code: "a.name.localeCompare(b.name)" },
-      { id: "rating", label: "평점순", type: "strategy", x: 320, y: 150, code: "(a,b) => b.rating - a.rating" },
+      { id: "price", label: "가격순 ✓", type: "active-strategy", x: 80, y: 150, code: "price 비교" },
+      { id: "name", label: "이름순", type: "strategy", x: 200, y: 150, code: "name 비교" },
+      { id: "rating", label: "평점순", type: "strategy", x: 320, y: 150, code: "rating 비교" },
     ],
     arrows: [
       { from: "ctx", to: "price", active: true, label: "사용 중" },
@@ -195,9 +196,9 @@ const sortSteps: Step[] = [
   {
     boxes: [
       { id: "ctx", label: "ProductList", type: "context", x: 200, y: 40, code: "sort(byName)" },
-      { id: "price", label: "가격순", type: "strategy", x: 80, y: 150, code: "(a,b) => a.price - b.price" },
-      { id: "name", label: "이름순 ✓", type: "active-strategy", x: 200, y: 150, code: "a.name.localeCompare(b.name)" },
-      { id: "rating", label: "평점순", type: "strategy", x: 320, y: 150, code: "(a,b) => b.rating - a.rating" },
+      { id: "price", label: "가격순", type: "strategy", x: 80, y: 150, code: "price 비교" },
+      { id: "name", label: "이름순 ✓", type: "active-strategy", x: 200, y: 150, code: "name 비교" },
+      { id: "rating", label: "평점순", type: "strategy", x: 320, y: 150, code: "rating 비교" },
     ],
     arrows: [
       { from: "ctx", to: "price" },
@@ -212,9 +213,9 @@ const sortSteps: Step[] = [
   {
     boxes: [
       { id: "ctx", label: "ProductList", type: "context", x: 200, y: 40, code: "sort(byRating)" },
-      { id: "price", label: "가격순", type: "strategy", x: 80, y: 150, code: "(a,b) => a.price - b.price" },
-      { id: "name", label: "이름순", type: "strategy", x: 200, y: 150, code: "a.name.localeCompare(b.name)" },
-      { id: "rating", label: "평점순 ✓", type: "active-strategy", x: 320, y: 150, code: "(a,b) => b.rating - a.rating" },
+      { id: "price", label: "가격순", type: "strategy", x: 80, y: 150, code: "price 비교" },
+      { id: "name", label: "이름순", type: "strategy", x: 200, y: 150, code: "name 비교" },
+      { id: "rating", label: "평점순 ✓", type: "active-strategy", x: 320, y: 150, code: "rating 비교" },
     ],
     arrows: [
       { from: "ctx", to: "price" },
@@ -229,10 +230,10 @@ const sortSteps: Step[] = [
   {
     boxes: [
       { id: "ctx", label: "ProductList", type: "context", x: 200, y: 40, code: "sort(strategy)" },
-      { id: "price", label: "가격순", type: "strategy", x: 60, y: 150, code: "(a,b) => a.price - b.price" },
-      { id: "name", label: "이름순", type: "strategy", x: 170, y: 150, code: "a.name.localeCompare(b.name)" },
-      { id: "rating", label: "평점순", type: "strategy", x: 280, y: 150, code: "(a,b) => b.rating - a.rating" },
-      { id: "new", label: "🆕 할인율순", type: "active-strategy", x: 375, y: 150, code: "(a,b) => b.discount - a.discount" },
+      { id: "price", label: "가격순", type: "strategy", x: 50, y: 150, code: "a.price - b.price" },
+      { id: "name", label: "이름순", type: "strategy", x: 137, y: 150, code: "localeCompare" },
+      { id: "rating", label: "평점순", type: "strategy", x: 224, y: 150, code: "b.rating - a.rating" },
+      { id: "new", label: "🆕 할인율순", type: "active-strategy", x: 330, y: 150, code: "discount 비교" },
     ],
     arrows: [
       { from: "ctx", to: "price" },
@@ -251,10 +252,10 @@ const sortSteps: Step[] = [
 const validationSteps: Step[] = [
   {
     boxes: [
-      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate(value, rules)" },
-      { id: "required", label: "required", type: "strategy", x: 80, y: 150, code: "v => v.trim().length > 0" },
-      { id: "email", label: "email", type: "strategy", x: 200, y: 150, code: "v => /.+@.+/.test(v)" },
-      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "v => v.length >= min" },
+      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate(v, rules)" },
+      { id: "required", label: "required", type: "strategy", x: 80, y: 150, code: "trim().length > 0" },
+      { id: "email", label: "email", type: "strategy", x: 200, y: 150, code: "이메일 형식 검증" },
+      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "length >= min" },
     ],
     arrows: [
       { from: "ctx", to: "required" },
@@ -266,10 +267,10 @@ const validationSteps: Step[] = [
   },
   {
     boxes: [
-      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate('', [required])" },
-      { id: "required", label: "required ✗", type: "active-strategy", x: 80, y: 150, code: "''.trim().length > 0 → false" },
-      { id: "email", label: "email", type: "strategy", x: 200, y: 150, code: "v => /.+@.+/.test(v)" },
-      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "v => v.length >= min" },
+      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate('', [...])" },
+      { id: "required", label: "required ✗", type: "active-strategy", x: 80, y: 150, code: "'' → false" },
+      { id: "email", label: "email", type: "strategy", x: 200, y: 150, code: "이메일 형식 검증" },
+      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "length >= min" },
     ],
     arrows: [
       { from: "ctx", to: "required", active: true, label: "실패!" },
@@ -280,10 +281,10 @@ const validationSteps: Step[] = [
   },
   {
     boxes: [
-      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate('hi', [required, email])" },
-      { id: "required", label: "required ✓", type: "active-strategy", x: 80, y: 150, code: "'hi'.trim().length > 0 → true" },
-      { id: "email", label: "email ✗", type: "active-strategy", x: 200, y: 150, code: "/.+@.+/.test('hi') → false" },
-      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "v => v.length >= min" },
+      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate('hi', [...])" },
+      { id: "required", label: "required ✓", type: "active-strategy", x: 80, y: 150, code: "'hi' → true" },
+      { id: "email", label: "email ✗", type: "active-strategy", x: 200, y: 150, code: "'hi' → false" },
+      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "length >= min" },
     ],
     arrows: [
       { from: "ctx", to: "required", active: true, label: "통과" },
@@ -295,10 +296,10 @@ const validationSteps: Step[] = [
   },
   {
     boxes: [
-      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate('a@b.com', [required, email])" },
+      { id: "ctx", label: "FormValidator", type: "context", x: 200, y: 40, code: "validate(email, [...])" },
       { id: "required", label: "required ✓", type: "active-strategy", x: 80, y: 150, code: "true" },
       { id: "email", label: "email ✓", type: "active-strategy", x: 200, y: 150, code: "true" },
-      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "v => v.length >= min" },
+      { id: "minLen", label: "minLength", type: "strategy", x: 320, y: 150, code: "length >= min" },
     ],
     arrows: [
       { from: "ctx", to: "required", active: true, label: "통과" },
@@ -348,7 +349,7 @@ export function StrategyPattern({ preset = "sort" }: StrategyPatternProps) {
       )}
 
       {step.codeSnippet && (
-        <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+        <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
           {step.codeSnippet}
         </pre>
       )}

@@ -59,11 +59,11 @@ function FactoryDiagram({ input, factory, products, activeProduct }: {
   products: Product[];
   activeProduct: string | null;
 }) {
-  const BOX_W = 90;
+  const BOX_W = products.length <= 3 ? 90 : 80;
   const BOX_H = 38;
   const factoryStyle = colorMap.factory;
   const prodStartY = 130;
-  const prodSpacing = products.length <= 3 ? 120 : 100;
+  const prodSpacing = products.length <= 3 ? 120 : 95;
   const prodStartX = 200 - ((products.length - 1) * prodSpacing) / 2;
 
   return (
@@ -255,7 +255,7 @@ export function FactoryPattern({ preset = "component" }: FactoryPatternProps) {
       <Legend />
 
       {step.codeSnippet && (
-        <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+        <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
           {step.codeSnippet}
         </pre>
       )}

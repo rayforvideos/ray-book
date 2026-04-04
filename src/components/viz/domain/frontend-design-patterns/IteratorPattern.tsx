@@ -24,7 +24,7 @@ interface Step {
 
 function CellRow({ cells, cursor }: { cells: Cell[]; cursor: number | null }) {
   return (
-    <div className="flex items-center justify-center gap-1">
+    <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1">
       {cells.map((cell, i) => {
         const isCursor = cursor === i;
         const isVisited = cell.visited;
@@ -70,7 +70,7 @@ function TreeDiagram({ nodes, currentId }: { nodes: TreeNode[]; currentId: strin
   const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
   return (
-    <svg viewBox="0 0 340 160" className="w-full" style={{ maxHeight: 160 }}>
+    <svg viewBox="0 0 340 170" className="w-full" style={{ maxHeight: 170 }}>
       {/* Edges */}
       {nodes.map((node) =>
         (node.children ?? []).map((childId) => {
@@ -213,12 +213,12 @@ const arraySteps: Step[] = [
 /* ─── Tree Iteration Steps ─── */
 
 const treeNodes: TreeNode[] = [
-  { id: "A", label: "A", x: 170, y: 30, children: ["B", "C"] },
-  { id: "B", label: "B", x: 90, y: 80, children: ["D", "E"] },
-  { id: "C", label: "C", x: 250, y: 80, children: ["F"] },
-  { id: "D", label: "D", x: 50, y: 130 },
-  { id: "E", label: "E", x: 130, y: 130 },
-  { id: "F", label: "F", x: 250, y: 130 },
+  { id: "A", label: "A", x: 170, y: 40, children: ["B", "C"] },
+  { id: "B", label: "B", x: 90, y: 90, children: ["D", "E"] },
+  { id: "C", label: "C", x: 250, y: 90, children: ["F"] },
+  { id: "D", label: "D", x: 50, y: 140 },
+  { id: "E", label: "E", x: 130, y: 140 },
+  { id: "F", label: "F", x: 250, y: 140 },
 ];
 
 const treeOrder = ["A", "B", "D", "E", "C", "F"]; // pre-order
@@ -325,7 +325,7 @@ export function IteratorPattern({ preset = "array" }: IteratorPatternProps) {
           </div>
         )}
         {step.codeSnippet && (
-          <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+          <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
             {step.codeSnippet}
           </pre>
         )}
@@ -352,7 +352,7 @@ export function IteratorPattern({ preset = "array" }: IteratorPatternProps) {
         </div>
       )}
       {step.codeSnippet && (
-        <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+        <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
           {step.codeSnippet}
         </pre>
       )}

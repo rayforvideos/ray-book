@@ -324,7 +324,7 @@ export function ObserverPubSub({ preset = "basic" }: ObserverPubSubProps) {
       <Legend showChannel={config.showChannel} />
 
       {step.codeSnippet && (
-        <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+        <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
           {step.codeSnippet}
         </pre>
       )}

@@ -491,7 +491,7 @@ export function Term({ id, children }: TermProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             style={popStyle}
-            className="z-50 block"
+            className="fixed z-50 block"
           >
             <span className="block border border-border bg-bg p-4 shadow-lg">
               {/* Header */}

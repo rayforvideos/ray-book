@@ -100,7 +100,7 @@ function ConnectionGraph({ nodes, links, mode }: { nodes: Node[]; links: Link[];
       })}
 
       {/* Mode label */}
-      <text x={200} y={215} textAnchor="middle" className="fill-muted text-[0.55rem] font-bold">
+      <text x={200} y={210} textAnchor="middle" className="fill-muted text-[0.5rem] font-bold">
         {mode === "direct" ? "직접 통신 — 연결 폭발" : "Mediator — 중앙 집중"}
       </text>
     </svg>
@@ -243,7 +243,7 @@ export function MediatorPattern({ preset = "compare" }: MediatorPatternProps) {
       <Legend />
 
       {step.codeSnippet && (
-        <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+        <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
           {step.codeSnippet}
         </pre>
       )}

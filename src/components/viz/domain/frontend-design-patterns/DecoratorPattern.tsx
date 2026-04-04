@@ -56,13 +56,13 @@ function LayerStack({ layers, activeLayer, flowDirection }: {
   flowDirection: "inward" | "outward" | null;
 }) {
   const centerX = 200;
-  const centerY = 110;
-  const baseW = 100;
+  const centerY = 125;
+  const baseW = 110;
   const baseH = 36;
-  const layerPad = 24;
+  const layerPad = 28;
 
   return (
-    <svg viewBox="0 0 400 220" className="w-full" style={{ maxHeight: 220 }}>
+    <svg viewBox="0 0 400 250" className="w-full" style={{ maxHeight: 250 }}>
       <defs>
         <marker id="dec-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
           <path d="M0,0 L8,3 L0,6" className="fill-rose-500 dark:fill-rose-400" />
@@ -89,19 +89,19 @@ function LayerStack({ layers, activeLayer, flowDirection }: {
               opacity={isActive ? 1 : activeLayer ? 0.4 : 0.8}
             />
             <text
-              x={centerX - w / 2 + 10}
-              y={centerY - h / 2 + 14}
-              className={`${style.text} text-[0.55rem] font-bold transition-all duration-300`}
+              x={centerX - w / 2 + 8}
+              y={centerY - h / 2 + 12}
+              className={`${style.text} text-[0.5rem] font-bold transition-all duration-300`}
               opacity={isActive ? 1 : activeLayer ? 0.5 : 1}
             >
               {layer.label}
             </text>
-            {layer.code && (
+            {layer.code && isActive && (
               <text
-                x={centerX - w / 2 + 10}
-                y={centerY - h / 2 + 26}
-                className="fill-muted text-[0.4rem] font-mono"
-                opacity={isActive ? 1 : 0.4}
+                x={centerX + w / 2 - 8}
+                y={centerY - h / 2 + 12}
+                textAnchor="end"
+                className="fill-muted text-[0.35rem] font-mono"
               >
                 {layer.code}
               </text>
@@ -266,7 +266,7 @@ export function DecoratorPattern({ preset = "wrap" }: DecoratorPatternProps) {
       <Legend />
 
       {step.codeSnippet && (
-        <pre className="rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
+        <pre className="overflow-x-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed text-muted">
           {step.codeSnippet}
         </pre>
       )}
