@@ -140,7 +140,8 @@ const dnsOverHttps = {
   // 또는 https://cloudflare-dns.com/dns-query
 };
 
-// Google Public DNS JSON API를 이용한 DNS 조회
+// fetch API로 DoH 질의 (Google JSON API)
+// 참고: RFC 8484 표준은 /dns-query 엔드포인트와 application/dns-message를 사용
 async function dohQuery(domain) {
   const res = await fetch(
     `https://dns.google/resolve?name=${domain}&type=A`,

@@ -31,7 +31,7 @@ const decrypted = AES.decrypt(encrypted, symmetricKey);
 // 문제: 이 키를 상대방에게 어떻게 안전하게 전달하나?
 ```
 
-**비대칭 암호화** (Asymmetric Encryption) 는 **공개키**와 **개인키** 쌍을 사용합니다. 공개키로 암호화하면 개인키로만 복호화할 수 있습니다. RSA, ECDSA가 대표적입니다. 안전하지만 대칭 암호화보다 수백 배 느립니다.
+**비대칭 암호화** (Asymmetric Encryption) 는 **공개키**와 **개인키** 쌍을 사용합니다. 공개키로 암호화하면 개인키로만 복호화할 수 있고, 개인키로 서명하면 공개키로 검증할 수 있습니다. 암호화에는 RSA, ECIES가, 서명에는 RSA, ECDSA가 대표적입니다. 안전하지만 대칭 암호화보다 수백 배 느립니다.
 
 ```javascript
 // 비대칭 암호화 개념
