@@ -1,0 +1,232 @@
+---
+title: "키보드 네비게이션"
+description: "마우스 없이 웹을 쓸 수 있는가? Tab 순서, focus 관리, skip link, focus trap을 시각화합니다"
+date: 2026-04-05
+tags: ["accessibility", "keyboard", "focus", "tabindex", "skip-link"]
+series: "web-accessibility"
+seriesOrder: 2
+draft: false
+---
+
+## 마우스가 없다면?
+
+키보드를 눌러 보세요. `Tab`을 누르면 페이지의 인터랙티브 요소들이 순서대로 포커스됩니다. `Enter`로 링크를 클릭하고, `Space`로 체크박스를 토글하고, 화살표 키로 라디오 버튼을 선택합니다.
+
+이것은 "특수한 사용자를 위한 기능"이 아닙니다. 마우스가 고장났을 때, 손목을 다쳤을 때, 터치패드가 불편할 때, 또는 단순히 키보드가 더 빠르다고 느끼는 개발자까지 — 키보드 내비게이션은 모든 사용자에게 필요합니다.
+
+**WCAG 2.1 성공 기준 2.1.1** (레벨 A) 은 "모든 기능이 키보드로 접근 가능해야 한다"고 명시합니다. 이것은 최소 요구 사항입니다.
+
+## Tab 순서는 DOM 순서다
+
+`Tab` 키를 누르면 브라우저는 **DOM 순서**대로 포커스 가능한 요소를 탐색합니다. CSS로 시각적 순서를 바꿔도 (예: `flex-direction: row-reverse`, `order`, `grid` 배치) Tab 순서는 변하지 않습니다.
+
+```html
+<!-- 시각적으로는 B가 먼저 보이지만 -->
+<div style="display: flex; flex-direction: row-reverse;">
+  <button>A</button>  <!-- Tab 순서: 1번째 -->
+  <button>B</button>  <!-- Tab 순서: 2번째 -->
+</div>
+```
+
+이 불일치는 키보드 사용자에게 혼란을 줍니다. **시각적 순서와 DOM 순서를 일치시키는 것**이 키보드 접근성의 기본 원칙입니다.
+
+기본적으로 포커스 가능한 요소는 다음과 같습니다.
+
+- `a` (href 속성이 있을 때)
+- `button`
+- `input`, `select`, `textarea`
+- `details` / `summary`
+- `[contenteditable]` 요소
+
+`div`, `span`, `p` 같은 요소는 기본적으로 포커스를 받지 않습니다.
+
+## tabindex: 0, -1, 그리고 양수 금지
+
+<Term id="tabindex">tabindex</Term> 속성은 요소의 포커스 동작을 제어합니다. 사용할 수 있는 값은 사실상 두 가지뿐입니다.
+
+**`tabindex="0"`** — 요소를 Tab 순서에 포함시킵니다. DOM 순서에 따라 자연스럽게 배치됩니다. 기본적으로 포커스를 받지 않는 요소에 포커스 기능을 추가할 때 사용합니다.
+
+```html
+<!-- 커스텀 컴포넌트에 포커스 기능 추가 -->
+<div role="toolbar" tabindex="0">
+  ...
+</div>
+```
+
+**`tabindex="-1"`** — Tab 순서에서 제외하되, JavaScript의 `element.focus()`로는 포커스할 수 있습니다. 프로그래밍적 포커스 관리에 사용합니다.
+
+```html
+<!-- 모달이 열릴 때 JavaScript로 포커스 이동 -->
+<div role="dialog" tabindex="-1">
+  <h2>확인</h2>
+  ...
+</div>
+```
+
+**양수 (`tabindex="1"` 이상) 는 사용하지 마세요.** 양수 tabindex는 해당 요소를 Tab 순서의 맨 앞으로 끌어올립니다. 여러 요소에 양수 값을 부여하면 Tab 순서가 DOM 순서와 완전히 달라지고, 유지보수가 불가능해집니다. 이것은 접근성 안티패턴으로 널리 알려져 있으며, eslint-plugin-jsx-a11y의 `tabindex-no-positive` 규칙으로도 금지됩니다.
+
+## 시각화: Tab 이동 흐름
+
+아래 시각화에서 Tab과 Shift+Tab이 페이지를 어떻게 탐색하는지 확인해 보세요. 포커스가 어떤 순서로 이동하는지, 어떤 영역을 거치는지 관찰합니다.
+
+<KeyboardNavFlow />
+
+## 포커스 인디케이터
+
+포커스 인디케이터는 현재 키보드 포커스가 어디에 있는지 알려주는 시각적 표시입니다. 브라우저는 기본적으로 포커스된 요소에 outline을 표시합니다.
+
+**절대 하지 말아야 할 것:**
+
+```css
+/* 이렇게 하면 키보드 사용자가 현재 위치를 알 수 없습니다 */
+*:focus {
+  outline: none;
+}
+```
+
+WCAG 2.4.7 (레벨 AA) 은 "키보드 포커스 인디케이터가 보여야 한다"고 요구합니다. outline을 제거하면 이 기준을 위반합니다.
+
+**올바른 접근: `:focus-visible`**
+
+`:focus-visible` 의사 클래스는 브라우저가 "포커스 표시가 필요하다"고 판단할 때만 적용됩니다. 키보드로 탐색할 때는 표시하고, 마우스로 클릭할 때는 표시하지 않습니다.
+
+```css
+/* 기본 outline 커스터마이징 */
+button:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* 마우스 클릭 시에는 outline 없음 */
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+```
+
+**WCAG 2.4.13** (레벨 AAA) 은 포커스 인디케이터의 최소 대비와 면적까지 규정합니다. 최소한 주변 색상과 **3:1 이상의 대비**를 가져야 합니다.
+
+## Skip Link
+
+대부분의 웹 페이지는 상단에 로고, 네비게이션 등 반복되는 요소가 있습니다. 키보드 사용자가 매 페이지에서 Tab을 수십 번 눌러 메인 콘텐츠에 도달해야 한다면 매우 불편합니다.
+
+<Term id="skip-link">Skip Link</Term>는 페이지의 첫 번째 포커스 가능 요소로, 메인 콘텐츠로 바로 이동할 수 있는 링크입니다. 보통 시각적으로는 숨겨져 있다가 포커스를 받으면 나타납니다.
+
+```html
+<!-- HTML -->
+<body>
+  <a href="#main-content" class="skip-link">
+    본문으로 건너뛰기
+  </a>
+  <header>...</header>
+  <nav>...</nav>
+  <main id="main-content" tabindex="-1">
+    ...
+  </main>
+</body>
+```
+
+```css
+/* CSS */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+```
+
+`main`에 `tabindex="-1"`을 준 이유는, 일부 브라우저에서 앵커 링크의 목적지로 포커스를 이동시키려면 해당 요소가 프로그래밍적으로 포커스 가능해야 하기 때문입니다.
+
+## Focus Trap
+
+모달 대화상자가 열렸을 때, Tab 키가 모달 밖의 요소로 빠져나가면 안 됩니다. 사용자는 모달 안에서만 탐색하다가, 모달을 닫으면 원래 위치로 돌아가야 합니다. 이것을 <Term id="focus-trap">Focus Trap</Term>이라고 합니다.
+
+Focus Trap의 구현 원칙:
+
+1. 모달이 열리면 모달 내부의 첫 번째 포커스 가능 요소로 포커스를 이동합니다
+2. 모달 안에서 Tab으로 마지막 요소에 도달하면 첫 번째 요소로 돌아갑니다
+3. Shift+Tab으로 첫 번째 요소에서 벗어나면 마지막 요소로 이동합니다
+4. Escape 키로 모달을 닫을 수 있어야 합니다
+5. 모달이 닫히면 모달을 열었던 요소로 포커스를 복원합니다
+
+```javascript
+function trapFocus(modal) {
+  const focusables = modal.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+
+  modal.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+}
+```
+
+## inert 속성
+
+Focus Trap을 직접 구현하는 대신, HTML의 `inert` 속성을 사용하면 훨씬 간단합니다. `inert`가 적용된 요소와 그 하위 요소는 포커스를 받을 수 없고, 클릭할 수 없으며, 접근성 트리에서도 제거됩니다.
+
+```html
+<!-- 모달이 열리면 배경을 비활성화 -->
+<div id="app" inert>
+  <header>...</header>
+  <main>...</main>
+</div>
+
+<dialog open>
+  <h2>확인하시겠습니까?</h2>
+  <button>확인</button>
+  <button>취소</button>
+</dialog>
+```
+
+`inert`는 모든 주요 브라우저에서 2023년 4월부터 지원됩니다. `dialog` 요소의 `showModal()` 메서드를 사용하면 브라우저가 자동으로 배경을 inert로 만들어주므로, 네이티브 `dialog`를 사용하는 것이 가장 좋은 방법입니다.
+
+```javascript
+const dialog = document.querySelector("dialog");
+
+// showModal()은 자동으로 focus trap + 배경 inert 처리
+dialog.showModal();
+
+// Escape로 닫기도 자동 지원
+dialog.addEventListener("close", () => {
+  // 모달을 열었던 버튼으로 포커스 복원
+  openButton.focus();
+});
+```
+
+## 체크리스트
+
+- [ ] 모든 인터랙티브 요소가 키보드로 접근 가능한가?
+- [ ] Tab 순서가 시각적 순서와 일치하는가?
+- [ ] `tabindex` 양수 값을 사용하고 있지 않은가?
+- [ ] 포커스 인디케이터가 모든 인터랙티브 요소에 표시되는가?
+- [ ] `:focus { outline: none }`을 무분별하게 사용하고 있지 않은가?
+- [ ] Skip Link가 구현되어 있는가?
+- [ ] 모달에서 Focus Trap이 동작하는가?
+- [ ] 모달을 닫으면 포커스가 원래 위치로 복원되는가?
+- [ ] Escape 키로 모달/드롭다운을 닫을 수 있는가?
+
+---
+
+다음 글에서는 **스크린 리더와 ARIA**를 다룹니다. 스크린 리더가 페이지를 어떻게 읽는지 — 랜드마크, role, aria-label, aria-live를 시각화합니다.
