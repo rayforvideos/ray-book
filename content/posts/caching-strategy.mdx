@@ -1,0 +1,211 @@
+---
+title: "캐싱 전략 — 두 번째 방문을 빠르게"
+description: "Cache-Control, Service Worker, CDN — 캐싱으로 재방문 성능을 극대화하는 전략을 시각화합니다"
+date: 2026-04-05
+tags: ["performance", "caching", "cache-control", "service-worker", "cdn"]
+series: "frontend-performance"
+seriesOrder: 7
+draft: false
+---
+
+## 첫 방문 vs 재방문
+
+성능 최적화를 논할 때 흔히 간과하는 것이 있습니다. 사용자의 대부분은 **재방문자**입니다. 첫 방문의 성능만 최적화하고 재방문을 무시하면 전체 사용자 경험의 절반을 놓치는 것입니다.
+
+첫 방문 — 모든 리소스를 네트워크에서 다운로드합니다. HTML, CSS, JavaScript, 이미지, 폰트. DNS 조회, TCP 연결, TLS 핸드셰이크까지 포함하면 수백 밀리초에서 수 초가 걸립니다.
+
+재방문 — 캐싱이 제대로 설정되어 있다면, 대부분의 리소스를 로컬 캐시에서 즉시 로드합니다. 네트워크 왕복이 사라지므로 응답 시간이 0ms에 가까워집니다.
+
+캐싱의 목표는 명확합니다. 재방문 시 네트워크 요청을 최소화하되, 사용자가 항상 최신 콘텐츠를 보도록 보장하는 것입니다.
+
+## HTTP 캐시 헤더 — Cache-Control
+
+`Cache-Control`은 캐시 동작을 제어하는 가장 중요한 HTTP 헤더입니다.
+
+**max-age** — 리소스가 유효한 시간 (초) 입니다. 이 시간 동안 브라우저는 서버에 확인하지 않고 캐시를 사용합니다.
+
+```http
+Cache-Control: max-age=3600
+```
+
+**no-cache** — 캐시에 저장하되, 사용 전에 반드시 서버에 유효성을 확인합니다. 이름이 혼란스럽지만 "캐시하지 않음"이 아닙니다.
+
+```http
+Cache-Control: no-cache
+```
+
+**no-store** — 응답을 어디에도 저장하지 않습니다. 민감한 데이터에 사용합니다.
+
+```http
+Cache-Control: no-store
+```
+
+**immutable** — max-age 기간 내에 새로고침을 해도 조건부 요청을 보내지 않습니다. 해시 기반 파일명과 함께 사용합니다.
+
+```http
+Cache-Control: public, max-age=31536000, immutable
+```
+
+## ETag와 조건부 요청
+
+캐시가 만료된 후 리소스가 실제로 변경되었는지 확인하는 메커니즘입니다.
+
+```http
+# 첫 응답 — 서버가 ETag를 포함
+HTTP/1.1 200 OK
+ETag: "abc123"
+Cache-Control: max-age=3600
+
+# 캐시 만료 후 — 브라우저가 ETag를 보내 확인
+GET /style.css HTTP/1.1
+If-None-Match: "abc123"
+
+# 변경 없음 — 304 응답 (바디 없음, 대역폭 절약)
+HTTP/1.1 304 Not Modified
+```
+
+리소스가 변경되지 않았다면 서버는 304 응답만 보내므로 전체 파일을 다시 다운로드하지 않습니다. 바디가 없는 304 응답은 수십 바이트에 불과합니다.
+
+## 해시 기반 파일명
+
+정적 자산의 캐시 무효화를 가장 확실하게 해결하는 방법은 파일명에 콘텐츠 해시를 포함하는 것입니다.
+
+```
+app.a1b2c3d4.js
+styles.e5f6g7h8.css
+logo.i9j0k1l2.webp
+```
+
+내용이 바뀌면 해시가 바뀌고, 해시가 바뀌면 URL이 바뀝니다. 새 URL은 캐시에 없으므로 브라우저가 새 파일을 다운로드합니다. 기존 파일의 캐시는 자연스럽게 무효화됩니다.
+
+이 패턴을 사용하면 정적 자산에 아주 긴 max-age를 설정할 수 있습니다.
+
+```http
+# 정적 자산 — 1년 캐시 + immutable
+Cache-Control: public, max-age=31536000, immutable
+
+# HTML — 항상 최신 확인 (정적 자산 URL 참조를 위해)
+Cache-Control: no-cache
+```
+
+HTML은 항상 서버에서 최신 버전을 확인합니다. HTML이 참조하는 JS/CSS URL에 새 해시가 포함되면 브라우저가 새 파일을 받습니다.
+
+## stale-while-revalidate
+
+캐시가 만료되었을 때 사용자를 기다리게 하지 않는 전략입니다.
+
+```http
+Cache-Control: max-age=60, stale-while-revalidate=3600
+```
+
+동작 방식:
+
+1. 60초 이내 — 캐시가 신선합니다. 즉시 반환합니다.
+2. 60초~3660초 — 캐시가 만료(stale)되었지만, **즉시 반환하면서 백그라운드에서 서버에 재검증**합니다.
+3. 3660초 이후 — 캐시가 완전히 만료됩니다. 서버 응답을 기다립니다.
+
+사용자는 항상 즉시 응답을 받습니다. 다음 요청부터 갱신된 데이터를 사용합니다. API 응답이나 자주 변경되지 않는 리소스에 적합합니다.
+
+## Service Worker 캐싱 패턴
+
+Service Worker는 프로그래밍 가능한 캐시 계층입니다. HTTP 캐시보다 세밀한 제어가 가능하고, 오프라인 동작도 구현할 수 있습니다.
+
+**Cache First** — 캐시에 있으면 캐시를 반환하고, 없을 때만 네트워크를 사용합니다.
+
+```javascript
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((response) => {
+        const clone = response.clone();
+        caches.open('v1').then((c) => c.put(event.request, clone));
+        return response;
+      });
+    })
+  );
+});
+```
+
+**Network First** — 네트워크를 먼저 시도하고, 실패하면 캐시를 사용합니다.
+
+```javascript
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open('v1').then((c) => c.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
+});
+```
+
+**Stale While Revalidate** — 캐시를 즉시 반환하고 백그라운드에서 네트워크 응답으로 캐시를 갱신합니다.
+
+```javascript
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.open('v1').then((cache) => {
+      return cache.match(event.request).then((cached) => {
+        const fetched = fetch(event.request).then((response) => {
+          cache.put(event.request, response.clone());
+          return response;
+        });
+        return cached || fetched;
+      });
+    })
+  );
+});
+```
+
+패턴 선택 기준: 정적 자산은 Cache First, HTML/API는 Network First, 자주 접근하지만 즉시성이 중요한 리소스는 Stale While Revalidate가 적합합니다.
+
+## CDN
+
+CDN (Content Delivery Network) 은 전 세계에 분산된 엣지 서버에 리소스를 캐시합니다. 사용자와 물리적으로 가까운 서버에서 응답하므로 네트워크 지연이 줄어듭니다.
+
+CDN 캐시의 핵심 개념:
+
+**오리진과 엣지** — 오리진 서버는 실제 데이터가 있는 서버입니다. 엣지 서버는 CDN이 전 세계에 배치한 캐시 서버입니다. 첫 요청은 오리진까지 도달하지만, 이후 요청은 엣지에서 응답합니다.
+
+**Cache-Control: public** — CDN (공유 캐시) 에 저장을 허용합니다. `private`이면 CDN이 캐시하지 않습니다.
+
+```http
+# CDN 캐시 허용
+Cache-Control: public, max-age=86400
+
+# CDN과 브라우저 캐시 시간을 다르게 설정
+Cache-Control: public, max-age=300, s-maxage=86400
+```
+
+`s-maxage`는 공유 캐시 (CDN) 에만 적용되는 max-age입니다. 브라우저에는 300초, CDN에는 86400초가 적용됩니다.
+
+**캐시 퍼지** — 오리진 데이터가 변경되었을 때 CDN 캐시를 무효화합니다. 해시 기반 파일명을 사용하면 퍼지가 필요 없습니다. URL 자체가 바뀌기 때문입니다.
+
+## 캐싱 흐름 시각화
+
+캐시가 없는 경우부터 Service Worker까지, 캐싱 전략별로 요청 흐름이 어떻게 달라지는지 비교합니다.
+
+<CachingFlow />
+
+## 시리즈 마무리 — 프론트엔드 성능 체크리스트
+
+7편에 걸쳐 프론트엔드 성능 최적화의 핵심 영역을 다뤘습니다. 마지막으로 각 글의 핵심을 하나의 체크리스트로 정리합니다.
+
+**1편. Core Web Vitals** — LCP, INP, CLS를 측정하고 기준치를 충족하는가
+
+**2편. 리소스 로딩** — 크리티컬 렌더링 패스를 최소화하고, preload/prefetch를 활용하는가
+
+**3편. JavaScript 번들** — 코드 스플리팅, 트리 셰이킹, 동적 임포트로 번들 크기를 줄였는가
+
+**4편. 렌더링 성능** — 애니메이션에 transform/opacity만 사용하고, layout thrashing이 없는가
+
+**5편. 메인 스레드** — Long Task를 분할하고, Web Worker와 scheduler.yield()를 활용하는가
+
+**6편. 이미지와 폰트** — WebP/AVIF를 제공하고, 폰트를 서브세팅하고, CLS를 방지하는가
+
+**7편. 캐싱 전략** — 해시 기반 파일명 + immutable 캐시를 사용하고, Service Worker 전략이 있는가
+
+> "추측하지 말고 측정하라." 성능 최적화의 첫 번째 원칙입니다. DevTools Performance 패널, Lighthouse, Chrome UX Report로 측정하고, 숫자로 개선을 증명하세요.
