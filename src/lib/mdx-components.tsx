@@ -1,11 +1,13 @@
 import type { MDXComponents } from "mdx/types";
 import { CodeBlock } from "@/components/viz/primitives/CodeBlock";
+import { CodeTabs } from "@/components/viz/primitives/CodeTabs";
 import { Term } from "@/components/viz/primitives/Term";
 import * as domainComponents from "@/components/viz/domain";
 
 export const mdxComponents: MDXComponents = {
   ...domainComponents,
   Term,
+  CodeTabs,
   table: ({ children, ...props }: React.ComponentProps<"table">) => (
     <div className="table-wrapper">
       <table {...props}>{children}</table>
