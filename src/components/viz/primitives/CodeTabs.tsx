@@ -69,6 +69,70 @@ export class CounterComponent {
 </button>`,
     },
   ],
+  "reactivity-state": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `import { useState } from 'react';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  // 상태 변경 → 컴포넌트 전체 re-render
+  return (
+    <button onClick={() => setCount(c => c + 1)}>
+      {count}
+    </button>
+  );
+}`,
+    },
+    {
+      label: "Vue",
+      lang: "html",
+      code: `<script setup>
+import { ref } from 'vue';
+
+// ref() → Proxy로 감싸서 자동 추적
+const count = ref(0);
+</script>
+
+<template>
+  <!-- count.value 변경 → 이 컴포넌트만 re-render -->
+  <button @click="count++">{{ count }}</button>
+</template>`,
+    },
+    {
+      label: "Angular",
+      lang: "typescript",
+      code: `import { Component, signal } from '@angular/core';
+
+@Component({
+  template: \`
+    <!-- signal 값 변경 → 세밀한 업데이트 -->
+    <button (click)="increment()">
+      {{ count() }}
+    </button>
+  \`,
+})
+export class Counter {
+  count = signal(0);
+  increment() { this.count.update(c => c + 1); }
+}`,
+    },
+    {
+      label: "Svelte",
+      lang: "html",
+      code: `<script>
+  // 컴파일러가 반응성 코드를 자동 생성
+  let count = $state(0);
+</script>
+
+<!-- count 변경 → 직접 DOM 업데이트 (VDOM 없음) -->
+<button onclick={() => count++}>
+  {count}
+</button>`,
+    },
+  ],
 };
 
 interface CodeTabsProps {
