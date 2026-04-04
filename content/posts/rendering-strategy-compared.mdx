@@ -146,7 +146,7 @@ Svelte의 번들에는 "범용 diff 알고리즘" 같은 것이 포함되지 않
 
 렌더링 전략을 비교할 때 빠지기 쉬운 함정이 있습니다 — **벤치마크에 매몰되는 것.**
 
-[js-framework-benchmark](https://github.com/nickel-org/nickel.rs) 같은 테스트에서 Svelte가 React보다 빠른 것은 사실입니다. 하지만 벤치마크는 수천 개의 행을 동시에 업데이트하는 극단적인 시나리오입니다. 실제 애플리케이션에서 VDOM의 오버헤드가 체감되는 경우는 드뭅니다.
+[js-framework-benchmark](https://github.com/krausest/js-framework-benchmark) 같은 테스트에서 Svelte가 React보다 빠른 것은 사실입니다. 하지만 벤치마크는 수천 개의 행을 동시에 업데이트하는 극단적인 시나리오입니다. 실제 애플리케이션에서 VDOM의 오버헤드가 체감되는 경우는 드뭅니다.
 
 진짜 병목은 보통 다른 곳에 있습니다:
 
