@@ -1,0 +1,144 @@
+---
+title: "네트워크 병목 — 바이트를 줄여라"
+description: "코드 스플리팅, 트리 쉐이킹, 압축 — 번들 크기를 줄이는 세 가지 전략을 시각화합니다"
+date: 2026-04-05
+tags: ["performance", "bundle", "code-splitting", "tree-shaking", "compression"]
+series: "frontend-performance"
+seriesOrder: 2
+draft: false
+---
+
+## 핵심 질문
+
+번들이 크면 왜 느리고, 어떻게 줄일 수 있는가?
+
+브라우저는 JavaScript를 실행하기 전에 세 단계를 거칩니다 — **다운로드**, **파싱 + 컴파일**, **실행**. 번들이 800KB라면 이 세 단계가 모두 느려집니다. 네트워크가 빠르더라도 파싱과 컴파일은 CPU에 의존하므로, 저사양 모바일 기기에서는 수 초가 걸릴 수 있습니다.
+
+## 번들이 크면 왜 느린가
+
+JavaScript는 HTML, CSS와 달리 **점진적 렌더링이 불가능**합니다. 브라우저는 스크립트를 완전히 파싱하고 컴파일한 뒤에야 실행할 수 있습니다.
+
+1. **다운로드** — 네트워크 대역폭에 의존. 3G 환경에서 800KB는 약 8초
+2. **파싱 + 컴파일** — 저사양 모바일 기기에서는 1MB당 수백 ms가 소요될 수 있습니다
+3. **실행** — 모듈 초기화, 부수 효과 실행. 번들이 클수록 초기화 코드도 많아집니다
+
+이 세 단계가 완료될 때까지 메인 스레드가 차단되므로, 사용자는 빈 화면을 보거나 인터랙션에 응답받지 못합니다. LCP와 INP 모두에 악영향을 미칩니다.
+
+## 번들 분석 도구
+
+줄이기 전에 먼저 **무엇이 크기를 차지하는지** 파악해야 합니다.
+
+```bash
+# webpack
+npx webpack-bundle-analyzer stats.json
+
+# Vite (rollup-plugin-visualizer)
+npx vite-bundle-visualizer
+
+# Next.js
+ANALYZE=true next build   # @next/bundle-analyzer 플러그인 필요
+```
+
+번들 분석기는 트리맵으로 각 모듈의 크기를 시각화합니다. `moment.js`의 로케일 파일이 전체 번들의 30%를 차지하거나, 사용하지 않는 아이콘 라이브러리가 포함된 것을 발견할 수 있습니다.
+
+## 코드 스플리팅 — 필요한 코드만 먼저
+
+코드 스플리팅은 하나의 번들을 여러 청크로 나누어, 현재 페이지에 필요한 코드만 먼저 로드하는 전략입니다.
+
+### dynamic import()
+
+ES2020의 `import()` 표현식은 모듈을 비동기로 로드합니다. 번들러는 이를 청크 분할의 기준점으로 사용합니다.
+
+```typescript
+// 정적 import — 항상 번들에 포함
+import { Chart } from "chart.js";
+
+// 동적 import — 별도 청크로 분리, 필요할 때 로드
+const { Chart } = await import("chart.js");
+```
+
+### React.lazy와 Suspense
+
+React에서는 `React.lazy`로 컴포넌트 단위의 코드 스플리팅을 할 수 있습니다.
+
+```tsx
+import { lazy, Suspense } from "react";
+
+const Dashboard = lazy(() => import("./Dashboard"));
+
+function App() {
+  return (
+    <Suspense fallback={<Skeleton />}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+```
+
+Next.js의 `next/dynamic`은 `React.lazy` + `Suspense`를 래핑한 것으로, SSR 비활성화 옵션 (`ssr: false`) 을 추가로 제공합니다.
+
+### 라우트 기반 분할
+
+가장 효과적인 분할 단위는 **라우트**입니다. 각 페이지가 별도 청크가 되면, 사용자가 방문하지 않는 페이지의 코드는 아예 다운로드되지 않습니다. Next.js App Router는 파일 시스템 기반으로 이를 자동 처리합니다.
+
+## 트리 쉐이킹 — 사용하지 않는 코드 제거
+
+트리 쉐이킹은 번들에서 실제로 사용되지 않는 export를 제거하는 최적화입니다. ES 모듈의 `import`/`export`가 **정적으로 분석 가능**하기 때문에 가능합니다.
+
+```typescript
+// lodash — CommonJS, 트리 쉐이킹 불가
+import _ from "lodash";       // 전체 로드 (~70KB gzip)
+_.debounce(fn, 300);
+
+// lodash-es — ESM, 트리 쉐이킹 가능
+import { debounce } from "lodash-es";  // debounce만 포함 (~1KB gzip)
+debounce(fn, 300);
+```
+
+트리 쉐이킹이 제대로 작동하려면:
+
+1. **ESM 사용** — `import`/`export` 구문은 정적 분석이 가능하지만, `require()`는 동적이므로 불가능
+2. **부수 효과 선언** — `package.json`의 `"sideEffects": false`가 번들러에게 안전하게 제거할 수 있다고 알려줍니다
+3. **배럴 파일 주의** — `index.ts`에서 모든 것을 re-export하면, 번들러가 의존성을 추적하기 어려워질 수 있습니다
+
+## 압축 — 전송 크기 줄이기
+
+코드 스플리팅과 트리 쉐이킹으로 원본 크기를 줄인 후, **압축**으로 전송 크기를 한 번 더 줄입니다.
+
+| | gzip | Brotli |
+|---|---|---|
+| **압축률** | 원본 대비 약 65% 감소 | 원본 대비 약 70% 감소 |
+| **속도** | 빠름 | 느림 (특히 높은 압축 레벨) |
+| **적합한 용도** | 동적 콘텐츠 | 정적 에셋 (빌드 타임 압축) |
+| **브라우저 지원** | 거의 모든 브라우저 | 모든 주요 브라우저 (96%+) |
+
+Brotli는 gzip 대비 약 15~25% 더 작은 결과를 만듭니다. 단, 높은 압축 레벨에서는 압축 속도가 느리므로, 빌드 시점에 미리 압축해 두는 것이 일반적입니다.
+
+```nginx
+# Nginx — Brotli 정적 파일 서빙
+brotli_static on;
+
+# 동적 콘텐츠는 gzip 폴백
+gzip on;
+gzip_types text/plain text/css application/javascript;
+```
+
+## 시각화 — 번들 최적화 워터폴
+
+아래 시각화는 단일 번들에서 시작하여 코드 스플리팅, 트리 쉐이킹, 압축을 적용할 때 리소스 로딩이 어떻게 변하는지 보여줍니다.
+
+<BundleWaterfall />
+
+## 체크리스트
+
+- [ ] 번들 분석 도구로 크기 상위 모듈을 파악했는가
+- [ ] 라우트 기반 코드 스플리팅을 적용했는가
+- [ ] 무거운 컴포넌트에 `React.lazy` / `next/dynamic`을 사용했는가
+- [ ] CommonJS 대신 ESM 라이브러리를 선택했는가 (lodash → lodash-es)
+- [ ] `package.json`에 `"sideEffects"` 필드를 설정했는가
+- [ ] 서버에서 Brotli (정적) + gzip (동적) 압축을 활성화했는가
+- [ ] 이미지를 WebP/AVIF로 변환하고 CDN에서 서빙하는가
+
+## 다음 글에서는
+
+번들 크기를 줄였다면, 다음 단계는 **리소스 로딩 순서를 제어**하는 것입니다. preload, prefetch, lazy loading, async/defer — 브라우저에게 우선순위를 알려주는 방법을 시각화합니다.
