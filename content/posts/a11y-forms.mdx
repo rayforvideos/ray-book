@@ -1,0 +1,212 @@
+---
+title: "폼과 에러 처리"
+description: "label 연결, 에러 메시지 전달, 자동완성 — 접근 가능한 폼을 만드는 핵심 기법을 시각화합니다"
+date: 2026-04-05
+tags: ["accessibility", "forms", "label", "aria-describedby", "validation"]
+series: "web-accessibility"
+seriesOrder: 5
+draft: false
+---
+
+## 폼을 제출했는데 무엇이 잘못되었는지 알 수 없다면?
+
+회원가입 폼에서 "제출"을 눌렀는데 아무 반응이 없습니다. 어딘가에 빨간색 텍스트가 나타났지만, 스크린 리더 사용자는 그것을 알 수 없습니다. 시각적으로도 어떤 필드에서 에러가 발생했는지 모호합니다.
+
+**접근 가능한 폼**은 세 가지를 보장합니다.
+
+1. 각 입력 필드가 **무엇을 위한 것인지** 알 수 있다 — label
+2. 입력이 **잘못되었을 때** 이유를 알 수 있다 — 에러 메시지 연결
+3. 에러가 **동적으로 발생**해도 알림을 받을 수 있다 — aria-live
+
+## label + input 연결
+
+HTML `<label>` 요소는 입력 필드의 이름표입니다. 두 가지 방법으로 연결합니다.
+
+**방법 1: for/id 연결**
+
+```html
+<label for="username">사용자 이름</label>
+<input id="username" type="text" />
+```
+
+**방법 2: 래핑**
+
+```html
+<label>
+  사용자 이름
+  <input type="text" />
+</label>
+```
+
+두 방법 모두 스크린 리더가 입력 필드에 포커스되면 "사용자 이름, 편집 가능"이라고 읽어줍니다. label을 클릭해도 input에 포커스가 이동하므로 **클릭 영역도 확장**됩니다.
+
+### placeholder는 label이 아니다
+
+```html
+<!-- ❌ placeholder만 사용 -->
+<input type="email" placeholder="이메일 주소" />
+
+<!-- 문제 1: 입력을 시작하면 힌트가 사라짐 -->
+<!-- 문제 2: 스크린 리더에 따라 placeholder를 읽지 않을 수 있음 -->
+<!-- 문제 3: placeholder 텍스트는 대비 비율이 낮아 읽기 어려움 -->
+
+<!-- ✅ label + placeholder 함께 사용 -->
+<label for="email">이메일 주소</label>
+<input id="email" type="email" placeholder="user@example.com" />
+```
+
+placeholder는 **보조 힌트**일 뿐, label을 대체할 수 없습니다.
+
+## 접근 가능한 폼 시각화
+
+아래 시각화에서 접근성 없는 폼과 접근 가능한 폼의 차이를 단계별로 확인하세요. label 연결, 에러 메시지 연결, aria-live까지 점진적으로 개선하는 과정을 보여줍니다.
+
+<AccessibleForm />
+
+## 에러 메시지: aria-describedby + aria-invalid
+
+사용자가 잘못된 값을 입력했을 때, 에러 메시지를 **시각적으로만** 표시하면 스크린 리더가 감지하지 못합니다. `aria-describedby`와 `aria-invalid`를 함께 사용하세요.
+
+```html
+<label for="email">이메일</label>
+<input
+  id="email"
+  type="email"
+  aria-invalid="true"
+  aria-describedby="email-error"
+/>
+<p id="email-error" role="alert">
+  올바른 이메일 형식이 아닙니다
+</p>
+```
+
+| 속성 | 역할 |
+|------|------|
+| `aria-invalid="true"` | 입력값이 잘못되었음을 알림 |
+| `aria-describedby` | 에러 메시지 요소의 id를 가리킴 |
+| `role="alert"` | 에러가 나타나면 즉시 읽어줌 (aria-live="assertive"와 동일) |
+
+스크린 리더는 input에 포커스하면 "이메일, 편집 가능, **잘못됨**. 올바른 이메일 형식이 아닙니다"라고 읽어줍니다.
+
+## aria-live로 동적 에러 알림
+
+실시간 유효성 검사에서 에러 메시지가 **동적으로** 나타나면, 스크린 리더는 DOM 변경을 자동으로 감지하지 못합니다. `aria-live`를 사용하면 해당 영역의 내용이 변경될 때 스크린 리더가 자동으로 읽어줍니다.
+
+```html
+<!-- 에러 메시지 컨테이너 -->
+<div aria-live="polite" aria-atomic="true">
+  <!-- JS로 에러 메시지가 동적으로 추가됨 -->
+</div>
+```
+
+| 값 | 동작 |
+|------|------|
+| `polite` | 현재 읽고 있는 내용이 끝난 후 알림 |
+| `assertive` | 즉시 알림 (현재 읽기를 중단) |
+| `off` | 알리지 않음 (기본값) |
+
+```javascript
+// 실시간 유효성 검사 예제
+const input = document.getElementById("password");
+const liveRegion = document.getElementById("password-errors");
+
+input.addEventListener("input", (e) => {
+  const value = e.target.value;
+  const errors = [];
+
+  if (value.length < 8)
+    errors.push("8자 이상이어야 합니다");
+  if (!/[A-Z]/.test(value))
+    errors.push("대문자를 포함해야 합니다");
+  if (!/[0-9]/.test(value))
+    errors.push("숫자를 포함해야 합니다");
+
+  // aria-live 영역에 메시지 업데이트
+  // → 스크린 리더가 자동으로 읽어줌
+  liveRegion.textContent = errors.join(". ");
+});
+```
+
+**주의:** `aria-live="assertive"`는 사용자의 현재 작업을 중단하므로 **긴급한 에러**에만 사용하세요. 일반 유효성 검사에는 `polite`가 적합합니다.
+
+## autocomplete 속성
+
+`autocomplete` 속성은 브라우저가 이전에 입력한 값을 자동으로 채워주는 기능입니다. 접근성 측면에서 두 가지 이점이 있습니다.
+
+1. **인지 장애** 사용자의 입력 부담을 줄여줌
+2. **운동 장애** 사용자의 타이핑 횟수를 줄여줌
+
+```html
+<label for="name">이름</label>
+<input id="name" type="text" autocomplete="name" />
+
+<label for="email">이메일</label>
+<input id="email" type="email" autocomplete="email" />
+
+<label for="tel">전화번호</label>
+<input id="tel" type="tel" autocomplete="tel" />
+
+<label for="address">주소</label>
+<input id="address" type="text" autocomplete="street-address" />
+```
+
+WCAG 1.3.5는 **사용자 정보를 수집하는 입력 필드에 적절한 autocomplete 값을 제공**하도록 규정합니다.
+
+## required + aria-required
+
+필수 입력 필드를 표시하는 방법:
+
+```html
+<!-- HTML5 required — 브라우저 기본 유효성 검사 -->
+<input id="name" type="text" required />
+
+<!-- aria-required — 스크린 리더에 "필수" 알림 -->
+<input id="name" type="text" aria-required="true" />
+
+<!-- 실무에서는 둘 다 사용 -->
+<label for="name">
+  이름 <span aria-hidden="true">*</span>
+</label>
+<input id="name" type="text" required aria-required="true" />
+
+<!-- 폼 상단에 범례 추가 -->
+<p>
+  <span aria-hidden="true">*</span> 표시는 필수 항목입니다
+</p>
+```
+
+`aria-hidden="true"`로 별표를 숨기는 이유는 스크린 리더가 "별표"라고 읽는 것을 방지하기 위함입니다. 대신 `aria-required="true"`가 "필수"라는 정보를 전달합니다.
+
+## 접근 가능한 폼 체크리스트
+
+| 항목 | 방법 |
+|------|------|
+| label 연결 | `for`/`id` 또는 래핑 |
+| placeholder | label 대체 ❌, 보조 힌트로만 사용 |
+| 에러 메시지 | `aria-describedby` + `aria-invalid` |
+| 동적 에러 | `aria-live="polite"` |
+| 필수 표시 | `required` + `aria-required="true"` |
+| 자동완성 | `autocomplete` 속성 |
+| 에러 요약 | 폼 상단에 에러 목록 + 해당 필드로 링크 |
+| 포커스 관리 | 에러 발생 시 첫 번째 에러 필드로 포커스 이동 |
+
+## 시리즈 마무리: 접근성은 "추가 기능"이 아니라 "기본"이다
+
+5편에 걸쳐 웹 접근성의 핵심을 살펴봤습니다. 마지막으로 전체 시리즈를 관통하는 체크리스트를 정리합니다.
+
+| 편 | 주제 | 핵심 |
+|---|------|------|
+| 1편 | 시맨틱 HTML과 접근성 트리 | 올바른 HTML 요소 사용이 접근성의 출발점 |
+| 2편 | 키보드 내비게이션 | Tab/Enter/Esc로 모든 기능에 접근 가능해야 함 |
+| 3편 | 스크린 리더 | ARIA로 의미를 보충하되, 시맨틱 HTML이 우선 |
+| 4편 | 색상, 대비, 모션 | 4.5:1 대비, 색상 외 대안, prefers-reduced-motion |
+| 5편 | 폼과 에러 처리 | label 연결, aria-describedby, aria-live |
+
+접근성은 특별한 사용자를 위한 "추가 기능"이 아닙니다. 좋은 접근성은 **모든 사용자**의 경험을 개선합니다.
+
+- label이 있으면 **모든 사용자**가 폼을 더 쉽게 이해합니다
+- 대비가 높으면 **햇빛 아래에서도** 읽을 수 있습니다
+- 키보드 내비게이션은 **파워 유저**에게도 편리합니다
+- 시맨틱 HTML은 **SEO**에도 도움이 됩니다
+
+> "좋은 HTML을 쓰는 것. 그것이 접근성이다."
