@@ -16,3 +16,4 @@ export * from "./os-fundamentals";
 export * from "./service-worker-and-pwa";
 export * from "./framework-philosophies";
 export * from "./frontend-design-patterns";
+export * from "./frontend-performance";
