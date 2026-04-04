@@ -1,0 +1,118 @@
+---
+title: "접근성은 HTML이다"
+description: "div onclick이 아니라 button을 써야 하는 이유 — 시맨틱 마크업이 접근성의 근간인 이유를 시각화합니다"
+date: 2026-04-05
+tags: ["accessibility", "semantic-html", "aria", "a11y-tree"]
+series: "web-accessibility"
+seriesOrder: 1
+draft: false
+---
+
+## 왜 div가 아니라 button인가
+
+웹 접근성을 이야기할 때 가장 먼저 나오는 조언이 있습니다. "div에 onclick 달지 말고 button을 쓰세요." 그런데 왜일까요? 시각적으로는 똑같이 만들 수 있는데, 왜 HTML 태그가 중요할까요?
+
+답은 **브라우저가 HTML을 해석하는 방식**에 있습니다. 브라우저는 HTML을 읽고 DOM 트리를 만들 뿐만 아니라, 보조 기술 (assistive technology) 을 위한 별도의 트리를 생성합니다. 이 트리에서 `div`는 아무 의미가 없고, `button`은 "이것은 버튼이다"라는 정보를 가지고 있습니다.
+
+## 접근성은 장애인만의 문제가 아니다
+
+접근성 (accessibility, <Term id="a11y">a11y</Term>) 이라고 하면 흔히 시각장애인을 떠올립니다. 하지만 실제로 접근성의 혜택을 받는 상황은 훨씬 넓습니다.
+
+- 한 손으로 스마트폰을 조작할 때 (다른 손에 커피를 들고 있을 때)
+- 밝은 햇빛 아래에서 화면을 볼 때 (저대비 문제)
+- 손목을 다쳐서 마우스를 쓸 수 없을 때 (키보드 내비게이션)
+- 시끄러운 환경에서 영상을 볼 때 (자막 필요)
+- 느린 네트워크에서 이미지가 로드되기 전 (alt 텍스트)
+
+**접근성은 "특수한 사용자"를 위한 것이 아니라, 다양한 상황에 놓인 모든 사용자를 위한 것입니다.** W3C의 WCAG (Web Content Accessibility Guidelines) 는 이런 관점에서 웹 콘텐츠의 접근성 기준을 정의합니다.
+
+## 접근성 트리란
+
+브라우저는 HTML을 파싱하면 두 가지 트리를 만듭니다.
+
+1. **DOM 트리** — JavaScript가 조작하는 문서 구조
+2. **접근성 트리** (<Term id="accessibility-tree">Accessibility Tree</Term>) — 보조 기술이 읽는 문서 구조
+
+접근성 트리는 DOM 트리에서 파생되지만, 시각적 표현 (CSS) 과 관계없이 **의미** (semantics) 에 집중합니다. 각 노드는 네 가지 핵심 속성을 가집니다.
+
+| 속성 | 설명 | 예시 |
+|------|------|------|
+| **Role** | 요소의 역할 | `button`, `link`, `navigation` |
+| **Name** | 접근 가능한 이름 | 버튼 텍스트, label, aria-label |
+| **State** | 현재 상태 | `expanded`, `checked`, `disabled` |
+| **Value** | 현재 값 | 슬라이더의 50, 입력 필드의 텍스트 |
+
+`div`는 role이 `generic`이고 name이 없습니다. 접근성 트리 입장에서는 **투명인간**입니다. 반면 `button`은 자동으로 role=button을 가지며, 텍스트 콘텐츠가 name이 됩니다.
+
+## 시각화: div vs 시맨틱 HTML
+
+아래 시각화에서 같은 UI를 div로 만들었을 때와 시맨틱 HTML로 만들었을 때 접근성 트리가 어떻게 달라지는지 확인해 보세요.
+
+<AccessibilityTree />
+
+핵심은 단순합니다. **시맨틱 HTML을 쓰면 접근성 정보가 자동으로 생성됩니다.** div로 만든 버튼은 아무리 CSS를 입혀도 접근성 트리에서는 의미 없는 요소일 뿐입니다.
+
+## 시맨틱 요소 표
+
+자주 사용하는 시맨틱 요소와 그에 해당하는 접근성 역할을 정리합니다.
+
+| HTML 요소 | 암묵적 역할 (Role) | 접근성 기능 |
+|-----------|-------------------|------------|
+| `button` | button | 포커스 가능, Enter/Space로 활성화 |
+| `a` (href 포함) | link | 포커스 가능, Enter로 이동 |
+| `nav` | navigation | 랜드마크 — 스크린 리더에서 바로 접근 |
+| `main` | main | 랜드마크 — 페이지의 주요 콘텐츠 영역 |
+| `header` | banner | 랜드마크 — 사이트 헤더 (최상위일 때) |
+| `footer` | contentinfo | 랜드마크 — 사이트 푸터 (최상위일 때) |
+| `article` | article | 독립적인 콘텐츠 블록 |
+| `section` | region (aria-label 필요) | 의미 있는 콘텐츠 그룹 |
+| `h1` ~ `h6` | heading (level 1~6) | 문서 구조, 헤딩 탐색의 기반 |
+| `input` | 타입에 따라 다양 | 폼 컨트롤, label 연결 필수 |
+| `img` (alt 포함) | img | 대체 텍스트 제공 |
+
+## ARIA의 첫 번째 규칙
+
+> **"네이티브 HTML 요소나 속성으로 원하는 시맨틱과 동작을 구현할 수 있다면, ARIA를 사용하지 마라."**
+> — W3C, Using ARIA
+
+이것을 <Term id="first-rule-of-aria">ARIA의 첫 번째 규칙</Term>이라고 부릅니다. ARIA (Accessible Rich Internet Applications) 는 HTML만으로 표현할 수 없는 복잡한 위젯의 접근성을 보완하기 위해 만들어졌습니다. 하지만 실제로는 HTML로 충분한 상황에서 ARIA를 잘못 사용하는 경우가 더 많습니다.
+
+WebAIM의 조사에 따르면, ARIA가 사용된 페이지가 ARIA가 없는 페이지보다 **평균 41% 더 많은 접근성 오류**를 가지고 있었습니다. ARIA 자체가 나쁜 것이 아니라, 잘못 사용하면 오히려 접근성을 악화시킨다는 뜻입니다.
+
+```html
+<!-- Bad: ARIA로 버튼 역할을 부여 -->
+<div role="button" tabindex="0"
+  onkeydown="if(event.key==='Enter') handleClick()">
+  Click me
+</div>
+
+<!-- Good: 네이티브 button 사용 -->
+<button>Click me</button>
+```
+
+두 코드는 접근성 트리에서 비슷한 결과를 만들지만, 네이티브 `button`은 Enter, Space 키 지원, 폼 제출, disabled 상태 등 **브라우저가 기본 제공하는 동작**을 모두 포함합니다. div+ARIA 조합은 이 모든 것을 직접 구현해야 합니다.
+
+## 접근성 검사 도구
+
+시맨틱 HTML을 잘 쓰고 있는지 확인하는 도구들이 있습니다.
+
+**axe DevTools** — 브라우저 확장 프로그램으로, 현재 페이지의 접근성 위반 사항을 자동으로 검사합니다. 규칙별로 위반 요소와 수정 방법을 알려줍니다.
+
+**Lighthouse** — Chrome DevTools에 내장된 감사 도구입니다. Accessibility 카테고리에서 점수와 함께 개선 사항을 제시합니다.
+
+**Chrome 접근성 트리** — Chrome DevTools의 Elements 패널에서 "Enable full-page accessibility tree" 버튼을 클릭하면 DOM 트리 대신 접근성 트리를 직접 볼 수 있습니다. 각 요소의 역할, 이름, 상태를 확인할 수 있습니다.
+
+**eslint-plugin-jsx-a11y** — React 프로젝트에서 JSX의 접근성 문제를 린트 단계에서 잡아줍니다. img에 alt가 없거나, onClick만 있고 키보드 핸들러가 없는 경우 등을 감지합니다.
+
+## 체크리스트
+
+- [ ] 인터랙티브 요소는 `button`, `a`, `input` 등 네이티브 요소를 사용하고 있는가?
+- [ ] 페이지에 `header`, `nav`, `main`, `footer` 랜드마크가 있는가?
+- [ ] 헤딩 레벨 (`h1` ~ `h6`) 이 계층 구조를 지키고 있는가?
+- [ ] 모든 `img`에 의미 있는 `alt` 텍스트가 있는가? (장식용 이미지는 `alt=""`)
+- [ ] ARIA를 사용하기 전에 네이티브 HTML로 해결할 수 있는지 검토했는가?
+- [ ] axe DevTools나 Lighthouse로 자동 검사를 실행했는가?
+
+---
+
+다음 글에서는 **키보드 내비게이션**을 다룹니다. 마우스 없이 웹을 사용하는 방법 — Tab 순서, 포커스 관리, Skip Link, Focus Trap을 시각화합니다.
