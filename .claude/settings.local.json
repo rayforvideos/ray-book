@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jq:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(grep -l 'export const\\\\|export function\\\\|export default' /Users/guest-user/workspace/ray-book/src/components/viz/domain/*.tsx)",
+      "Bash(xargs -I{} grep -oP 'export \\(const|function\\) \\\\K\\\\w+' {})",
+      "Bash(ls /Users/guest-user/workspace/ray-book/src/components/viz/domain/*.tsx)",
+      "Bash(xargs basename:*)",
+      "Bash(npx next:*)",
+      "Bash(pkill -f 'next dev')",
+      "Bash(npm run:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | { read -r f; if echo \"$f\" | grep -q 'content/posts/.*\\.mdx$'; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"[크로스체크 리마인더] 이 MDX 파일의 기술적 사실(숫자, 알고리즘명, 프로토콜 상세, RFC 번호 등)을 공식 문서와 크로스체크하세요. WebSearch를 사용해 핵심 기술 주장을 검증하세요.\"}}'; fi; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
