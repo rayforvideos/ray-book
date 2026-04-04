@@ -1,0 +1,190 @@
+---
+title: "프레임워크를 넘어서"
+description: "Signals, Server Components, 컴파일러 — 프레임워크들이 수렴하고 있는 지점과 공통의 핵심을 정리합니다"
+date: 2026-04-05
+tags: ["framework", "signals", "server-components", "web-components", "convergence"]
+series: "framework-philosophies"
+seriesOrder: 8
+draft: false
+---
+
+## 핵심 질문
+
+**프레임워크들이 수렴하고 있는가?**
+
+7편에 걸쳐 React, Vue, Angular, Svelte의 차이를 살펴봤습니다. 반응성, 렌더링, 컴포넌트 모델, 상태 관리, 빌드 전략 — 모두 다릅니다. 하지만 최근 몇 년간 흥미로운 일이 일어나고 있습니다. 서로 다른 길을 걷던 프레임워크들이 **같은 방향으로 수렴**하고 있습니다.
+
+## Signals의 수렴
+
+가장 선명한 수렴은 **반응성**입니다. 모든 프레임워크가 세밀한 반응성 (fine-grained reactivity) 으로 향하고 있습니다.
+
+### Vue: ref()는 이미 Signal이었다
+
+```js
+const count = ref(0);   // Proxy 기반 반응성 — 사실상 signal
+count.value++;          // set → 의존성 자동 추적 → 업데이트
+```
+
+Vue의 `ref()`는 2020년 (Vue 3) 부터 존재했습니다. 값을 읽으면 의존성이 추적되고, 값을 쓰면 구독자에게 알림이 갑니다 — 이것이 signal의 정의입니다. Vue는 이름만 signal이라 부르지 않았을 뿐, 처음부터 signal이었습니다.
+
+### Angular: signal() 공식 도입
+
+```typescript
+const count = signal(0);        // Angular 16+에서 도입
+const doubled = computed(() => count() * 2);
+
+effect(() => console.log(count()));  // 자동 의존성 추적
+```
+
+Angular는 v16에서 `signal()`을 도입하고, v20에서 안정화했으며, v21에서 zone.js를 기본 제거했습니다. Zone.js가 "모든 비동기를 감시"하던 방식에서, signal이 "변경된 것만 추적"하는 방식으로 전환한 것입니다. 번들 크기 ~33KB 절감, 렌더링 성능 30~40% 향상이라는 실측 결과가 이 전환의 가치를 보여줍니다.
+
+### Svelte: $state(runes)는 Signal의 컴파일러 추상화
+
+```svelte
+<script>
+  let count = $state(0);       // 컴파일러가 signal 객체로 변환
+  let doubled = $derived(count * 2);  // computed signal
+</script>
+<p>{count}</p>                 <!-- 시그널 → DOM 직접 연결 -->
+```
+
+Svelte 5의 Runes는 signal입니다 — 다만 컴파일러가 보일러플레이트를 제거합니다. `$state(0)`은 빌드 시 `source(0)` (시그널 객체) 로 변환됩니다. 개발자는 일반 변수처럼 쓰지만, 런타임에는 시그널로 동작합니다.
+
+### React: 다른 길, 같은 목적지
+
+React는 signal을 직접 도입하지 않았습니다. 대신 React Compiler (v1.0, 2025년 10월 안정화) 가 자동 메모이제이션으로 같은 문제를 풀고 있습니다.
+
+```jsx
+// 개발자가 작성하는 코드 (변경 없음)
+function TodoItem({ todo, onToggle }) {
+  return <li onClick={() => onToggle(todo.id)}>{todo.text}</li>;
+}
+
+// React Compiler가 자동으로 메모이제이션 삽입
+// useMemo, useCallback, React.memo를 수동으로 쓸 필요 없음
+```
+
+React Compiler는 빌드 시 컴포넌트를 분석하여 "이 값이 변경되지 않았으면 재계산하지 마라"는 최적화를 자동 삽입합니다. Meta 내부 테스트에서 인터랙션 성능이 최대 2.5배 향상되었습니다.
+
+한편 TC39에서는 JavaScript 언어 자체에 Signals를 추가하는 제안이 Stage 1에 진입했습니다. 이 제안이 표준이 되면, 프레임워크와 무관하게 브라우저 네이티브 signal을 사용할 수 있게 됩니다.
+
+### 수렴의 의미
+
+| 프레임워크 | 반응성 메커니즘 | Signal인가? |
+|---|---|---|
+| Vue | ref() / reactive() | 사실상 signal |
+| Angular | signal() / computed() / effect() | 명시적 signal |
+| Svelte | $state / $derived / $effect | 컴파일러가 감춘 signal |
+| React | useState + React Compiler | signal은 아니지만 같은 문제를 풂 |
+
+이름과 API는 다르지만, "변경된 것만 정확히 추적하여 최소한의 업데이트를 수행한다"는 목표는 동일합니다.
+
+## 서버 렌더링의 수렴
+
+두 번째 수렴 지점은 **서버**입니다.
+
+- **React**: Server Components (RSC) — 서버에서 렌더링되고 클라이언트에 JavaScript를 보내지 않는 컴포넌트
+- **Vue / Nuxt**: Nuxt Server Components — RSC에서 영감받은 서버 전용 컴포넌트
+- **Angular**: Angular SSR — hydration 개선, 부분 hydration (developer preview)
+- **Svelte / SvelteKit**: 서버 사이드 렌더링 + 스트리밍이 기본
+
+모든 프레임워크가 "서버에서 할 수 있는 일은 서버에서 하자"는 방향으로 움직이고 있습니다. 이유는 명확합니다:
+
+1. **번들 사이즈 감소** — 서버에서 실행되는 코드는 클라이언트에 보낼 필요가 없습니다
+2. **초기 로드 속도** — HTML이 먼저 도착하므로 사용자가 빈 화면을 보는 시간이 줄어듭니다
+3. **데이터 접근** — 서버 컴포넌트는 데이터베이스에 직접 접근할 수 있습니다
+
+## 컴파일러의 수렴
+
+세 번째 수렴은 **컴파일러**입니다.
+
+- **React Compiler**: 자동 메모이제이션 — useMemo/useCallback을 빌드 시 삽입
+- **Vue Vapor**: VDOM 제거 — 템플릿을 직접 DOM 조작 코드로 컴파일 (Vue 3.6 베타)
+- **Angular AOT + Ivy**: 템플릿을 Ivy 명령어로 컴파일, 트리쉐이킹
+- **Svelte**: 처음부터 컴파일러 — .svelte를 순수 JS로 변환
+
+과거에는 Svelte만이 "컴파일러 프레임워크"였습니다. 이제는 모든 프레임워크가 빌드 타임에 더 많은 일을 하려 합니다. 런타임에 하던 최적화를 빌드로 옮기면 사용자가 지불하는 비용이 줄어들기 때문입니다.
+
+<FrameworkConvergence />
+
+## Web Components: 프레임워크 독립적 표준
+
+잠시 프레임워크 밖으로 나가 봅시다. Web Components는 브라우저 네이티브 컴포넌트 표준입니다.
+
+```js
+class MyButton extends HTMLElement {
+  connectedCallback() {
+    this.innerHTML = `<button>${this.getAttribute('label')}</button>`;
+  }
+}
+customElements.define('my-button', MyButton);
+```
+
+Custom Elements, Shadow DOM, HTML Templates — 프레임워크 없이도 재사용 가능한 컴포넌트를 만들 수 있습니다.
+
+### 왜 "프레임워크 킬러"가 되지 못했나
+
+Web Components는 **UI 프리미티브**입니다. 반응성, 상태 관리, 라우팅, SSR 같은 프레임워크가 제공하는 상위 기능이 없습니다. Shadow DOM은 스타일 격리에 유용하지만, SSR과의 호환성 문제가 있습니다.
+
+Web Components의 진짜 가치는 "프레임워크 교체"가 아니라 **"프레임워크 간 공유"**입니다. 디자인 시스템의 버튼, 아이콘, 모달 같은 저수준 UI를 Web Components로 만들면, React 앱에서도 Vue 앱에서도 동일하게 사용할 수 있습니다. Lit 같은 가벼운 라이브러리가 이 용도에 적합합니다.
+
+## 공통의 핵심
+
+7편에 걸쳐 네 프레임워크의 차이를 살펴봤지만, 돌아보면 **공통점이 차이점보다 큽니다.**
+
+### 1. 선언적 UI
+
+모든 프레임워크가 "UI가 어떻게 보여야 하는지"를 선언합니다. "DOM을 어떻게 조작하는지"를 명령하지 않습니다.
+
+```
+// 명령형: "이렇게 해라"
+element.textContent = count;
+
+// 선언형: "이렇게 보여라" — 네 프레임워크 모두
+<p>{count}</p>
+```
+
+### 2. 컴포넌트 기반
+
+UI를 독립된 단위로 쪼개고, 조합하여 복잡한 인터페이스를 만듭니다. 함수든, 클래스든, SFC든, .svelte든 — 본질은 같습니다.
+
+### 3. 반응성
+
+상태가 변경되면 UI가 자동으로 업데이트됩니다. VDOM diff든, Proxy 추적이든, signal이든, 컴파일러 생성 코드든 — "상태 → UI 동기화"라는 문제를 풀고 있습니다.
+
+### 4. 단방향 데이터 흐름
+
+데이터는 위에서 아래로, 이벤트는 아래에서 위로. Vue와 Angular가 양방향 바인딩을 지원하지만, 대규모 앱에서의 권장 패턴은 여전히 단방향입니다.
+
+## 프레임워크를 배우지 말고, 문제를 이해하라
+
+이 시리즈의 핵심 메시지입니다.
+
+`useState`를 암기하는 것보다 **"왜 상태 관리가 필요한가"**를 이해하는 것이 중요합니다. `v-model`의 문법을 외우는 것보다 **"양방향 바인딩의 트레이드오프"**를 아는 것이 오래갑니다.
+
+프레임워크는 바뀝니다. React가 class에서 hooks로, Angular가 Zone.js에서 Signals로, Svelte가 `$:`에서 Runes로 바뀌었듯이, 구현은 계속 변합니다.
+
+하지만 **문제**는 바뀌지 않습니다:
+
+- UI를 어떻게 효율적으로 업데이트할 것인가? (렌더링)
+- 상태 변경을 어떻게 감지할 것인가? (반응성)
+- 복잡한 UI를 어떻게 관리 가능하게 나눌 것인가? (컴포넌트)
+- 데이터를 어떻게 공유할 것인가? (상태 관리)
+- 빌드와 런타임 사이에서 어디에 비용을 지불할 것인가? (빌드 전략)
+
+이 질문들을 이해하면, 어떤 프레임워크를 만나더라도 "아, 이 문제를 이렇게 풀었구나"라고 읽을 수 있습니다.
+
+## 시리즈 전체 요약
+
+1. **왜 프레임워크가 필요했는가** — DOM 직접 조작의 한계에서 프레임워크가 탄생한 이유
+2. **반응성** — 변경 감지: dirty checking, Proxy, signal, 컴파일러 — 방법은 달라도 목표는 같다
+3. **컴포넌트 모델** — 함수, 클래스, SFC, .svelte — UI를 나누는 네 가지 방법
+4. **렌더링 전략** — VDOM diff vs 컴파일러 생성 코드 — DOM을 다루는 두 갈래
+5. **상태 관리** — Props, Context, Store — 데이터 공유 문제의 단계적 해결
+6. **템플릿 vs JSX** — HTML 확장 vs JavaScript 표현 — UI를 기술하는 두 가지 철학
+7. **빌드와 런타임** — 컴파일 타임과 런타임 사이의 스펙트럼
+8. **프레임워크를 넘어서** — Signals, 서버, 컴파일러 수렴 — 그리고 변하지 않는 핵심
+
+---
+
+프레임워크는 도구입니다. 도구는 바뀌지만, 도구가 풀려는 문제를 이해하면 어떤 도구든 빠르게 익힐 수 있습니다. 이 시리즈가 그 이해의 출발점이 되었기를 바랍니다.
