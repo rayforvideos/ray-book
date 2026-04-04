@@ -15,12 +15,15 @@ export async function generateMetadata({ params }: SeriesDetailProps) {
   const { slug } = await params;
   const series = getSeriesBySlug(slug);
   if (!series) return { title: "Not Found | Ray Book" };
+  const url = `/series/${slug}`;
   return {
     title: `${series.title} | Ray Book`,
     description: series.description,
+    alternates: { canonical: url },
     openGraph: {
       title: `${series.title} | Ray Book`,
       description: series.description,
+      url,
     },
   };
 }

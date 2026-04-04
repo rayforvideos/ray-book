@@ -5,6 +5,8 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "시리즈 | Ray Book",
   description: "주제별로 묶인 학습 시리즈 목록",
+  alternates: { canonical: "/series" },
+  openGraph: { url: "/series" },
 };
 
 export default function SeriesPage() {

@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { getAllPostMetas } from "@/lib/posts";
 import { getSeriesWithPosts } from "@/lib/series";
 import { ExpandablePostList } from "@/components/post/ExpandablePostList";
 import { ExpandableSeriesList } from "@/components/post/ExpandableSeriesList";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
+};
 
 export default function Home() {
   const posts = getAllPostMetas();

@@ -21,11 +21,14 @@ export async function generateMetadata({ params }: PostPageProps) {
   const { slug } = await params;
   try {
     const post = getPostBySlug(slug);
+    const url = `/posts/${slug}`;
     return {
       title: `${post.frontmatter.title} | Ray Book`,
       description: post.frontmatter.description,
+      alternates: { canonical: url },
       openGraph: {
         type: "article",
+        url,
         publishedTime: post.frontmatter.date.toISOString(),
         tags: post.frontmatter.tags,
       },
