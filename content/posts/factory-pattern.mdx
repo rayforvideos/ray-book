@@ -1,0 +1,256 @@
+---
+title: "Factory 패턴 — 생성을 위임하라"
+description: "조건에 따라 서로 다른 객체를 생성하는 new 호출을 팩토리 함수로 위임하는 방법을 시각화합니다"
+date: 2026-04-04
+tags: ["design-pattern", "factory", "creational", "react"]
+series: "frontend-design-patterns"
+seriesOrder: 6
+draft: false
+---
+
+## 문제: 흩어진 생성 로직
+
+폼 빌더를 만들고 있습니다. JSON 설정에 따라 다양한 입력 컴포넌트를 렌더링해야 합니다:
+
+```javascript
+function renderField(config) {
+  if (config.type === 'text') {
+    return new TextInput(config.label, config.placeholder);
+  } else if (config.type === 'select') {
+    return new SelectInput(config.label, config.options);
+  } else if (config.type === 'checkbox') {
+    return new CheckboxInput(config.label, config.checked);
+  } else if (config.type === 'date') {
+    return new DatePicker(config.label, config.format);
+  }
+  // ... 타입이 추가될 때마다 else if 추가
+}
+```
+
+문제가 세 가지 있습니다:
+
+1. **생성 로직이 사용처에 묶여 있습니다** — `renderField`가 모든 컴포넌트의 생성자를 알아야 합니다. 폼 렌더러가 아니라 컴포넌트 카탈로그가 되어 버렸습니다.
+2. **변경에 취약합니다** — 새 타입이 추가되거나 생성자 시그니처가 바뀔 때마다 이 함수를 수정해야 합니다.
+3. **재사용이 어렵습니다** — 다른 곳에서도 같은 타입 기반 생성이 필요하면 if/else를 복사해야 합니다.
+
+Factory 패턴은 이 문제를 해결합니다 — 객체 생성의 결정을 **한 곳에 위임**합니다.
+
+## Factory 패턴
+
+Factory에는 세 가지 변형이 있습니다. GoF가 정의한 것은 Factory Method와 Abstract Factory 두 가지이고, Simple Factory는 GoF에 포함되지 않지만 가장 널리 쓰입니다.
+
+### Simple Factory (가장 실용적)
+
+함수나 객체가 조건에 따라 다른 인스턴스를 생성합니다. 공식 GoF 패턴은 아니지만, 프론트엔드에서 가장 자주 만나는 형태입니다:
+
+```javascript
+const componentMap = {
+  button: Button,
+  input: Input,
+  card: Card,
+};
+
+function createComponent(type, props) {
+  const Component = componentMap[type];
+  if (!Component) throw new Error(`Unknown type: ${type}`);
+  return <Component {...props} />;
+}
+```
+
+아래 시각화에서 팩토리가 type에 따라 다른 컴포넌트를 생성하는 과정을 확인하세요:
+
+<FactoryPattern preset="component" />
+
+### Before/After
+
+**Before — 생성 로직이 사용처에 묶임:**
+
+```javascript
+function renderField(config) {
+  if (config.type === 'text') {
+    return new TextInput(config.label, config.placeholder);
+  } else if (config.type === 'select') {
+    return new SelectInput(config.label, config.options);
+  } else if (config.type === 'checkbox') {
+    return new CheckboxInput(config.label, config.checked);
+  }
+}
+```
+
+**After — 팩토리로 위임:**
+
+```javascript
+// 생성 로직을 팩토리에 집중
+const fieldFactory = {
+  text: (config) => new TextInput(config.label, config.placeholder),
+  select: (config) => new SelectInput(config.label, config.options),
+  checkbox: (config) => new CheckboxInput(config.label, config.checked),
+};
+
+function createField(config) {
+  const creator = fieldFactory[config.type];
+  if (!creator) throw new Error(`Unknown field: ${config.type}`);
+  return creator(config);
+}
+
+// 사용처는 생성 방법을 모른다
+function renderForm(schema) {
+  return schema.fields.map(createField);
+}
+```
+
+달라진 점:
+
+1. **생성 로직이 한 곳에** — `fieldFactory`만 알면 어떤 타입이 지원되는지 한눈에 보입니다.
+2. **확장이 쉽습니다** — 새 타입을 추가할 때 `fieldFactory`에 한 줄만 추가하면 됩니다.
+3. **사용처가 깨끗합니다** — `renderForm`은 `createField`를 호출할 뿐, 어떤 컴포넌트가 만들어지는지 모릅니다.
+
+## Factory Method (GoF)
+
+GoF가 정의한 Factory Method는 Simple Factory보다 한 단계 추상적입니다:
+
+> "객체 생성을 위한 인터페이스를 정의하되, 어떤 클래스의 인스턴스를 만들지는 서브클래스가 결정한다."
+
+```javascript
+// 추상 Creator
+class Dialog {
+  // Factory Method — 서브클래스가 오버라이드
+  createButton() {
+    throw new Error('서브클래스에서 구현하세요');
+  }
+
+  render() {
+    const button = this.createButton(); // 팩토리 메서드 호출
+    button.onClick(() => console.log('클릭!'));
+    return button.render();
+  }
+}
+
+// Concrete Creator들
+class WebDialog extends Dialog {
+  createButton() { return new HTMLButton(); }
+}
+
+class MobileDialog extends Dialog {
+  createButton() { return new NativeButton(); }
+}
+```
+
+`Dialog`의 `render()`는 어떤 버튼이 만들어지는지 모릅니다. 서브클래스가 `createButton()`을 오버라이드하여 결정합니다.
+
+JavaScript에서는 클래스 상속보다 **함수 전달**이 더 자연스러우므로, Factory Method는 보통 Simple Factory나 콜백 형태로 구현됩니다.
+
+## 프론트엔드 실전 사례
+
+### 1. React.createElement
+
+React의 핵심 함수 `React.createElement`는 팩토리 함수입니다:
+
+```jsx
+// JSX
+<Button onClick={handleClick}>제출</Button>
+
+// 컴파일 후 — React.createElement가 팩토리
+React.createElement(Button, { onClick: handleClick }, '제출');
+// → { type: Button, props: { onClick, children: '제출' } }
+```
+
+`createElement`는 `type`에 따라 다른 React 엘리먼트 객체를 생성합니다. 문자열 (`'div'`, `'span'`) 이면 DOM 엘리먼트, 함수/클래스면 컴포넌트 엘리먼트를 만듭니다. 팩토리 패턴의 교과서적 사례입니다.
+
+### 2. document.createElement
+
+브라우저의 `document.createElement`도 팩토리입니다:
+
+```javascript
+// 같은 팩토리, 다른 결과
+const div = document.createElement('div');       // HTMLDivElement
+const canvas = document.createElement('canvas'); // HTMLCanvasElement
+const input = document.createElement('input');   // HTMLInputElement
+```
+
+하나의 함수가 태그 이름에 따라 **서로 다른 클래스**의 인스턴스를 반환합니다. `new HTMLDivElement()`를 직접 호출할 수 없으므로 (생성자가 비공개), 반드시 팩토리를 통해야 합니다.
+
+### 3. 동적 컴포넌트 매핑 (React)
+
+실무에서 가장 자주 쓰이는 패턴입니다:
+
+```jsx
+// 컴포넌트 레지스트리 (팩토리 맵)
+const widgetMap = {
+  chart: ChartWidget,
+  table: TableWidget,
+  metric: MetricWidget,
+  text: TextWidget,
+};
+
+// 대시보드 렌더러 — 위젯 타입을 모른다
+function Dashboard({ widgets }) {
+  return (
+    <div className="grid">
+      {widgets.map((config) => {
+        const Widget = widgetMap[config.type];
+        if (!Widget) return null;
+        return <Widget key={config.id} {...config.props} />;
+      })}
+    </div>
+  );
+}
+
+// JSON 설정으로 대시보드 구성
+const config = [
+  { id: '1', type: 'chart', props: { data, title: '매출' } },
+  { id: '2', type: 'metric', props: { value: 1234, label: '방문자' } },
+];
+
+<Dashboard widgets={config} />
+```
+
+`Dashboard`는 어떤 위젯이 있는지 **모릅니다**. `widgetMap`이 type → Component 매핑을 담당합니다. CMS, 대시보드 빌더, 폼 빌더에서 핵심적으로 사용되는 패턴입니다.
+
+### 4. API 클라이언트 팩토리
+
+환경에 따라 다른 API 클라이언트를 생성하는 패턴:
+
+```javascript
+function createApiClient(env) {
+  const configs = {
+    development: { baseURL: 'http://localhost:3000', timeout: 30000 },
+    staging: { baseURL: 'https://staging-api.example.com', timeout: 10000 },
+    production: { baseURL: 'https://api.example.com', timeout: 5000 },
+  };
+
+  const config = configs[env];
+  if (!config) throw new Error(`Unknown env: ${env}`);
+
+  return axios.create(config);
+}
+
+const api = createApiClient(process.env.NODE_ENV);
+```
+
+## Simple Factory vs Factory Method
+
+| | Simple Factory | Factory Method |
+|---|---------------|----------------|
+| **GoF 공식** | 아님 (관용적 패턴) | 공식 패턴 |
+| **구현** | 함수/객체 매핑 | 서브클래스가 메서드 오버라이드 |
+| **JS에서** | 매우 흔함 | 클래스 상속이 필요해 덜 쓰임 |
+| **추가 비용** | 거의 없음 | 클래스 계층 필요 |
+| **사용 시점** | 타입 기반 객체 생성 | 프레임워크에서 확장 포인트 제공 |
+
+JavaScript에서는 **Simple Factory**가 압도적으로 많이 쓰입니다. 함수가 일급 객체이므로 클래스 상속 없이도 같은 목적을 달성할 수 있기 때문입니다.
+
+## 언제 Factory를 쓸까?
+
+**쓰세요:**
+- **조건에 따라 다른 객체**를 생성해야 할 때 (컴포넌트 매핑, 위젯 시스템)
+- 생성 로직을 **사용처에서 분리**하고 싶을 때
+- **설정 기반** (JSON, config) 으로 객체를 동적으로 생성할 때
+
+**쓰지 마세요:**
+- 생성할 타입이 **하나뿐**일 때 — 직접 `new`를 호출하는 것이 더 명확합니다
+- 타입이 **컴파일 타임에 확정**되어 있을 때 — TypeScript의 타입 시스템이 더 적합합니다
+
+---
+
+다음 글에서는 **Command 패턴**을 다룹니다. Undo/Redo, 매크로 기록, 트랜잭션 처리 — 동작을 객체로 만들어 이력을 관리하는 방법을 살펴보겠습니다.

@@ -1,0 +1,274 @@
+---
+title: "Mediator 패턴 — 소통을 중재하라"
+description: "컴포넌트 간 직접 통신의 스파게티를 중앙 중재자로 정리하는 Mediator 패턴을 시각화합니다"
+date: 2026-04-04
+tags: ["design-pattern", "mediator", "state-management", "redux"]
+series: "frontend-design-patterns"
+seriesOrder: 8
+draft: false
+---
+
+## 문제: 스파게티 의존성
+
+대시보드를 만들고 있습니다. Header의 검색, Sidebar의 필터, List의 목록, Detail의 상세 — 4개 컴포넌트가 서로 통신해야 합니다.
+
+가장 직관적인 방법은 직접 호출입니다:
+
+```javascript
+// Header가 다른 컴포넌트를 직접 호출
+class Header {
+  onSearch(query) {
+    sidebar.updateFilter(query);
+    list.search(query);
+    detail.highlight(query);
+  }
+}
+
+// Sidebar도 다른 컴포넌트를 직접 호출
+class Sidebar {
+  onFilterChange(filter) {
+    list.applyFilter(filter);
+    detail.clear();
+    header.updateBreadcrumb(filter);
+  }
+}
+```
+
+4개 컴포넌트의 연결 수: `4 × 3 / 2 = 6`. 5개면 10, 10개면 45. **O(n²)** 으로 폭발합니다.
+
+문제는 숫자만이 아닙니다:
+
+1. **양방향 의존성** — Header가 Sidebar를, Sidebar가 Header를 알아야 합니다. 순환 의존성이 생깁니다.
+2. **수정의 연쇄** — List의 API가 바뀌면 Header와 Sidebar를 모두 수정해야 합니다.
+3. **재사용 불가** — Header를 다른 페이지에서 쓰고 싶은데, Sidebar와 List에 의존하고 있어서 떼어낼 수 없습니다.
+
+Mediator 패턴은 이 문제를 해결합니다 — 컴포넌트 간 통신을 **중앙 중재자**에 위임합니다.
+
+## Mediator 패턴
+
+GoF의 정의를 한 줄로 요약하면 이렇습니다:
+
+> "객체들이 서로를 직접 참조하지 않게 하여 느슨한 결합을 촉진하고, 객체 간의 상호작용을 독립적으로 다양하게 만드는 중재자 객체를 정의한다."
+
+핵심 구조:
+
+- **Mediator** — 컴포넌트 간 통신을 중재합니다. 모든 메시지가 여기를 거칩니다.
+- **Colleague** (Component) — Mediator하고만 통신합니다. 다른 Colleague의 존재를 모릅니다.
+
+아래 시각화에서 직접 통신과 Mediator 도입 후를 비교하세요:
+
+<MediatorPattern />
+
+### Before/After
+
+**Before — 직접 통신 (O(n²) 연결):**
+
+```javascript
+class Header {
+  onSearch(query) {
+    sidebar.updateFilter(query);  // Sidebar를 직접 앎
+    list.search(query);           // List를 직접 앎
+    detail.highlight(query);      // Detail을 직접 앎
+  }
+}
+```
+
+**After — Mediator를 통한 통신:**
+
+```javascript
+// Mediator (Store)
+class DashboardStore {
+  constructor() {
+    this.subscribers = [];
+    this.state = { query: '', filter: null, selectedId: null };
+  }
+
+  dispatch(action) {
+    // 상태 업데이트
+    switch (action.type) {
+      case 'SEARCH':
+        this.state = { ...this.state, query: action.payload };
+        break;
+      case 'FILTER':
+        this.state = { ...this.state, filter: action.payload };
+        break;
+    }
+    // 모든 Colleague에게 알림
+    this.subscribers.forEach(fn => fn(this.state));
+  }
+
+  subscribe(fn) {
+    this.subscribers.push(fn);
+  }
+}
+
+// Colleague — Store만 알면 된다
+class Header {
+  constructor(store) {
+    this.store = store;
+  }
+  onSearch(query) {
+    this.store.dispatch({ type: 'SEARCH', payload: query });
+    // Header는 Sidebar, List, Detail의 존재를 모른다
+  }
+}
+```
+
+달라진 점:
+
+| | Before | After |
+|---|--------|-------|
+| **Header가 아는 것** | Sidebar, List, Detail | Store만 |
+| **연결 수 (5개)** | 10 | 5 |
+| **새 컴포넌트 추가** | 기존 5개 수정 | Store에 구독만 추가 |
+| **테스트** | 모든 의존성 준비 필요 | Store mock 하나만 |
+
+## Redux/Zustand — 프론트엔드의 Mediator
+
+현대 프론트엔드의 상태 관리 라이브러리는 Mediator 패턴의 구현입니다:
+
+### Redux
+
+```javascript
+import { createStore } from 'redux';
+
+// Mediator = Store
+const store = createStore(rootReducer);
+
+// Colleague A: 액션을 보냄
+function SearchBar() {
+  const dispatch = useDispatch();
+  return (
+    <input onChange={(e) => dispatch({ type: 'SEARCH', payload: e.target.value })} />
+  );
+}
+
+// Colleague B: 상태를 구독
+function ProductList() {
+  const query = useSelector(state => state.query);
+  const products = useSelector(state =>
+    state.products.filter(p => p.name.includes(query))
+  );
+  return products.map(p => <ProductCard key={p.id} product={p} />);
+}
+```
+
+`SearchBar`와 `ProductList`는 서로를 **전혀 모릅니다**. Store (Mediator) 가 상태 변경을 중재합니다.
+
+### Zustand
+
+```javascript
+import { create } from 'zustand';
+
+// Mediator = Store
+const useStore = create((set) => ({
+  query: '',
+  setQuery: (query) => set({ query }),
+}));
+
+// Colleague A
+function SearchBar() {
+  const setQuery = useStore(state => state.setQuery);
+  return <input onChange={(e) => setQuery(e.target.value)} />;
+}
+
+// Colleague B
+function ResultCount() {
+  const query = useStore(state => state.query);
+  return <span>{query ? `'${query}' 검색 중` : '전체'}</span>;
+}
+```
+
+## Mediator vs Observer
+
+이 시리즈의 첫 번째 글에서 다룬 Observer 패턴과 비교해봅시다:
+
+| | Observer | Mediator |
+|---|---------|----------|
+| **통신 방향** | 1:N (Subject → Observer) | N:N (Colleague ↔ Mediator ↔ Colleague) |
+| **관계** | Subject가 Observer 목록을 앎 | Colleague는 Mediator만 앎 |
+| **목적** | 상태 변경 전파 | 복잡한 컴포넌트 간 상호작용 조정 |
+| **실전 예시** | addEventListener, RxJS | Redux, Zustand, EventBus |
+
+Observer는 "하나가 변하면 여럿에게 알린다"이고, Mediator는 "여럿이 서로 대화해야 하는데, 직접 대화하지 않고 중재자를 통한다"입니다.
+
+실제로 Mediator 내부에서 Observer 패턴을 사용하는 경우가 많습니다 (Redux의 `subscribe`가 그 예입니다).
+
+## 채팅방 — 고전적 비유
+
+Mediator 패턴의 가장 직관적인 비유는 채팅방입니다:
+
+```javascript
+class ChatRoom {
+  constructor() {
+    this.users = new Map();
+  }
+
+  join(user) {
+    this.users.set(user.name, user);
+    this.broadcast(`${user.name}님이 입장했습니다`, user);
+  }
+
+  send(message, from, to) {
+    if (to) {
+      // 1:1 메시지
+      this.users.get(to)?.receive(message, from);
+    } else {
+      // 전체 메시지
+      this.broadcast(message, from);
+    }
+  }
+
+  broadcast(message, sender) {
+    for (const [name, user] of this.users) {
+      if (name !== sender.name) user.receive(message, sender);
+    }
+  }
+}
+
+// User(Colleague)는 ChatRoom(Mediator)만 알면 된다
+class User {
+  constructor(name, room) {
+    this.name = name;
+    this.room = room;
+  }
+  send(message, to) {
+    this.room.send(message, this, to);
+  }
+  receive(message, from) {
+    console.log(`[${from.name} → ${this.name}]: ${message}`);
+  }
+}
+```
+
+각 User는 다른 User를 직접 알지 못합니다. ChatRoom이 메시지를 중계합니다.
+
+## 언제 Mediator를 쓸까?
+
+**쓰세요:**
+- 컴포넌트 간 **양방향 의존성**이 생길 때
+- **N:N 통신**이 필요한데 직접 연결하면 복잡해질 때
+- 컴포넌트를 **독립적으로 재사용**하고 싶을 때
+
+**쓰지 마세요:**
+- 컴포넌트가 **2-3개**뿐일 때 — props 전달이 더 간단합니다
+- Mediator가 **God Object**가 될 위험이 있을 때 — 모든 로직을 Mediator에 몰아넣으면 Mediator 자체가 거대해집니다. 이 경우 Mediator를 분리하세요 (Redux의 slice, Zustand의 분리된 store)
+
+---
+
+## 시리즈를 마치며
+
+8개의 <Term id="design-pattern">디자인 패턴</Term>을 살펴봤습니다:
+
+1. **Observer** — 상태 변경을 자동 전파
+2. **Strategy** — 알고리즘을 교체 가능하게
+3. **Iterator** — 순회를 추상화
+4. **Decorator** — 기능을 감싸서 확장
+5. **Proxy** — 접근을 가로채서 제어
+6. **Factory** — 생성을 위임
+7. **Command** — 동작을 객체로 기록
+8. **Mediator** — 소통을 중재
+
+이 패턴들은 서로 연결되어 있습니다. Redux는 **Command** (action) + **Mediator** (store) + **Observer** (subscribe) 를 조합한 것이고, Express 미들웨어는 **Decorator** + **Chain of Responsibility**의 혼합입니다.
+
+패턴은 목적이 아니라 **도구**입니다. "이 코드에 어떤 패턴을 적용할까?"가 아니라 "이 문제를 어떻게 풀까?"에서 시작하세요. 문제를 이해하면 적절한 패턴이 자연스럽게 따라옵니다.

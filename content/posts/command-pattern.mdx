@@ -1,0 +1,235 @@
+---
+title: "Command 패턴 — 동작을 객체로 만들어라"
+description: "Undo/Redo, 매크로 기록, 트랜잭션 처리 — 동작을 객체로 캡슐화하는 Command 패턴을 시각화합니다"
+date: 2026-04-04
+tags: ["design-pattern", "command", "undo-redo", "action"]
+series: "frontend-design-patterns"
+seriesOrder: 7
+draft: false
+---
+
+## 문제: 되돌릴 수 없는 동작
+
+그리기 앱을 만들고 있습니다. 사용자가 도형을 추가하고 삭제할 수 있습니다. 문제는 **Undo/Redo**입니다.
+
+```javascript
+function addShape(canvas, shape) {
+  canvas.shapes.push(shape);
+  render(canvas);
+}
+
+function removeShape(canvas, id) {
+  canvas.shapes = canvas.shapes.filter(s => s.id !== id);
+  render(canvas);
+}
+```
+
+이 코드는 동작을 즉시 실행하고 끝입니다. "방금 추가한 도형을 되돌리기"가 불가능합니다. 이전 상태를 기억하는 것이 없기 때문입니다.
+
+해결하려면:
+1. **동작을 기록**해야 합니다 — 무엇을 했는지, 어떻게 되돌리는지
+2. **히스토리를 관리**해야 합니다 — 순서대로 실행하고, 역순으로 되돌리기
+3. **Redo도 지원**해야 합니다 — 되돌린 것을 다시 실행하기
+
+Command 패턴은 이 문제를 해결합니다 — 동작을 **객체로 캡슐화**하여 실행, 취소, 재실행을 가능하게 합니다.
+
+### Before/After 미리 보기
+
+**Before — 즉시 실행, 되돌리기 불가** (위 코드) vs **After — Command 객체로 기록:**
+
+```javascript
+const addRed = {
+  execute() { canvas.shapes.push(rect); },
+  undo()    { canvas.shapes.pop(); },
+};
+manager.execute(addRed);  // 실행 + 히스토리 기록
+manager.undo();           // 되돌리기!
+```
+
+자세한 구현은 아래에서 살펴보겠습니다.
+
+## Command 패턴
+
+GoF의 정의를 한 줄로 요약하면 이렇습니다:
+
+> "요청을 객체로 캡슐화하여, 서로 다른 요청으로 클라이언트를 파라미터화하고, 요청을 큐에 넣거나 로그로 기록하며, 취소 가능한 동작을 지원한다."
+
+핵심 구조:
+
+- **Command** — `execute()`와 `undo()` 메서드를 가진 객체입니다. 동작에 필요한 모든 정보를 캡슐화합니다.
+- **CommandManager** (Invoker) — Command의 실행과 히스토리를 관리합니다. Undo/Redo 로직을 담당합니다.
+- **Receiver** — Command가 실제로 작업을 수행하는 대상입니다 (캔버스, 문서 등).
+
+아래 시각화에서 Command가 실행되고 Undo/Redo되는 과정을 확인하세요:
+
+<CommandPattern />
+
+### 전체 구현
+
+```javascript
+// Command 인터페이스
+class AddShapeCommand {
+  constructor(canvas, shape) {
+    this.canvas = canvas;
+    this.shape = shape;
+  }
+  execute() {
+    this.canvas.shapes.push(this.shape);
+  }
+  undo() {
+    this.canvas.shapes = this.canvas.shapes.filter(
+      s => s.id !== this.shape.id
+    );
+  }
+}
+
+// CommandManager (Invoker)
+class CommandManager {
+  constructor() {
+    this.history = [];
+    this.pointer = -1;
+  }
+
+  execute(command) {
+    // 현재 포인터 이후의 히스토리를 버림 (Redo 분기 제거)
+    this.history.length = this.pointer + 1;
+    command.execute();
+    this.history.push(command);
+    this.pointer++;
+  }
+
+  undo() {
+    if (this.pointer < 0) return;
+    this.history[this.pointer].undo();
+    this.pointer--;
+  }
+
+  redo() {
+    if (this.pointer >= this.history.length - 1) return;
+    this.pointer++;
+    this.history[this.pointer].execute();
+  }
+}
+
+// 사용
+const manager = new CommandManager();
+const canvas = { shapes: [] };
+
+manager.execute(new AddShapeCommand(canvas, { id: '1', type: 'rect', color: 'red' }));
+manager.execute(new AddShapeCommand(canvas, { id: '2', type: 'circle', color: 'blue' }));
+manager.undo();  // 파란 원 제거
+manager.redo();  // 파란 원 복원
+```
+
+핵심: 각 Command는 **실행에 필요한 모든 정보**와 **되돌리는 방법**을 함께 가지고 있습니다.
+
+## 프론트엔드 실전 사례
+
+### 1. 텍스트 에디터
+
+텍스트 에디터의 Undo/Redo는 Command 패턴의 가장 대표적인 사례입니다:
+
+```javascript
+class InsertTextCommand {
+  constructor(editor, position, text) {
+    this.editor = editor;
+    this.position = position;
+    this.text = text;
+  }
+  execute() {
+    this.editor.insertAt(this.position, this.text);
+  }
+  undo() {
+    this.editor.deleteRange(this.position, this.position + this.text.length);
+  }
+}
+
+class DeleteTextCommand {
+  constructor(editor, start, end) {
+    this.editor = editor;
+    this.start = start;
+    this.end = end;
+    this.deleted = null; // undo를 위해 삭제된 텍스트 저장
+  }
+  execute() {
+    this.deleted = this.editor.getRange(this.start, this.end);
+    this.editor.deleteRange(this.start, this.end);
+  }
+  undo() {
+    this.editor.insertAt(this.start, this.deleted);
+  }
+}
+```
+
+`DeleteTextCommand`가 `execute()` 시 삭제된 텍스트를 저장하는 것에 주목하세요. Undo를 위해 **이전 상태를 기억**해야 합니다.
+
+### 2. Redux의 Action Dispatch
+
+Redux의 action은 Command 패턴과 구조적으로 유사합니다:
+
+```javascript
+// Redux action = Command 객체
+const action = { type: 'ADD_TODO', payload: { id: 1, text: '장보기' } };
+
+// dispatch = execute
+store.dispatch(action);
+
+// reducer = Command의 execute 로직
+function todoReducer(state, action) {
+  switch (action.type) {
+    case 'ADD_TODO':
+      return [...state, action.payload];
+    case 'REMOVE_TODO':
+      return state.filter(t => t.id !== action.payload.id);
+  }
+}
+```
+
+Redux DevTools의 **Time Travel Debugging**이 가능한 이유가 바로 이것입니다. 모든 action이 순서대로 기록되어 있으므로, 특정 시점의 상태를 재현할 수 있습니다.
+
+다만 Redux는 순수한 Command 패턴과 다른 점이 있습니다. Redux의 action에는 `undo()` 메서드가 없습니다 — 대신 불변 상태 스냅샷으로 되돌아갑니다.
+
+### 3. 매크로와 일괄 실행
+
+여러 Command를 묶어서 하나의 매크로로 실행할 수 있습니다:
+
+```javascript
+class MacroCommand {
+  constructor(commands) {
+    this.commands = commands;
+  }
+  execute() {
+    this.commands.forEach(cmd => cmd.execute());
+  }
+  undo() {
+    // 역순으로 undo
+    [...this.commands].reverse().forEach(cmd => cmd.undo());
+  }
+}
+
+// 여러 동작을 하나로 묶어 실행
+const macro = new MacroCommand([
+  new AddShapeCommand(canvas, rect),
+  new AddShapeCommand(canvas, circle),
+  new ChangeColorCommand(canvas, rect.id, 'blue'),
+]);
+
+manager.execute(macro); // 3개 동작을 한 번에 실행
+manager.undo();          // 3개 동작을 한 번에 취소
+```
+
+## 언제 Command를 쓸까?
+
+**쓰세요:**
+- **Undo/Redo**가 필요할 때 (에디터, 그리기 앱, 폼 위저드)
+- 동작을 **큐에 넣고 나중에 실행**해야 할 때 (작업 큐, 요청 배치)
+- 동작의 **이력을 기록**해야 할 때 (감사 로그, 디버깅)
+- 여러 동작을 **매크로로 묶어**야 할 때
+
+**쓰지 마세요:**
+- 단순한 CRUD에 Undo가 필요 없을 때 — 과도한 설계입니다
+- 이전 상태를 저장하는 것이 메모리 부담일 때 — 대안으로 스냅샷 기반 접근을 고려하세요
+
+---
+
+다음 글에서는 시리즈의 마지막, **Mediator 패턴**을 다룹니다. 컴포넌트 간 직접 통신의 스파게티를 중앙 중재자로 정리하는 방법 — "소통을 중재하는 기술"을 살펴보겠습니다.

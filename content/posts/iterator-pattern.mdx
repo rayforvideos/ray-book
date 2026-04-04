@@ -1,0 +1,311 @@
+---
+title: "Iterator 패턴 — 순회를 추상화하라"
+description: "배열, 트리, API 페이지네이션 등 서로 다른 자료구조를 하나의 for...of로 순회하는 방법을 시각화합니다"
+date: 2026-04-04
+tags: ["design-pattern", "iterator", "symbol-iterator", "generator"]
+series: "frontend-design-patterns"
+seriesOrder: 3
+draft: false
+---
+
+## 문제: 자료구조마다 다른 순회 코드
+
+댓글 시스템을 만들고 있습니다. 댓글을 세 가지 방식으로 보여줘야 합니다 — 최신순 (배열), 인기순 (정렬된 배열), 답글 포함 (트리).
+
+각각에 맞는 순회 코드를 작성해봅시다:
+
+```javascript
+// 배열 순회
+for (let i = 0; i < comments.length; i++) {
+  render(comments[i]);
+}
+
+// 트리 순회 (답글 포함)
+function traverse(node) {
+  render(node);
+  for (let i = 0; i < node.replies.length; i++) {
+    traverse(node.replies[i]);
+  }
+}
+
+// 페이지네이션 API
+async function fetchAll() {
+  let page = 1;
+  while (true) {
+    const res = await fetch(`/api/comments?page=${page}`);
+    const data = await res.json();
+    if (data.items.length === 0) break;
+    data.items.forEach(render);
+    page++;
+  }
+}
+```
+
+세 가지 자료구조에 대해 세 가지 다른 순회 코드를 작성했습니다. 문제는:
+
+1. **순회 로직이 중복됩니다** — "각 요소에 render를 적용한다"는 목적은 같은데, 방법이 전부 다릅니다.
+2. **자료구조에 의존합니다** — 배열을 트리로 바꾸면 모든 순회 코드를 수정해야 합니다.
+3. **조합이 어렵습니다** — "트리의 처음 10개만 가져오기" 같은 연산을 만들려면 순회 로직 안에 카운터를 넣어야 합니다.
+
+Iterator 패턴은 이 문제를 해결합니다 — 자료구조가 무엇이든 **같은 인터페이스**로 순회할 수 있게 만듭니다.
+
+### Before/After 미리 보기
+
+**Before — 자료구조마다 다른 순회 코드** (위 3가지) vs **After — 하나의 for...of:**
+
+```javascript
+// 배열이든 트리이든 같은 문법
+for (const item of comments) {
+  render(item);
+}
+```
+
+어떻게 가능한지 아래에서 살펴보겠습니다.
+
+## Iterator 패턴
+
+GoF의 정의를 한 줄로 요약하면 이렇습니다:
+
+> "내부 표현을 노출하지 않고, 집합 객체의 요소에 순차적으로 접근하는 방법을 제공한다."
+
+핵심은 두 가지 프로토콜입니다:
+
+- **Iterable** (순회 가능한 객체) — `[Symbol.iterator]()` 메서드를 가지고 있으며, 이 메서드가 Iterator를 반환합니다.
+- **Iterator** (순회자) — `next()` 메서드를 가지고 있으며, 호출할 때마다 `{ value, done }` 객체를 반환합니다.
+
+```javascript
+// Iterable 프로토콜
+const iterable = {
+  [Symbol.iterator]() {
+    return iterator; // Iterator를 반환
+  }
+};
+
+// Iterator 프로토콜
+const iterator = {
+  next() {
+    return { value: '다음 값', done: false };
+    // 또는 { value: undefined, done: true } (끝)
+  }
+};
+```
+
+아래 시각화에서 배열의 이터레이터가 `next()`를 호출하며 요소를 하나씩 반환하는 과정을 확인하세요:
+
+<IteratorPattern preset="array" />
+
+## JavaScript의 이터레이션 프로토콜
+
+JavaScript에는 이 패턴이 **언어 수준**에서 내장되어 있습니다. ES2015에서 도입된 이터레이션 프로토콜은 두 가지로 구성됩니다.
+
+### Iterable 프로토콜
+
+객체가 `[Symbol.iterator]()` 메서드를 가지고 있으면 iterable입니다. JavaScript의 내장 iterable은:
+
+- `Array`, `String`, `Map`, `Set`
+- `TypedArray` (`Uint8Array` 등)
+- `arguments` 객체
+- `NodeList` (DOM)
+
+```javascript
+// 모두 같은 for...of로 순회 가능
+for (const char of 'hello') { ... }       // String
+for (const item of [1, 2, 3]) { ... }     // Array
+for (const entry of new Set([1, 2])) { ... } // Set
+for (const [k, v] of new Map([['a', 1]])) { ... } // Map
+```
+
+### Iterator 프로토콜
+
+Iterator 객체는 `next()` 메서드를 가지고, 호출할 때마다 `{ value, done }` 형태의 결과를 반환합니다:
+
+```javascript
+const arr = ['a', 'b', 'c'];
+const iter = arr[Symbol.iterator]();
+
+iter.next(); // { value: 'a', done: false }
+iter.next(); // { value: 'b', done: false }
+iter.next(); // { value: 'c', done: false }
+iter.next(); // { value: undefined, done: true }
+```
+
+`for...of` 루프는 이 프로토콜의 **문법 설탕**입니다. 내부적으로 `[Symbol.iterator]()`를 호출하고, `done: true`가 될 때까지 `next()`를 반복 호출합니다.
+
+## 커스텀 이터러블 만들기
+
+자료구조에 `[Symbol.iterator]`를 구현하면 `for...of`로 순회할 수 있습니다. 가장 쉬운 방법은 **제너레이터 함수** (`function*`) 를 사용하는 것입니다.
+
+제너레이터는 Iterator 프로토콜을 자동으로 구현합니다 — `yield`가 `next()`의 반환값이 되고, 함수가 끝나면 `done: true`를 반환합니다.
+
+```javascript
+class BinaryTree {
+  constructor(value, left = null, right = null) {
+    this.value = value;
+    this.left = left;
+    this.right = right;
+  }
+
+  // 제너레이터로 이터러블 구현 (전위 순회)
+  *[Symbol.iterator]() {
+    yield this.value;
+    if (this.left) yield* this.left;   // 왼쪽 서브트리 위임
+    if (this.right) yield* this.right; // 오른쪽 서브트리 위임
+  }
+}
+
+const tree = new BinaryTree('A',
+  new BinaryTree('B',
+    new BinaryTree('D'),
+    new BinaryTree('E')
+  ),
+  new BinaryTree('C',
+    new BinaryTree('F')
+  )
+);
+
+// 트리를 배열처럼 순회!
+for (const node of tree) {
+  console.log(node); // A, B, D, E, C, F
+}
+
+// 스프레드, 디스트럭처링도 가능
+const nodes = [...tree];           // ['A', 'B', 'D', 'E', 'C', 'F']
+const [first, second] = tree;      // first='A', second='B'
+```
+
+아래 시각화에서 트리가 이터레이터를 통해 전위 순회되는 과정을 확인하세요:
+
+<IteratorPattern preset="tree" />
+
+`yield*`는 다른 이터러블에 순회를 **위임**합니다. 서브트리도 이터러블이므로, 재귀적으로 모든 노드를 순회하게 됩니다.
+
+## 제너레이터의 강력함
+
+제너레이터는 단순히 이터러블을 만드는 도구가 아닙니다. **지연 평가** (lazy evaluation) 를 가능하게 합니다.
+
+### 무한 시퀀스
+
+```javascript
+function* fibonacci() {
+  let [a, b] = [0, 1];
+  while (true) {
+    yield a;
+    [a, b] = [b, a + b];
+  }
+}
+
+// 무한이지만, 필요한 만큼만 가져옴
+const fib = fibonacci();
+fib.next().value; // 0
+fib.next().value; // 1
+fib.next().value; // 1
+fib.next().value; // 2
+
+// 처음 10개만
+const first10 = [];
+for (const n of fibonacci()) {
+  if (first10.length >= 10) break;
+  first10.push(n);
+}
+```
+
+메모리에 무한 배열을 만들지 않습니다. `next()`가 호출될 때마다 하나의 값만 계산합니다.
+
+### 비동기 이터레이터
+
+ES2018의 `for await...of`와 비동기 제너레이터를 조합하면, API 페이지네이션도 이터레이터로 추상화할 수 있습니다:
+
+```javascript
+async function* fetchComments(postId) {
+  let page = 1;
+  while (true) {
+    const res = await fetch(`/api/posts/${postId}/comments?page=${page}`);
+    const { items, hasNext } = await res.json();
+    for (const item of items) {
+      yield item;
+    }
+    if (!hasNext) return;
+    page++;
+  }
+}
+
+// 페이지네이션을 의식하지 않고 순회
+for await (const comment of fetchComments(42)) {
+  renderComment(comment);
+}
+```
+
+호출하는 쪽은 페이지네이션의 존재를 **모릅니다**. 단지 댓글을 하나씩 받을 뿐입니다.
+
+## 프론트엔드 실전 사례
+
+### 1. DOM의 NodeList와 HTMLCollection
+
+`querySelectorAll`이 반환하는 `NodeList`는 이터러블입니다:
+
+```javascript
+const buttons = document.querySelectorAll('button');
+
+// for...of로 순회 가능
+for (const btn of buttons) {
+  btn.addEventListener('click', handleClick);
+}
+
+// 스프레드로 배열 변환
+const btnArray = [...buttons];
+```
+
+반면 `getElementsByTagName`이 반환하는 `HTMLCollection`은 **이터러블이 아닌 경우가 있었습니다** (구형 브라우저). 이것이 `Array.from(collection)` 패턴이 생긴 이유입니다.
+
+### 2. Map과 Set의 순회
+
+`Map`과 `Set`은 세 가지 이터레이터를 제공합니다:
+
+```javascript
+const userRoles = new Map([
+  ['alice', 'admin'],
+  ['bob', 'editor'],
+  ['charlie', 'viewer'],
+]);
+
+// entries() — 기본 이터레이터
+for (const [name, role] of userRoles) {
+  console.log(`${name}: ${role}`);
+}
+
+// keys()만
+for (const name of userRoles.keys()) { ... }
+
+// values()만
+for (const role of userRoles.values()) { ... }
+```
+
+하나의 자료구조에 여러 이터레이터를 제공하는 것도 Iterator 패턴의 장점입니다.
+
+### 3. React의 Suspense와 use()
+
+React 19의 `use()` 훅은 내부적으로 Promise의 이터레이터와 유사한 개념을 사용합니다. 비동기 데이터를 동기적으로 읽는 것처럼 보이게 하는 것 — 이것도 "내부 구현을 숨기고 순차 접근을 제공한다"는 Iterator의 정신을 따릅니다.
+
+## for...of vs for...in
+
+자주 혼동되는 두 문법의 차이를 정리합니다:
+
+| | `for...of` | `for...in` |
+|---|-----------|-----------|
+| **순회 대상** | iterable의 **값** | 객체의 **열거 가능한 키** |
+| **프로토콜** | Iterator 프로토콜 사용 | 프로토타입 체인 포함 |
+| **배열에서** | 값을 순회 | 인덱스 (문자열) 를 순회 |
+| **Map/Set** | 사용 가능 | 사용 불가 (의미 없음) |
+
+```javascript
+const arr = ['a', 'b', 'c'];
+
+for (const value of arr) console.log(value); // 'a', 'b', 'c'
+for (const key in arr) console.log(key);     // '0', '1', '2'
+```
+
+배열에는 항상 `for...of`를 사용하세요. `for...in`은 객체의 속성을 열거할 때만 사용합니다.
+
+---
+
+다음 글에서는 **Decorator 패턴**을 다룹니다. 인증, 로깅, 캐싱 같은 횡단 관심사를 함수 위에 하나씩 쌓아올리는 방법 — "기능을 감싸는 기술"을 살펴보겠습니다.

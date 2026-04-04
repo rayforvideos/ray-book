@@ -1,0 +1,257 @@
+---
+title: "Proxy 패턴 — 접근을 가로채라"
+description: "객체 접근을 가로채서 유효성 검증, 캐싱, 지연 로딩을 구현하는 Proxy 패턴과 JavaScript의 Proxy/Reflect API를 시각화합니다"
+date: 2026-04-04
+tags: ["design-pattern", "proxy", "reflect", "vue-reactivity"]
+series: "frontend-design-patterns"
+seriesOrder: 5
+draft: false
+---
+
+## 문제: 객체 접근에 로직을 끼워넣기
+
+사용자 프로필 객체가 있습니다:
+
+```javascript
+const user = { name: 'Kim', age: 25, role: 'admin' };
+```
+
+이 객체에 몇 가지 규칙을 추가해야 합니다:
+
+1. `age`에 음수를 넣으면 안 됩니다
+2. 존재하지 않는 속성에 접근하면 `undefined` 대신 의미 있는 메시지를 반환해야 합니다
+3. `role`은 읽기 전용이어야 합니다
+
+직관적인 방법은 getter/setter를 만드는 것입니다:
+
+```javascript
+class User {
+  #age;
+  #role;
+  constructor(name, age, role) {
+    this.name = name;
+    this.#age = age;
+    this.#role = role;
+  }
+  get age() { return this.#age; }
+  set age(v) {
+    if (typeof v !== 'number' || v < 0) throw new TypeError('Invalid age');
+    this.#age = v;
+  }
+  get role() { return this.#role; }
+  set role(v) { throw new Error('role is readonly'); }
+}
+```
+
+동작은 합니다. 하지만:
+
+1. **원본 객체를 수정해야 합니다** — 클래스로 다시 감싸거나, 모든 속성에 getter/setter를 정의해야 합니다.
+2. **재사용 불가** — `Product` 객체에도 비슷한 검증이 필요하면 또 작성해야 합니다.
+3. **동적 속성에 대응 불가** — 미리 알 수 없는 속성 접근에는 getter/setter를 정의할 수 없습니다.
+
+Proxy 패턴은 이 문제를 해결합니다 — 원본을 수정하지 않고 **접근 자체를 가로챕니다**.
+
+### Before/After 미리 보기
+
+**Before — getter/setter로 클래스 재작성** (위 코드) vs **After — Proxy로 원본 보존:**
+
+```javascript
+const validated = new Proxy(user, {
+  set(target, prop, value) {
+    if (prop === 'age' && (typeof value !== 'number' || value < 0))
+      throw new TypeError('Invalid age');
+    target[prop] = value;
+    return true;
+  },
+});
+```
+
+원본 `user` 객체를 전혀 수정하지 않고 검증 로직을 추가했습니다. 자세한 구현은 아래에서 살펴보겠습니다.
+
+## Proxy 패턴
+
+GoF의 정의를 한 줄로 요약하면 이렇습니다:
+
+> "다른 객체에 대한 접근을 제어하기 위한 대리자 또는 대체물을 제공한다."
+
+핵심 아이디어:
+
+- **Target** — 원본 객체입니다. Proxy가 감싸는 대상입니다.
+- **Handler** — 가로채는 동작을 정의합니다. 각 동작을 **트랩** (trap) 이라 부릅니다.
+- **Proxy** — Client와 Target 사이에 위치하여 접근을 중재합니다.
+
+Client는 Proxy를 통해 Target에 접근합니다. Proxy는 접근을 가로채서 **검증, 변환, 캐싱, 로깅** 등의 작업을 수행한 후 Target에 전달 (또는 거부) 합니다.
+
+아래 시각화에서 Proxy가 get/set 접근을 가로채는 과정을 확인하세요:
+
+<ProxyPattern preset="validation" />
+
+## JavaScript의 Proxy API
+
+ES2015에서 도입된 `Proxy` 객체는 이 패턴을 **언어 수준**에서 지원합니다:
+
+```javascript
+const proxy = new Proxy(target, handler);
+```
+
+`handler`에 정의하는 메서드를 **트랩** (trap) 이라 합니다. JavaScript Proxy는 13개의 트랩을 제공합니다:
+
+| 트랩 | 가로채는 동작 | 예시 |
+|------|-------------|------|
+| `get` | 속성 읽기 | `proxy.name` |
+| `set` | 속성 쓰기 | `proxy.age = 30` |
+| `has` | `in` 연산자 | `'name' in proxy` |
+| `deleteProperty` | `delete` 연산자 | `delete proxy.name` |
+| `apply` | 함수 호출 | `proxy(args)` |
+| `construct` | `new` 연산자 | `new proxy()` |
+| `ownKeys` | 속성 열거 | `Object.keys(proxy)` |
+
+나머지 6개 (`defineProperty`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `setPrototypeOf`, `isExtensible`, `preventExtensions`) 도 있지만, 실무에서는 위 7개가 대부분입니다.
+
+### 유효성 검증 Proxy
+
+```javascript
+const user = { name: 'Kim', age: 25 };
+
+const validated = new Proxy(user, {
+  set(target, prop, value) {
+    if (prop === 'age') {
+      if (typeof value !== 'number' || value < 0 || value > 150) {
+        throw new TypeError(`age는 0-150 사이의 숫자여야 합니다. 받은 값: ${value}`);
+      }
+    }
+    target[prop] = value;
+    return true;
+  },
+
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    throw new ReferenceError(`'${String(prop)}'은(는) 존재하지 않는 속성입니다`);
+  },
+});
+
+validated.age = 30;   // OK
+validated.age = -5;   // TypeError!
+validated.email;      // ReferenceError!
+```
+
+원본 `user` 객체는 전혀 수정되지 않았습니다. Proxy가 접근을 가로채서 검증할 뿐입니다.
+
+## Reflect API
+
+`Reflect`는 Proxy 트랩과 **1:1로 대응**하는 정적 메서드를 제공합니다. 트랩 안에서 "원래 동작을 수행"할 때 사용합니다:
+
+```javascript
+const logged = new Proxy(user, {
+  get(target, prop, receiver) {
+    console.log(`읽기: ${String(prop)}`);
+    return Reflect.get(target, prop, receiver); // 원래 get 동작
+  },
+  set(target, prop, value, receiver) {
+    console.log(`쓰기: ${String(prop)} = ${value}`);
+    return Reflect.set(target, prop, value, receiver); // 원래 set 동작
+  },
+});
+```
+
+`target[prop]` 대신 `Reflect.get(target, prop, receiver)`를 사용하는 이유는 **receiver** (this 바인딩) 를 올바르게 전달하기 위해서입니다. 특히 상속 관계에서 this가 꼬이는 것을 방지합니다.
+
+## 캐싱 Proxy
+
+API 호출 결과를 자동으로 캐싱하는 Proxy를 만들 수 있습니다:
+
+<ProxyPattern preset="caching" />
+
+```javascript
+function createCachingProxy(apiClient) {
+  const cache = new Map();
+
+  return new Proxy(apiClient, {
+    get(target, method) {
+      // 메서드 호출을 가로채서 캐싱
+      return async (...args) => {
+        const key = `${String(method)}:${JSON.stringify(args)}`;
+        if (cache.has(key)) {
+          console.log(`캐시 HIT: ${key}`);
+          return cache.get(key);
+        }
+        console.log(`캐시 MISS: ${key}`);
+        const result = await target[method](...args);
+        cache.set(key, result);
+        return result;
+      };
+    },
+  });
+}
+
+const api = createCachingProxy(apiClient);
+await api.getUser(42);  // 캐시 MISS → API 호출
+await api.getUser(42);  // 캐시 HIT → 즉시 반환
+```
+
+`apiClient`의 코드를 한 줄도 수정하지 않았습니다. Proxy가 메서드 접근을 가로채서 캐싱 로직을 끼워넣었을 뿐입니다.
+
+## Vue 3의 반응형 시스템
+
+Vue 3의 반응형 시스템은 Proxy 패턴의 가장 유명한 실전 사례입니다:
+
+```javascript
+import { reactive, watchEffect } from 'vue';
+
+const state = reactive({ count: 0 });
+// → 내부적으로 new Proxy(target, handler) 생성
+
+watchEffect(() => {
+  console.log(state.count);
+  // get 트랩이 발동 → 이 함수를 count의 의존성으로 등록
+});
+
+state.count++;
+// set 트랩이 발동 → count에 의존하는 모든 이펙트를 재실행
+```
+
+Vue 3의 `reactive()`는 내부적으로 `Proxy`를 생성합니다:
+
+- **get 트랩** — 속성을 읽을 때 "누가 이 속성에 의존하는지" 추적합니다 (dependency tracking)
+- **set 트랩** — 속성이 변경될 때 의존하는 이펙트/컴포넌트를 다시 실행합니다 (trigger)
+
+Vue 2에서는 `Object.defineProperty`를 사용했는데, 이 방식은 **새 속성 추가를 감지하지 못하는** 한계가 있었습니다 (`Vue.set()` 필요). Proxy는 모든 속성 접근을 가로챌 수 있어 이 문제가 해결됩니다.
+
+```javascript
+// Vue 2 — Object.defineProperty (한계)
+state.newProp = 'hello'; // 반응형이 아님! Vue.set() 필요
+
+// Vue 3 — Proxy (자동 감지)
+state.newProp = 'hello'; // 자동으로 반응형!
+```
+
+## Proxy vs Decorator
+
+Proxy와 Decorator는 비슷해 보이지만, 의도가 다릅니다:
+
+| | Proxy | Decorator |
+|---|-------|-----------|
+| **목적** | **접근 제어** — 언제, 어떻게 접근할지 제어 | **기능 추가** — 새로운 책임을 덧붙임 |
+| **위치** | Target 앞에 서서 가로챔 | Target을 감싸서 확장 |
+| **인터페이스** | Target과 동일 (투명) | Target과 동일 (호환) |
+| **예시** | 지연 로딩, 접근 제어, 캐싱 | 로깅, 인증 래퍼, HOC |
+| **JS 지원** | `Proxy` 내장 객체 | 함수 래핑, TC39 데코레이터 |
+
+핵심 차이: Proxy는 **접근 자체를 가로채는** 것이고, Decorator는 **기능을 추가하는** 것입니다.
+
+## 언제 Proxy를 쓸까?
+
+**쓰세요:**
+- 객체 접근에 **유효성 검증**이 필요할 때
+- API 호출이나 비용이 큰 연산에 **캐싱**을 추가할 때
+- 속성 접근을 **추적** (반응형 시스템, 디버깅) 해야 할 때
+- 비용이 큰 객체의 **지연 로딩**이 필요할 때
+
+**쓰지 마세요:**
+- 단순한 속성 검증은 setter로 충분합니다
+- Proxy는 **성능 오버헤드**가 있습니다 — 핫 패스에서 매 속성 접근마다 트랩이 실행되면 느려질 수 있습니다
+- 일부 객체 (예: `Map`, `Set` 내부 슬롯을 사용하는 객체) 는 Proxy로 감싸면 **예상대로 동작하지 않을** 수 있습니다
+
+---
+
+다음 글에서는 **Factory 패턴**을 다룹니다. 조건에 따라 서로 다른 객체를 생성하는 `new` 호출을 깔끔하게 위임하는 방법 — "생성을 위임하는 기술"을 살펴보겠습니다.
