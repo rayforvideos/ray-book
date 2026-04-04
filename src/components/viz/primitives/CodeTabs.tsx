@@ -269,6 +269,109 @@ export function increment() { counter.count++; }
 // <button onclick={increment}>{counter.count}</button>`,
     },
   ],
+  "conditional-rendering": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `function UserGreeting({ user }) {
+  return (
+    <div>
+      {user ? (
+        <h1>안녕하세요, {user.name}님</h1>
+      ) : (
+        <h1>로그인해주세요</h1>
+      )}
+      {user?.isAdmin && <AdminPanel />}
+    </div>
+  );
+}`,
+    },
+    {
+      label: "Vue",
+      lang: "html",
+      code: `<template>
+  <div>
+    <h1 v-if="user">안녕하세요, {{ user.name }}님</h1>
+    <h1 v-else>로그인해주세요</h1>
+    <AdminPanel v-if="user?.isAdmin" />
+  </div>
+</template>`,
+    },
+    {
+      label: "Angular",
+      lang: "html",
+      code: `<div>
+  @if (user) {
+    <h1>안녕하세요, {{ user.name }}님</h1>
+  } @else {
+    <h1>로그인해주세요</h1>
+  }
+  @if (user?.isAdmin) {
+    <app-admin-panel />
+  }
+</div>`,
+    },
+    {
+      label: "Svelte",
+      lang: "html",
+      code: `<div>
+  {#if user}
+    <h1>안녕하세요, {user.name}님</h1>
+  {:else}
+    <h1>로그인해주세요</h1>
+  {/if}
+  {#if user?.isAdmin}
+    <AdminPanel />
+  {/if}
+</div>`,
+    },
+  ],
+  "list-rendering": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `function TodoList({ todos }) {
+  return (
+    <ul>
+      {todos.map((todo) => (
+        <li key={todo.id}>
+          {todo.text}
+        </li>
+      ))}
+    </ul>
+  );
+}`,
+    },
+    {
+      label: "Vue",
+      lang: "html",
+      code: `<template>
+  <ul>
+    <li v-for="todo in todos" :key="todo.id">
+      {{ todo.text }}
+    </li>
+  </ul>
+</template>`,
+    },
+    {
+      label: "Angular",
+      lang: "html",
+      code: `<ul>
+  @for (todo of todos; track todo.id) {
+    <li>{{ todo.text }}</li>
+  }
+</ul>`,
+    },
+    {
+      label: "Svelte",
+      lang: "html",
+      code: `<ul>
+  {#each todos as todo (todo.id)}
+    <li>{todo.text}</li>
+  {/each}
+</ul>`,
+    },
+  ],
   "reactivity-state": [
     {
       label: "React",
