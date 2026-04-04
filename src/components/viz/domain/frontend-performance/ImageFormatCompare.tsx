@@ -43,7 +43,7 @@ const formats: FormatInfo[] = [
     name: "WebP",
     sizeKB: 140,
     features: ["손실/무손실", "투명도 지원", "애니메이션"],
-    pros: "JPEG 대비 25-35% 작음, 투명도 지원",
+    pros: "JPEG 대비 25-34% 작음, 투명도 지원",
     cons: "인코딩 속도 느림",
     color: "bg-emerald-400 dark:bg-emerald-500",
     description:
