@@ -17,3 +17,4 @@ export * from "./service-worker-and-pwa";
 export * from "./framework-philosophies";
 export * from "./frontend-design-patterns";
 export * from "./frontend-performance";
+export * from "./web-accessibility";
