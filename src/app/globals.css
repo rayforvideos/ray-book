@@ -194,9 +194,9 @@ body {
 }
 
 .prose hr {
-  @apply border-border my-14;
+  @apply my-14;
   border-width: 0;
-  border-top: 1px solid;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
 }
 
 .prose strong {
