@@ -1,0 +1,184 @@
+---
+title: "리소스 로딩 — 우선순위를 정하라"
+description: "preload, prefetch, lazy loading — 브라우저의 리소스 우선순위를 제어하는 방법을 시각화합니다"
+date: 2026-04-05
+tags: ["performance", "preload", "prefetch", "lazy-loading", "resource-hints"]
+series: "frontend-performance"
+seriesOrder: 3
+draft: false
+---
+
+## 핵심 질문
+
+브라우저는 리소스의 로딩 순서를 어떻게 결정하고, 개발자는 이를 어떻게 제어할 수 있는가?
+
+페이지 하나를 로드하면 수십 개의 리소스가 필요합니다 — HTML, CSS, JavaScript, 이미지, 폰트. 브라우저는 이 리소스들에 내부 우선순위를 부여하여 로딩 순서를 결정합니다. 하지만 브라우저의 기본 판단이 항상 최적인 것은 아닙니다. 개발자가 힌트를 주면 더 나은 결과를 얻을 수 있습니다.
+
+## 브라우저의 리소스 우선순위
+
+Chrome의 리소스 우선순위는 리소스 유형과 문서 내 위치에 따라 결정됩니다.
+
+| 우선순위 | 리소스 유형 |
+|---|---|
+| **Highest** | HTML, `<head>` 내 CSS |
+| **High** | `<head>` 내 동기 `<script>`, 뷰포트 내 이미지 (fetchpriority="high") |
+| **Medium** | 뷰포트 내 이미지 (기본값) |
+| **Low** | async/defer 스크립트, 뷰포트 밖 이미지 |
+| **Lowest** | prefetch 리소스 |
+
+DevTools의 Network 패널에서 Priority 열을 활성화하면 각 리소스의 실제 우선순위를 확인할 수 있습니다.
+
+## preload — 현재 페이지에 반드시 필요한 리소스
+
+`<link rel="preload">`는 브라우저에게 "이 리소스가 곧 필요하니 지금 다운로드를 시작하라"고 알려줍니다. CSS에서 참조하는 폰트나 배경 이미지처럼, 브라우저가 늦게 발견하는 리소스에 유용합니다.
+
+```html
+<!-- 폰트 preload — crossorigin 필수 -->
+<link rel="preload" href="/fonts/inter.woff2" as="font"
+      type="font/woff2" crossorigin />
+
+<!-- LCP 이미지 preload -->
+<link rel="preload" href="/hero.webp" as="image"
+      fetchpriority="high" />
+```
+
+주의할 점:
+
+- preload한 리소스를 **3초 내에 사용하지 않으면** 브라우저가 콘솔에 경고를 표시합니다
+- `as` 속성을 정확히 지정해야 올바른 우선순위가 부여됩니다
+- 폰트 preload에는 `crossorigin` 속성이 필수입니다 (동일 출처여도)
+- 과도한 preload는 오히려 대역폭 경쟁을 유발합니다
+
+## prefetch — 다음 페이지를 위한 사전 로드
+
+`<link rel="prefetch">`는 사용자가 **다음에 방문할 가능성이 높은** 페이지의 리소스를 미리 가져옵니다. 브라우저가 유휴 상태일 때 Lowest 우선순위로 다운로드합니다.
+
+```html
+<!-- 다음 페이지의 JS 청크를 미리 로드 -->
+<link rel="prefetch" href="/dashboard.js" />
+
+<!-- DNS만 미리 조회 -->
+<link rel="dns-prefetch" href="https://api.example.com" />
+```
+
+### preconnect — 연결 수립을 앞당기다
+
+`<link rel="preconnect">`는 외부 도메인과의 연결 (DNS 조회 + TCP 핸드셰이크 + TLS 협상) 을 미리 수립합니다. 실제 리소스 요청 시 연결 시간을 절약할 수 있습니다.
+
+```html
+<!-- CDN과 미리 연결 -->
+<link rel="preconnect" href="https://cdn.example.com" />
+
+<!-- 폰트 서비스와 미리 연결 -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+```
+
+preconnect는 연결당 CPU와 네트워크 자원을 소비하므로, 실제로 빠르게 사용할 도메인에만 적용해야 합니다. 일반적으로 3~4개 이하를 권장합니다.
+
+## fetchpriority — 같은 유형 내에서 우선순위 조정
+
+`fetchpriority` 속성은 같은 유형의 리소스 간 상대적 우선순위를 조정합니다. `"high"`, `"low"`, `"auto"` (기본값) 세 가지 값을 가집니다.
+
+```html
+<!-- LCP 이미지 — 높은 우선순위로 -->
+<img src="/hero.webp" fetchpriority="high" alt="Hero" />
+
+<!-- 뷰포트 밖 이미지 — 낮은 우선순위로 -->
+<img src="/footer-logo.webp" fetchpriority="low" alt="Logo" />
+
+<!-- fetch API에서도 사용 가능 -->
+<script>
+  fetch("/api/critical-data", { priority: "high" });
+</script>
+```
+
+Google Flights의 실험에서 LCP 이미지에 `fetchpriority="high"`를 적용한 결과, LCP가 2.6초에서 1.9초로 개선되었습니다.
+
+## lazy loading — 보이면 그때 로드
+
+뷰포트 밖의 이미지를 처음부터 모두 로드할 필요는 없습니다. `loading="lazy"`는 이미지가 뷰포트에 가까워질 때까지 로딩을 지연합니다.
+
+```html
+<!-- 기본 lazy loading -->
+<img src="/gallery-1.webp" loading="lazy" alt="Gallery 1"
+     width="800" height="600" />
+
+<!-- iframe도 지원 -->
+<iframe src="https://youtube.com/embed/..." loading="lazy"></iframe>
+```
+
+주의: LCP 후보 이미지에는 `loading="lazy"`를 **사용하지 않아야** 합니다. 히어로 이미지를 lazy로 설정하면 LCP가 크게 악화됩니다. 일반적으로 뷰포트 내 첫 번째 화면에 보이는 이미지는 eager (기본값) 로 두어야 합니다.
+
+### Intersection Observer로 직접 구현
+
+더 세밀한 제어가 필요하면 Intersection Observer API를 사용합니다.
+
+```typescript
+const observer = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const img = entry.target as HTMLImageElement;
+        img.src = img.dataset.src!;
+        observer.unobserve(img);
+      }
+    });
+  },
+  { rootMargin: "200px" }  // 뷰포트 200px 전에 미리 로드
+);
+
+document.querySelectorAll("img[data-src]").forEach((img) => {
+  observer.observe(img);
+});
+```
+
+`rootMargin`을 설정하면 사용자가 스크롤하기 전에 미리 로드를 시작할 수 있어, 이미지가 갑자기 나타나는 현상을 방지합니다.
+
+## async vs defer — 스크립트 로딩 전략
+
+`<script>` 태그에 아무 속성도 없으면 브라우저는 HTML 파싱을 **중단**하고, 스크립트를 다운로드하고 실행한 뒤에 파싱을 재개합니다. `async`와 `defer`는 이 차단을 방지합니다.
+
+| | 다운로드 시점 | 실행 시점 | 순서 보장 |
+|---|---|---|---|
+| **기본** | 만나는 즉시 (파싱 차단) | 다운로드 완료 즉시 | 보장 |
+| **async** | HTML 파싱과 병렬 | 다운로드 완료 즉시 (파싱 중단) | **미보장** |
+| **defer** | HTML 파싱과 병렬 | HTML 파싱 완료 후 | 보장 |
+
+사용 가이드:
+
+- **defer** — 앱 로직, DOM에 의존하는 스크립트. 순서가 보장되므로 대부분의 경우 적합
+- **async** — 분석, 광고 스크립트처럼 독립적이고 순서가 중요하지 않은 코드
+- **type="module"** — ES 모듈 스크립트는 기본적으로 defer처럼 동작합니다
+
+```html
+<!-- 앱 로직 — defer로 순서 보장 -->
+<script src="/vendor.js" defer></script>
+<script src="/app.js" defer></script>
+
+<!-- 분석 — async로 독립 실행 -->
+<script src="/analytics.js" async></script>
+
+<!-- ES 모듈 — 기본 defer 동작 -->
+<script type="module" src="/app.mjs"></script>
+```
+
+## 시각화 — 리소스 우선순위 변화
+
+아래 시각화는 브라우저의 기본 리소스 로딩에서 시작하여, preload/preconnect, lazy loading, async/defer를 적용할 때 우선순위와 로딩 패턴이 어떻게 변하는지 보여줍니다.
+
+<ResourcePriority />
+
+## 체크리스트
+
+- [ ] LCP 이미지에 `<link rel="preload">`와 `fetchpriority="high"`를 적용했는가
+- [ ] 중요한 폰트를 preload하고 `crossorigin` 속성을 추가했는가
+- [ ] 외부 CDN/API에 preconnect를 설정했는가 (3~4개 이하)
+- [ ] 뷰포트 밖 이미지에 `loading="lazy"`를 적용했는가
+- [ ] LCP 후보 이미지에는 `loading="lazy"`를 사용하지 **않았는가**
+- [ ] 앱 스크립트에 `defer`, 분석 스크립트에 `async`를 설정했는가
+- [ ] DevTools Network 패널에서 Priority 열을 확인했는가
+
+## 다음 글에서는
+
+리소스 로딩 순서를 최적화했습니다. 다음 글에서는 브라우저의 **렌더링 파이프라인**에서 발생하는 병목을 다룹니다 — 리플로우를 최소화하고, 합성 레이어를 활용하고, 60fps를 유지하는 방법을 시각화합니다.
