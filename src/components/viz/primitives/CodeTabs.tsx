@@ -207,6 +207,68 @@ export class CardComponent {
 </Card>`,
     },
   ],
+  "global-store": [
+    {
+      label: "React",
+      lang: "jsx",
+      code: `import { create } from 'zustand';
+
+const useStore = create((set) => ({
+  count: 0,
+  increment: () => set((s) => ({ count: s.count + 1 })),
+}));
+
+function Counter() {
+  const { count, increment } = useStore();
+  return <button onClick={increment}>{count}</button>;
+}`,
+    },
+    {
+      label: "Vue",
+      lang: "javascript",
+      code: `// stores/counter.js
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+
+export const useCounter = defineStore('counter', () => {
+  const count = ref(0);
+  function increment() { count.value++; }
+  return { count, increment };
+});
+
+// Component
+const store = useCounter();`,
+    },
+    {
+      label: "Angular",
+      lang: "typescript",
+      code: `// counter.store.ts
+import { signalStore, withState, withMethods, patchState } from '@ngrx/signals';
+
+export const CounterStore = signalStore(
+  withState({ count: 0 }),
+  withMethods((store) => ({
+    increment: () => patchState(store, { count: store.count() + 1 }),
+  }))
+);
+
+// Component
+store = inject(CounterStore);`,
+    },
+    {
+      label: "Svelte",
+      lang: "javascript",
+      code: `// counter.svelte.js
+export const counter = $state({ count: 0 });
+export function increment() { counter.count++; }
+
+// Component (Counter.svelte)
+// <script>
+//   import { counter, increment } from './counter.svelte.js';
+// </script>
+// <button onclick={increment}>{counter.count}</button>`,
+    },
+  ],
   "reactivity-state": [
     {
       label: "React",

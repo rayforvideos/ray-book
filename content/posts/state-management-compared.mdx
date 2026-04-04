@@ -1,0 +1,175 @@
+---
+title: "상태 관리 — 데이터를 어떻게 공유하는가"
+description: "prop drilling에서 전역 스토어까지 — 각 프레임워크의 상태 관리 철학과 진화를 비교합니다"
+date: 2026-04-05
+tags: ["framework", "state-management", "redux", "pinia", "signals", "runes"]
+series: "framework-philosophies"
+seriesOrder: 5
+draft: false
+---
+
+## 핵심 질문
+
+**컴포넌트 A의 데이터를 컴포넌트 B에서 어떻게 사용하는가?**
+
+프론트엔드 개발에서 가장 많이 마주치는 질문입니다. 컴포넌트 하나가 가진 상태를 다른 컴포넌트에서도 써야 할 때, 그 데이터를 어떻게 전달할 것인가? 간단해 보이지만, 이 질문에 대한 답이 프레임워크의 설계 철학을 가장 선명하게 드러냅니다.
+
+## 문제: Prop Drilling
+
+```jsx
+// 3단계 깊이의 prop drilling
+function App() {
+  const [user, setUser] = useState({ name: 'Kim' });
+  return <Layout user={user} />;         // Layout은 user를 안 씀
+}
+
+function Layout({ user }) {
+  return <Sidebar user={user} />;        // Sidebar도 user를 안 씀
+}
+
+function Sidebar({ user }) {
+  return <UserProfile user={user} />;    // 여기서만 user를 씀
+}
+```
+
+`Layout`과 `Sidebar`는 `user`를 사용하지 않습니다. 그저 아래로 전달하기 위해 props에 포함할 뿐입니다. 컴포넌트 트리가 깊어질수록 이 "전달만 하는" 코드가 늘어납니다. 중간 컴포넌트가 변경되면 props 체인 전체를 수정해야 합니다.
+
+이것이 **prop drilling** — 모든 프레임워크가 해결하고 싶은 근본 문제입니다.
+
+## 단계적 해결
+
+상태 공유 문제는 세 단계로 해결책이 진화해 왔습니다.
+
+### Level 1: Props — 부모에서 자식으로 직접 전달
+
+가장 단순한 방법입니다. 부모 컴포넌트가 자식에게 데이터를 props로 넘깁니다. 1~2단계 깊이에서는 완벽하게 작동합니다. 하지만 깊이가 3단계를 넘어가면 고통이 시작됩니다.
+
+### Level 2: Context / Provide — 트리를 건너뛰는 데이터
+
+Props 없이 트리의 어느 깊이에서든 데이터에 접근할 수 있습니다. 부모가 "제공"하면 후손이 "소비"합니다. 중간 컴포넌트는 관여하지 않습니다.
+
+### Level 3: 전역 스토어 — 컴포넌트 트리 밖의 독립 저장소
+
+상태를 컴포넌트 트리에서 완전히 분리합니다. 어떤 컴포넌트든 스토어에 직접 접근하고 구독할 수 있습니다. 트리 구조와 무관하게 데이터를 공유합니다.
+
+<StateManagementCompared />
+
+## React의 상태 관리 진화
+
+React의 상태 관리 역사는 생태계의 역사입니다.
+
+**useState** (2019, Hooks 도입) 가 로컬 상태를 담당하고, **useContext** (동시 도입) 가 prop drilling을 해결합니다. 하지만 Context는 성능 문제가 있습니다 — context 값이 바뀌면 그 context를 소비하는 **모든** 컴포넌트가 리렌더됩니다. 이 문제를 해결하기 위해 외부 상태 관리 라이브러리들이 등장했습니다.
+
+**Redux** (2015) 는 Flux 아키텍처를 구현한 최초의 주류 솔루션이었습니다. Action → Reducer → Store의 단방향 흐름은 예측 가능했지만, 보일러플레이트가 많았습니다. 간단한 카운터에도 action type, action creator, reducer를 모두 작성해야 했습니다.
+
+**Zustand** (2019) 는 Redux의 복잡성에 대한 반발로 탄생했습니다. 보일러플레이트 없이 스토어를 만들 수 있습니다. **Recoil** (2020, Meta) 은 원자적 (atomic) 상태 관리의 개념을 도입했고, **Jotai** (2021) 는 같은 아이디어를 더 간결한 API로 발전시켰습니다.
+
+React의 핵심 철학이 여기서 드러납니다 — **"우리는 의견이 없다."** React는 상태 관리를 생태계에 맡겼습니다. 결과는 선택지의 풍요이자, 결정 장애의 원인입니다. Redux vs Zustand vs Jotai vs Recoil vs MobX — 무엇을 선택해야 하는지 React는 답해주지 않습니다.
+
+## Vue의 상태 관리 진화
+
+Vue의 접근은 React와 정반대입니다 — **"우리가 공식 추천을 해주겠다."**
+
+**ref/reactive** (Vue 3 Composition API) 는 로컬 상태를 담당합니다. **provide/inject**가 prop drilling을 해결합니다. 여기까지는 React와 비슷합니다.
+
+전역 상태에서 갈라집니다. **Vuex** (2015) 가 Vue의 첫 번째 공식 상태 관리 라이브러리였지만, Redux처럼 보일러플레이트 문제가 있었습니다. 이를 대체한 것이 **Pinia** (2022, 공식 채택) 입니다. Pinia는 Composition API 스타일로 스토어를 정의하며, 타입 추론이 뛰어나고, 보일러플레이트가 거의 없습니다.
+
+흥미로운 점은 Vue 3의 Composition API에서 `ref()`를 모듈 수준에서 export하면 사실상 미니 스토어처럼 동작한다는 것입니다. 간단한 상태 공유에는 Pinia 없이도 `ref()`만으로 충분합니다. Vue는 "필요할 때 스케일업하라"는 실용적 접근을 보여줍니다.
+
+## Angular의 상태 관리
+
+Angular는 다른 프레임워크와 근본적으로 다른 출발점을 가집니다 — **Dependency Injection (DI) 이 기본으로 탑재**되어 있습니다.
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class CounterService {
+  count = signal(0);
+  increment() { this.count.update(c => c + 1); }
+}
+
+// 어떤 컴포넌트에서든
+@Component({ /* ... */ })
+export class AnyComponent {
+  counter = inject(CounterService);
+}
+```
+
+Angular에서는 **Service가 곧 상태 관리**입니다. `@Injectable` 서비스를 만들고 DI로 주입하면, 별도의 상태 관리 라이브러리 없이도 상태를 공유할 수 있습니다. 이것만으로 충분한 경우가 많습니다.
+
+더 복잡한 시나리오에서는 **NgRx**가 있습니다. NgRx는 Redux 패턴을 Angular에 적용한 것으로, Action/Reducer/Effect의 엄격한 구조를 제공합니다. 최근에는 **NgRx Signal Store**로 진화하여, Angular의 Signal 시스템과 통합된 더 간결한 API를 제공합니다.
+
+Angular의 DI 시스템이 상태 관리의 근간입니다. 서비스의 `providedIn` 설정으로 싱글톤 (root) 인지 컴포넌트 수준인지를 제어할 수 있어, 상태의 스코프를 프레임워크 차원에서 관리합니다.
+
+## Svelte의 상태 관리
+
+Svelte의 상태 관리는 놀라울 정도로 단순합니다.
+
+Svelte 4에서는 `writable` 스토어를 사용했습니다. Svelte 5에서는 Runes 도입으로 더 간단해졌습니다 — `.svelte.js` 파일에서 `$state`를 export하면 끝입니다.
+
+```javascript
+// counter.svelte.js
+export const counter = $state({ count: 0 });
+export function increment() { counter.count++; }
+```
+
+```html
+<!-- 어떤 컴포넌트에서든 -->
+<script>
+  import { counter, increment } from './counter.svelte.js';
+</script>
+<button onclick={increment}>{counter.count}</button>
+```
+
+별도의 상태 관리 라이브러리가 필요하지 않습니다. 모듈에서 `$state` 객체를 export하면, 그것을 import하는 모든 컴포넌트에서 반응적으로 동작합니다. Svelte의 컴파일러가 `.svelte.js` 파일의 `$state`를 반응성 시그널로 변환하기 때문입니다.
+
+주의할 점이 하나 있습니다 — `$state`로 선언한 변수를 **재할당** (reassign) 하면 반응성이 끊어집니다. 객체의 **속성을 변경** (mutate) 하는 방식으로 사용해야 합니다. 그래서 `$state({ count: 0 })` 같은 객체 형태를 사용하는 것입니다.
+
+Svelte는 "프레임워크 차원의 상태 관리가 거의 불필요한" 유일한 프레임워크입니다.
+
+<CodeTabs preset="global-store" />
+
+## 단방향 vs 양방향 데이터 흐름
+
+상태 관리에서 빠질 수 없는 논쟁입니다.
+
+### 단방향 데이터 흐름
+
+```jsx
+// React — 항상 단방향
+function Input() {
+  const [value, setValue] = useState('');
+  return <input value={value} onChange={e => setValue(e.target.value)} />;
+}
+```
+
+React는 **단방향 데이터 흐름**을 원칙으로 합니다. 상태는 위에서 아래로 흐르고, 변경은 이벤트 핸들러를 통해 명시적으로 수행합니다. 코드가 길어지지만, 데이터의 흐름을 추적하기 쉽습니다. Svelte도 기본적으로 단방향입니다.
+
+### 양방향 데이터 바인딩
+
+```html
+<!-- Vue v-model -->
+<input v-model="name" />
+<!-- 위 코드는 아래와 동일하다 -->
+<input :value="name" @input="name = $event.target.value" />
+```
+
+Vue의 `v-model`과 Angular의 `ngModel`은 **양방향 바인딩**을 지원합니다. 입력값과 상태가 자동으로 동기화됩니다. 코드가 짧고 편리하지만, "이 값이 어디서 바뀌었는가?"를 추적하기 어려울 수 있습니다.
+
+양방향 바인딩이 "나쁜 것"은 아닙니다. 폼 처리 같은 시나리오에서는 양방향 바인딩이 압도적으로 편리합니다. Vue와 Angular가 양방향을 지원하는 이유입니다. 다만, 복잡한 상태 흐름에서는 단방향이 디버깅에 유리합니다.
+
+## 트레이드오프 비교
+
+|  | React | Vue | Angular | Svelte |
+|---|---|---|---|---|
+| 로컬 상태 | useState | ref / reactive | signal() | $state |
+| 컨텍스트 | useContext | provide / inject | Service + DI | Context API |
+| 공식 스토어 | 없음 (생태계) | Pinia | NgRx / Signal Store | 모듈 export |
+| 데이터 흐름 | 단방향 | 양방향 지원 | 양방향 지원 | 단방향 |
+
+React는 선택의 자유를 줍니다 — 대신 "무엇을 선택할지"는 개발자 몫입니다. Vue는 공식 추천을 제공합니다 — 고민 없이 Pinia를 쓰면 됩니다. Angular는 DI가 근간이라 별도 라이브러리 없이도 충분합니다. Svelte는 프레임워크 자체가 상태 관리입니다 — 모듈 export가 곧 스토어입니다.
+
+어떤 프레임워크를 선택하든, 상태 관리의 핵심 원칙은 같습니다: **상태를 가능한 한 로컬에 두고, 정말 필요할 때만 위로 올리거나 전역으로 빼라.** Props로 충분하면 Props를 쓰고, Context가 필요하면 Context를 쓰고, 전역 스토어는 최후의 수단입니다.
+
+---
+
+다음 글에서는 **템플릿 vs JSX**를 다룹니다. UI를 기술하는 두 가지 근본적으로 다른 접근 — HTML을 확장할 것인가, JavaScript 안에서 해결할 것인가 — 를 비교합니다.
