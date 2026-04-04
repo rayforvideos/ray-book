@@ -131,6 +131,26 @@ body {
 
 .prose .table-wrapper {
   @apply my-8 overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.prose .table-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.prose .table-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prose .table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.prose .table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
 
 .prose table {
