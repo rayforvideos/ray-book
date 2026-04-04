@@ -14,4 +14,5 @@ export * from "./data-structures-and-algorithms";
 export * from "./network-fundamentals";
 export * from "./os-fundamentals";
 export * from "./service-worker-and-pwa";
+export * from "./framework-philosophies";
 export * from "./frontend-design-patterns";
