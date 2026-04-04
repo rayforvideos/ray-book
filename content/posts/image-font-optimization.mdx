@@ -1,0 +1,212 @@
+---
+title: "이미지와 폰트 — 시각 리소스를 최적화하라"
+description: "WebP, AVIF, font-display, 서브세팅 — 이미지와 폰트 최적화의 핵심 기법을 시각화합니다"
+date: 2026-04-05
+tags: ["performance", "image", "webp", "avif", "font", "cls"]
+series: "frontend-performance"
+seriesOrder: 6
+draft: false
+---
+
+## 이미지가 왜 무거운가
+
+HTTP Archive 데이터에 따르면 이미지는 웹 페이지 전체 용량의 약 50%를 차지합니다. 평균적인 페이지에서 이미지 총 용량은 1MB를 넘습니다.
+
+문제는 단순한 파일 크기만이 아닙니다. 이미지는 세 가지 성능 지표에 동시에 영향을 미칩니다.
+
+**LCP** (Largest Contentful Paint) — 히어로 이미지가 페이지에서 가장 큰 콘텐츠인 경우가 많습니다. 이미지 로드가 느리면 LCP 점수가 직접적으로 나빠집니다.
+
+**CLS** (Cumulative Layout Shift) — 이미지의 크기를 지정하지 않으면, 이미지가 로드되면서 레이아웃이 밀려납니다.
+
+**대역폭** — 불필요하게 큰 이미지는 네트워크 대역폭을 소비하여 다른 리소스의 로딩을 지연시킵니다.
+
+## 이미지 포맷 비교
+
+동일한 이미지 품질에서 포맷별 파일 크기를 비교합니다. 포맷 선택만으로 수십 퍼센트의 용량을 절약할 수 있습니다.
+
+<ImageFormatCompare />
+
+포맷 선택 가이드:
+
+- **사진, 복잡한 이미지** → AVIF (우선), WebP (폴백)
+- **투명도가 필요한 UI 요소** → WebP 또는 AVIF (PNG보다 훨씬 작음)
+- **아이콘, 로고, 단순 도형** → SVG (벡터, 무한 확대 가능)
+- **브라우저 호환성이 최우선** → JPEG (보편적 지원)
+
+## srcset과 sizes
+
+같은 이미지를 모든 디바이스에 동일한 해상도로 제공하는 것은 낭비입니다. 모바일에서 2000px 폭의 이미지를 받을 필요가 없습니다.
+
+`srcset`과 `sizes`를 사용하면 브라우저가 디바이스에 맞는 최적의 이미지를 선택합니다.
+
+```html
+<img
+  src="photo-800.jpg"
+  srcset="
+    photo-400.jpg   400w,
+    photo-800.jpg   800w,
+    photo-1200.jpg 1200w,
+    photo-1600.jpg 1600w
+  "
+  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+  alt="풍경 사진"
+/>
+```
+
+`srcset`은 사용 가능한 이미지 후보와 각각의 실제 폭 (w 디스크립터) 을 나열합니다. `sizes`는 뷰포트 크기별로 이미지가 차지할 폭을 알려줍니다. 브라우저는 이 두 정보와 디바이스의 DPR을 결합하여 최적의 이미지를 선택합니다.
+
+## picture 태그
+
+`<picture>` 태그로 포맷별 폴백 체인을 구성합니다. 브라우저는 지원하는 첫 번째 포맷을 사용합니다.
+
+```html
+<picture>
+  <source srcset="photo.avif" type="image/avif" />
+  <source srcset="photo.webp" type="image/webp" />
+  <img src="photo.jpg" alt="풍경 사진" width="800" height="600" />
+</picture>
+```
+
+AVIF를 지원하면 AVIF를, 아니면 WebP를, 둘 다 지원하지 않으면 JPEG를 사용합니다. `<img>` 태그의 `width`와 `height`는 CLS 방지를 위해 반드시 명시합니다.
+
+아트 디렉션 — 화면 크기에 따라 완전히 다른 이미지를 보여줄 수도 있습니다.
+
+```html
+<picture>
+  <source media="(max-width: 640px)" srcset="photo-mobile.avif" type="image/avif" />
+  <source media="(max-width: 640px)" srcset="photo-mobile.webp" type="image/webp" />
+  <source srcset="photo-desktop.avif" type="image/avif" />
+  <source srcset="photo-desktop.webp" type="image/webp" />
+  <img src="photo-desktop.jpg" alt="풍경 사진" width="1200" height="800" />
+</picture>
+```
+
+## Next.js Image 컴포넌트
+
+Next.js의 `<Image>` 컴포넌트는 위에서 다룬 최적화를 자동으로 적용합니다.
+
+```jsx
+import Image from 'next/image';
+
+export default function Hero() {
+  return (
+    <Image
+      src="/hero.jpg"
+      alt="히어로 이미지"
+      width={1200}
+      height={800}
+      priority  // LCP 이미지에 사용
+      sizes="(max-width: 768px) 100vw, 50vw"
+    />
+  );
+}
+```
+
+자동으로 처리되는 것들:
+
+- **포맷 변환** — 브라우저 지원에 따라 WebP/AVIF로 자동 변환
+- **리사이즈** — `sizes`에 맞춰 여러 크기의 이미지를 자동 생성
+- **Lazy loading** — 뷰포트에 가까워질 때 로드 (priority가 없는 경우)
+- **CLS 방지** — width/height가 필수이므로 자동으로 공간 확보
+
+`priority` 속성은 LCP 이미지에만 사용합니다. 이 속성이 있으면 `fetchpriority="high"`와 `loading="eager"`가 적용되어 이미지를 즉시 로드합니다.
+
+## font-display
+
+웹 폰트 로딩 중에 텍스트를 어떻게 표시할지 결정하는 속성입니다.
+
+```css
+@font-face {
+  font-family: 'Pretendard';
+  src: url('/fonts/Pretendard.woff2') format('woff2');
+  font-display: swap;
+}
+```
+
+**block** — 폰트가 로드될 때까지 텍스트를 숨깁니다 (최대 3초). 이것이 FOIT (Flash of Invisible Text) 입니다.
+
+**swap** — 시스템 폰트로 즉시 표시하고, 웹 폰트가 로드되면 교체합니다. FOUT (Flash of Unstyled Text) 이 발생하지만, 텍스트가 즉시 보입니다.
+
+**fallback** — 100ms 동안 숨긴 후 시스템 폰트로 표시합니다. 3초 이내에 웹 폰트가 로드되면 교체합니다.
+
+**optional** — 100ms 동안 숨긴 후 시스템 폰트로 표시합니다. 폰트가 이미 캐시에 있을 때만 사용합니다. CLS를 최소화하는 가장 안전한 옵션입니다.
+
+대부분의 경우 `swap`이 좋은 선택입니다. LCP에 텍스트가 포함된 경우 `optional`을 고려합니다.
+
+## FOIT vs FOUT
+
+**FOIT** (Flash of Invisible Text) — 폰트 로딩 중 텍스트가 보이지 않습니다. `font-display: block`의 기본 동작입니다. 사용자가 콘텐츠를 읽을 수 없어 체감 성능이 나쁩니다.
+
+**FOUT** (Flash of Unstyled Text) — 시스템 폰트로 먼저 표시한 후 웹 폰트로 교체됩니다. `font-display: swap`의 동작입니다. 텍스트가 즉시 보이지만, 교체 시 레이아웃이 미세하게 변할 수 있습니다.
+
+FOUT가 FOIT보다 낫습니다. 텍스트가 보이지 않는 것보다 스타일이 바뀌는 것이 사용자 경험에 유리합니다. 폰트 교체로 인한 CLS를 줄이려면 시스템 폰트와 웹 폰트의 메트릭을 가능한 맞추는 것이 좋습니다.
+
+## 한글 폰트 서브세팅
+
+한글 폰트는 영문 폰트보다 훨씬 큽니다. 영문은 약 100개의 글리프면 되지만, 한글은 완성형 기준 11,172자입니다. Pretendard 전체 용량이 10MB를 넘을 수 있습니다.
+
+**서브세팅** — 실제 사용하는 글리프만 추출하여 폰트 파일 크기를 줄입니다.
+
+```css
+/* 유니코드 범위별로 분할하여 필요한 부분만 로드 */
+@font-face {
+  font-family: 'Pretendard';
+  src: url('/fonts/Pretendard-Regular.subset.woff2') format('woff2');
+  unicode-range: U+AC00-D7A3; /* 한글 완성형 */
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('/fonts/Pretendard-Regular-latin.woff2') format('woff2');
+  unicode-range: U+0020-007E; /* 기본 라틴 */
+  font-display: swap;
+}
+```
+
+`unicode-range`를 사용하면 브라우저는 페이지에 해당 범위의 문자가 있을 때만 폰트 파일을 다운로드합니다.
+
+Google Fonts는 한글 폰트를 자동으로 약 120개의 서브셋으로 분할하여 제공합니다. 자체 호스팅할 때는 `pyftsubset` (fonttools) 이나 `subfont` 같은 도구로 서브세팅합니다.
+
+```bash
+# fonttools로 서브세팅
+pyftsubset Pretendard-Regular.otf \
+  --output-file=Pretendard-Regular.subset.woff2 \
+  --flavor=woff2 \
+  --text-file=used-characters.txt
+```
+
+## CLS 방지 — width/height 명시
+
+이미지에 `width`와 `height`를 명시하지 않으면, 이미지가 로드되기 전에 브라우저가 공간을 확보할 수 없습니다. 이미지가 로드되면서 아래 콘텐츠가 밀려나 CLS가 발생합니다.
+
+```html
+<!-- ❌ CLS 유발 -->
+<img src="photo.jpg" alt="사진" />
+
+<!-- ✅ CLS 방지 — 브라우저가 종횡비를 미리 계산 -->
+<img src="photo.jpg" alt="사진" width="800" height="600" />
+```
+
+CSS `aspect-ratio`로도 공간을 확보할 수 있습니다.
+
+```css
+.responsive-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+```
+
+`width`/`height` HTML 속성은 브라우저에게 종횡비 힌트를 제공합니다. 실제 렌더링 크기는 CSS로 제어합니다. 둘 다 있으면 브라우저가 이미지 로드 전에 정확한 공간을 확보하여 CLS를 방지합니다.
+
+## 체크리스트
+
+- [ ] 이미지를 WebP/AVIF로 제공하고 JPEG 폴백이 있는가
+- [ ] `srcset`과 `sizes`로 반응형 이미지를 제공하고 있는가
+- [ ] LCP 이미지에 `priority` (Next.js) 또는 `fetchpriority="high"`를 적용했는가
+- [ ] 모든 이미지에 `width`와 `height`가 명시되어 있는가
+- [ ] `font-display: swap` 또는 `optional`을 사용하고 있는가
+- [ ] 한글 폰트를 서브세팅하여 제공하고 있는가
+- [ ] 폰트 파일을 `woff2` 포맷으로 제공하고 있는가
+- [ ] CLS 점수가 0.1 이하인가
